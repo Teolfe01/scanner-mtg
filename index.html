@@ -257,6 +257,24 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
   .ed-results { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 1000px) and (max-width: 1300px) { .editor { grid-template-columns: 260px 1fr 260px; } }
+/* Comandante + template */
+.cmdban { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, rgba(60,207,224,.12), rgba(164,234,149,.06)); border-radius: 26px; padding: 12px; margin-bottom: 14px; box-shadow: 0 0 0 1px rgba(71,214,200,.18) inset; }
+.cmdban .cbimg { border: 0; background: none; padding: 0; width: 110px; flex: none; }
+.cmdban .cbimg .cardimg { box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 30px rgba(71,214,200,.18); }
+.cbinfo { display: grid; gap: 6px; min-width: 0; }
+.cbinfo b { font-size: 18px; line-height: 1.2; }
+.cmdban.empty-cmd { justify-content: space-between; flex-wrap: wrap; padding: 18px; }
+.tpl { display: grid; gap: 6px; }
+.tplh { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.tplrow { background: var(--surface-2, #26292f); border-radius: 14px; padding: 2px 10px; }
+.tplrow summary { list-style: none; display: grid; grid-template-columns: 1fr 90px 46px; gap: 8px; align-items: center; padding: 8px 0; cursor: pointer; font-size: 14px; }
+.tplrow summary::-webkit-details-marker { display: none; }
+.tplrow summary i { height: 8px; background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden; }
+.tplrow summary u { display: block; height: 100%; border-radius: 999px; background: #f2c86b; transition: width .5s; }
+.tplrow.ok summary u { background: var(--grad, #7ee2a0); } .tplrow.low summary u { background: #ff8b8b; }
+.tplrow summary b { text-align: right; font-variant-numeric: tabular-nums; }
+.tplrow.ok summary b { color: var(--ok); }
+.tplrow[open] { padding-bottom: 10px; } .tplrow[open] > .meta { margin: 0 0 8px; }
 /* ===================== TEMA "MIDNIGHT TEAL" ===================== */
 :root {
   --bg: #121316; --bar: #17181c; --surface: #1d1f24; --surface-2: #26292f; --line: #2c2f36;
@@ -1032,7 +1050,7 @@ $("zoom").onclick = () => $("zoom").classList.add("hidden");
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("zoom").classList.add("hidden"); });
 document.addEventListener("click", (e) => { const c = e.target.closest(".detail .cardimg, .ed-preview .cardimg"); if (c) { e.stopPropagation(); zoomImg(c); } }, true);
 // ============ EDITOR DE DECKS (estilo Archidekt) ============
-const ED = { id: null, pane: "deck", group: "type", mode: "stack", q: "", colors: new Set(), useCI: true, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
+const ED = { id: null, pane: "deck", group: "tpl", asked: new Set(), mode: "stack", q: "", colors: new Set(), useCI: true, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
 const BOARD_NAME = { cmd: "Comandante", main: "Principal", side: "Sideboard", maybe: "Talvez" };
 const isWide = () => window.innerWidth >= 1000;
 const deckOf = () => S.decks.find(d => d.id === ED.id);
@@ -1042,17 +1060,36 @@ function cardPrice(c) { const pi = printFor(c); return pi >= 0 ? (DB.p[pi][6] ||
 function deckCI(d) { const cmd = d.cards.filter(c => c.board === "cmd"); return cmd.length ? new Set(cmd.flatMap(c => DB.o[c.oi][4].split("")).filter(Boolean)) : null; }
 function primaryType(oi) { const t = mainTypes(DB.o[oi][5]); return t.find(x => x !== "Land") || t[0] || "Other"; }
 const TYPE_PT = Object.fromEntries(TYPES.map(t => [t[0], t[1]]));
+// ---- Template do The Command Zone (episódio 658, "Template for the New Era") ----
+const TPL = [
+  { k: "lands", n: "Terrenos", t: 38, tip: "Com 38 terrenos, só pouco mais da metade das mãos iniciais tem 3 ou mais terrenos — por isso não vale cortar muito. Se o comandante for barato e houver muito ramp de 1–2 manas, dá pra ir a 36–37." },
+  { k: "ramp", n: "Ramp", t: 10, roles: ["ramp", "fixing"], tip: "Prefira ramp barato (2 manas ou menos): pedras de mana e feitiços que buscam terreno. Ele adianta o comandante e ajuda a não travar." },
+  { k: "adv", n: "Vantagem de cartas", t: 12, roles: ["draw"], tip: "Qualquer carta que te dê acesso a mais de uma carta: comprar, exilar e jogar, motores que compram todo turno. É o que mantém o deck andando." },
+  { k: "target", n: "Interação pontual", t: 12, roles: ["removal", "counter"], tip: "Remoção de um alvo e contramágicas. Tente cobrir criaturas, artefatos e encantamentos, e dê preferência às baratas." },
+  { k: "mass", n: "Interação em massa", t: 6, roles: ["wipe"], tip: "Board wipes e efeitos que atingem vários alvos de uma vez. Se o seu deck enche a mesa, escolha os que poupam as suas peças." },
+  { k: "plan", n: "Plano", t: 30, tip: "As cartas que fazem o comandante brilhar: sinergia, motores e como vencer. Uma carta pode contar em mais de uma categoria (ex.: remoção que compra carta)." },
+];
+const TPL_BY_NAME = Object.fromEntries(TPL.map(t => [t.n, t]));
+function tplCats(c) {
+  if (c.cat && TPL_BY_NAME[c.cat]) return [TPL_BY_NAME[c.cat].k];
+  const o = oInfo(c.oi); if (mainTypes(o.type).includes("Land")) return ["lands"];
+  const ks = TPL.filter(t => t.roles && t.roles.some(r => o.roles.includes(r))).map(t => t.k);
+  return ks.length ? ks : ["plan"];
+}
+const tplName = (k) => TPL.find(t => t.k === k).n;
+const isCmdFormat = (d) => /commander|edh/i.test(d.format || "Commander");
 function groupKey(c) {
   if (c.board === "cmd") return "Comandante";
   if (c.board === "side") return "Sideboard";
   if (c.board === "maybe") return "Talvez";
+  if (ED.group === "tpl") return c.cat || tplName(tplCats(c)[0]);
   if (ED.group === "cat") return c.cat || TYPE_PT[primaryType(c.oi)] || "Outros";
   if (ED.group === "cmc") return mainTypes(DB.o[c.oi][5]).includes("Land") ? "Terrenos" : "CMC " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "");
   if (ED.group === "color") { const b = colorBucket(c.oi); return COLOR_NAME[b]; }
   return TYPE_PT[primaryType(c.oi)] || "Outros";
 }
 function groupOrder(keys) {
-  const fixed = ["Comandante", ...TYPES.map(t => t[1]), ...COLOR_ORDER.map(x => x[1]), ...Array.from({ length: 8 }, (_, i) => "CMC " + i + (i === 7 ? "+" : "")), "Terrenos"];
+  const fixed = ["Comandante", ...TPL.filter(t => t.k !== "lands").map(t => t.n), ...TYPES.map(t => t[1]), ...COLOR_ORDER.map(x => x[1]), ...Array.from({ length: 8 }, (_, i) => "CMC " + i + (i === 7 ? "+" : "")), "Terrenos"];
   return keys.sort((a, b) => { const ia = fixed.indexOf(a), ib = fixed.indexOf(b); const sa = a === "Sideboard" ? 2 : a === "Talvez" ? 3 : 0, sb = b === "Sideboard" ? 2 : b === "Talvez" ? 3 : 0; return sa - sb || (ia < 0 ? 50 : ia) - (ib < 0 ? 50 : ib) || a.localeCompare(b); });
 }
 function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) return "ok"; return libFor(c.oi) > 0 ? "lib" : "miss"; }
@@ -1067,7 +1104,7 @@ function renderEditor() {
   setMenu([["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)]]);
   $("fab").classList.add("hidden"); $("main").onclick = null;
   $("main").innerHTML = `
-    <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar cartas", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}</div>
+    <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}</div>
     <div class="editor" data-pane="${ED.pane}">
       <section class="ed-search" id="edSearch"></section>
       <section class="ed-deck" id="edDeck"></section>
@@ -1075,6 +1112,7 @@ function renderEditor() {
     </div>`;
   $("edTabs").onclick = (e) => { const b = e.target.closest("[data-p]"); if (!b) return; ED.pane = b.dataset.p; document.querySelector(".editor").dataset.pane = ED.pane; $("edTabs").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x.dataset.p === ED.pane)); };
   renderSearchPane(); renderDeckPane(); renderStatsPane();
+  if (isCmdFormat(d) && !d.cards.some(c => c.board === "cmd") && !ED.asked.has(d.id)) { ED.asked.add(d.id); setTimeout(() => pickCommander(d), 250); }
 }
 // ---- Busca ----
 function renderSearchPane() {
@@ -1145,27 +1183,99 @@ function addToDeck(oi, board) {
   else { const pi = defaultPrint(oi); d.cards.push({ oi, qty: 1, board, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" }); }
   save(); toast("+1 " + DB.o[oi][0], 900); renderDeckPane(); renderStatsPane(); drawResults(); const nb = document.querySelector(`#edDeck [data-oi="${oi}"]`); if (nb) { nb.classList.add("added"); nb.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
 }
+// ---- Escolher comandante ----
+const CMD_RX = /\b(Partner|Friends forever|Doctor's companion|Choose a Background)\b/;
+let CMD_LIST = null;
+function cmdCandidates() {
+  if (CMD_LIST) return CMD_LIST;
+  CMD_LIST = []; DB.o.forEach((o, i) => { if (!(DB.prints[i] || []).length) return; const t = o[5];
+    if ((/Legendary/.test(t) && /Creature/.test(t)) || /can be your commander/i.test(o[6]) || /Background/.test(t)) CMD_LIST.push(i); });
+  return CMD_LIST;
+}
+function canPair(a, b) {
+  const ta = DB.o[a][6], tb = DB.o[b][6], ty = DB.o[b][5];
+  if (/Choose a Background/.test(ta)) return /Background/.test(ty);
+  if (/Background/.test(DB.o[a][5])) return /Choose a Background/.test(tb);
+  const m = ta.match(/Partner with ([^\n(]+)/); if (m) return DB.o[b][0] === m[1].trim();
+  if (/Friends forever/.test(ta)) return /Friends forever/.test(tb);
+  if (/Doctor's companion/.test(ta)) return /Time Lord Doctor/.test(ty);
+  if (/Time Lord Doctor/.test(DB.o[a][5])) return /Doctor's companion/.test(tb);
+  return /\bPartner\b(?! with)/.test(ta) && /\bPartner\b(?! with)/.test(tb);
+}
+function pickCommander(d, partnerOf = null) {
+  const P = { q: "", colors: new Set(), owned: false };
+  openSheet(`<h3 style="margin:0">${partnerOf !== null ? "Escolher parceiro" : "Escolha o comandante"}</h3>
+    <p class="meta" style="margin:0">${partnerOf !== null ? "Cartas que podem dividir o comando com " + esc(DB.o[partnerOf][0]) + "." : "O comandante define as cores do deck: depois, a busca mostra só cartas que cabem nessa identidade."}</p>
+    <input type="search" id="pcQ" placeholder="Nome, tipo ou texto (ex.: elfo, tokens, dragão)">
+    <div class="chips" id="pcC">${["W", "U", "B", "R", "G"].map(c => `<button class="chip color" data-c="${c}" aria-pressed="false"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<span class="meta">cores exatas</span></div>
+    <label class="meta ck"><input type="checkbox" id="pcOwn"> Só comandantes que temos na coleção</label>
+    <div class="meta" id="pcN"></div><div class="ed-results" id="pcR"></div>`, `<button class="btn" id="pcX">Cancelar</button>`);
+  const draw = () => {
+    const q = norm(P.q); const own = P.owned ? new Set(S.cards.map(e => e.oi)) : null; const out = [];
+    for (const i of cmdCandidates()) {
+      const o = DB.o[i];
+      if (partnerOf !== null ? (i === partnerOf || !canPair(partnerOf, i)) : /Background/.test(o[5])) continue;
+      if (own && !own.has(i)) continue;
+      if (q && !norm(o[0]).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
+      if (P.colors.size && (o[4].length !== P.colors.size || ![...P.colors].every(c => o[4].includes(c)))) continue;
+      out.push(i);
+    }
+    const pr = (i) => { const pi = defaultPrint(i); return pi >= 0 ? -(DB.p[pi][6] || 0) : 0; };
+    out.sort(q ? (a, b) => (norm(DB.o[b][0]).startsWith(q) - norm(DB.o[a][0]).startsWith(q)) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => pr(a) - pr(b));
+    $("pcN").textContent = `${out.length} opç${out.length === 1 ? "ão" : "ões"}${out.length > 60 ? " (mostrando 60)" : ""}`;
+    $("pcR").innerHTML = out.slice(0, 60).map(i => `<div class="res"><button class="resimg" data-pick="${i}">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${libFor(i) ? `<span class="ownb">✓</span>` : ""}</button><span class="resname">${esc(DB.o[i][0])}</span></div>`).join("");
+  };
+  $("pcQ").oninput = (e) => { P.q = e.target.value; clearTimeout(P.t); P.t = setTimeout(draw, 150); };
+  $("pcC").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; P.colors.has(c) ? P.colors.delete(c) : P.colors.add(c); b.setAttribute("aria-pressed", P.colors.has(c)); draw(); };
+  $("pcOwn").onchange = (e) => { P.owned = e.target.checked; draw(); };
+  $("pcX").onclick = closeSheet;
+  $("pcR").onclick = (e) => { const b = e.target.closest("[data-pick]"); if (!b) return; setCommander(d, +b.dataset.pick, partnerOf !== null); };
+  draw(); setTimeout(() => $("pcQ") && isWide() && $("pcQ").focus(), 50);
+}
+function setCommander(d, oi, asPartner) {
+  if (!asPartner) { const old = d.cards.filter(c => c.board === "cmd"); if (old.some(c => d.name === DB.o[c.oi][0].split(" // ")[0])) d.name = ""; d.cards = d.cards.filter(c => c.board !== "cmd"); old.forEach(c => releaseExtra(d, c.oi)); }
+  d.cards = d.cards.filter(c => !(c.oi === oi && c.board !== "cmd"));
+  const pi = defaultPrint(oi); d.cards.unshift({ oi, qty: 1, board: "cmd", set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" });
+  if (!d.name || d.name === "Novo deck") d.name = DB.o[oi][0].split(" // ")[0];
+  ED.useCI = true; save(); closeSheet();
+  const ci = deckCI(d); const off = d.cards.filter(c => c.board === "main" && DB.o[c.oi][4].split("").some(x => x && !ci.has(x))).length;
+  toast(off ? `${DB.o[oi][0]} é o comandante. ${off} carta(s) ficaram fora das cores.` : `${DB.o[oi][0]} é o comandante!`, 3000);
+  renderEditor();
+}
+function commanderBanner(d) {
+  if (!isCmdFormat(d)) return "";
+  const cmd = d.cards.filter(c => c.board === "cmd");
+  if (!cmd.length) return `<div class="cmdban empty-cmd"><div><b>Escolha o comandante</b><div class="meta">Ele define as cores do deck e guia o resto das escolhas.</div></div><button class="btn primary" id="cbPick">Escolher comandante</button></div>`;
+  const ci = deckCI(d); const pair = cmd.length === 1 && CMD_RX.test(DB.o[cmd[0].oi][6] + DB.o[cmd[0].oi][5]);
+  return `<div class="cmdban">${cmd.map(c => `<button class="cbimg" data-oi="${c.oi}" data-b="cmd">${cardImgHTML(fakeEntry(c), { bare: true })}</button>`).join("")}
+    <div class="cbinfo"><span class="meta">Comandante</span><b>${cmd.map(c => esc(DB.o[c.oi][0])).join(" + ")}</b>
+      <div>${[...ci].map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ") || '<i class="ms ms-c ms-cost"></i>'}</div>
+      <div class="actions"><button class="btn small" id="cbPick">Trocar</button>${pair ? `<button class="btn small" id="cbPartner">+ Parceiro</button>` : ""}</div></div></div>`;
+}
 function renderDeckPane() {
   const d = deckOf(); if (!d || !$("edDeck")) return;
-  const groups = {}; d.cards.forEach(c => { const k = groupKey(c); (groups[k] = groups[k] || []).push(c); });
+  const groups = {}; d.cards.forEach(c => { if (c.board === "cmd" && isCmdFormat(d)) return; const k = groupKey(c); (groups[k] = groups[k] || []).push(c); });
   const keys = groupOrder(Object.keys(groups));
   const sortIn = (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]);
   const main = d.cards.filter(c => c.board === "main" || c.board === "cmd").reduce((a, c) => a + c.qty, 0);
   $("edDeck").innerHTML = `
     <div class="ed-dbar"><b>${main} cartas</b><span class="meta">${d.format || "Commander"}</span>
-      <select id="edGroup"><option value="type">Agrupar: tipo</option><option value="cat"${ED.group === "cat" ? " selected" : ""}>Agrupar: categorias</option><option value="cmc"${ED.group === "cmc" ? " selected" : ""}>Agrupar: CMC</option><option value="color"${ED.group === "color" ? " selected" : ""}>Agrupar: cor</option></select>
+      <select id="edGroup"><option value="tpl">Agrupar: template</option><option value="type"${ED.group === "type" ? " selected" : ""}>Agrupar: tipo</option><option value="cat"${ED.group === "cat" ? " selected" : ""}>Agrupar: categorias</option><option value="cmc"${ED.group === "cmc" ? " selected" : ""}>Agrupar: CMC</option><option value="color"${ED.group === "color" ? " selected" : ""}>Agrupar: cor</option></select>
       <select id="edMode"><option value="stack">Pilhas</option><option value="list"${ED.mode === "list" ? " selected" : ""}>Lista</option></select></div>
-    ${d.cards.length ? "" : `<div class="empty">Deck vazio. Use a busca para adicionar cartas${isWide() ? " (painel da esquerda)" : ""}.</div>`}
+    ${commanderBanner(d)}
+    ${d.cards.some(c => c.board !== "cmd") ? "" : `<div class="empty">Deck vazio. Use a busca para adicionar cartas${isWide() ? " (painel da esquerda)" : ""}.</div>`}
     <div class="cols ${ED.mode}">${keys.map(k => { const list = groups[k].sort(sortIn); const n = list.reduce((a, c) => a + c.qty, 0);
       return `<div class="col" data-g="${esc(k)}"><div class="colh"><span>${esc(k)}</span><span class="meta">${n}</span></div>
         ${list.map(c => { const st = ownStatus(d, c); const o = DB.o[c.oi];
           return ED.mode === "list"
             ? `<div class="li" draggable="true" data-oi="${c.oi}" data-b="${c.board}"><span class="q">${c.qty}</span><span class="nm">${esc(o[0])}</span>${manaHTML(o[1])}<span class="st ${st}"></span></div>`
             : `<div class="stk" draggable="true" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fakeEntry(c), { bare: true })}${c.qty > 1 ? `<span class="q">${c.qty}</span>` : ""}<span class="st ${st}" title="${st === "ok" ? "Montada no deck" : st === "lib" ? "Temos na caixa" : "Não temos"}"></span></div>`; }).join("")}</div>`; }).join("")}
-      ${ED.group === "cat" ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
+      ${ED.group === "cat" || ED.group === "tpl" ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
     </div>
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
   $("edGroup").onchange = (e) => { ED.group = e.target.value; renderDeckPane(); };
+  if ($("cbPick")) $("cbPick").onclick = () => pickCommander(d);
+  if ($("cbPartner")) $("cbPartner").onclick = () => pickCommander(d, d.cards.find(c => c.board === "cmd").oi);
   $("edMode").onchange = (e) => { ED.mode = e.target.value; renderDeckPane(); };
   const area = $("edDeck");
   area.onclick = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (it) deckCardMenu(+it.dataset.oi, it.dataset.b); };
@@ -1186,7 +1296,7 @@ function moveCard(oi, board, g) {
   else if (g === "Comandante") c.board = "cmd";
   else {
     if (c.board !== "main") c.board = "main";
-    if (ED.group === "cat") { let name = g; if (g === "__new") { name = prompt("Nome da nova categoria (ex.: Ramp, Remoção, Combo)"); if (!name) return; } c.cat = name; }
+    if (ED.group === "cat" || ED.group === "tpl") { let name = g; if (g === "__new") { name = prompt("Nome da nova categoria (ex.: Ramp, Remoção, Combo)"); if (!name) return; } c.cat = name; }
   }
   save(); renderDeckPane(); renderStatsPane();
 }
@@ -1200,14 +1310,14 @@ function deckCardMenu(oi, board) {
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
     <div class="actions" style="align-items:center"><span class="meta">Quantidade</span><span class="stepper"><button id="mM">−</button><span id="mQ">${c.qty}</span><button id="mP">+</button></span></div>
     <div class="two"><select id="mBoard">${Object.entries(BOARD_NAME).map(([k, v]) => `<option value="${k}"${k === c.board ? " selected" : ""}>${v}</option>`).join("")}</select>
-      <select id="mCat"><option value="">Categoria: ${esc(TYPE_PT[primaryType(oi)] || "tipo")}</option>${[...new Set([...cats, ...Object.values(ROLES).slice(0, 8)])].map(x => `<option${x === c.cat ? " selected" : ""}>${esc(x)}</option>`).join("")}<option value="__new">+ Nova…</option></select></div>
+      <select id="mCat"><option value="">Categoria: automática (${esc(tplName(tplCats({ oi })[0]))})</option>${[...new Set([...TPL.map(t => t.n), ...cats])].map(x => `<option${x === c.cat ? " selected" : ""}>${esc(x)}</option>`).join("")}<option value="__new">+ Nova…</option></select></div>
     <select id="mPrint">${(DB.prints[oi] || []).slice().reverse().map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}${DB.p[pi][6] ? " · " + fmtUSD(DB.p[pi][6]) : ""}</option>`).join("")}</select>`,
     `<button class="btn danger" id="mDel">Remover</button><button class="btn primary" id="mOk">OK</button>`);
   const done = () => { save(); renderDeckPane(); renderStatsPane(); };
   $("mM").onclick = () => { if (c.qty > 1) { c.qty--; $("mQ").textContent = c.qty; releaseExtra(d, oi); done(); } };
   $("mP").onclick = () => { c.qty++; $("mQ").textContent = c.qty; done(); };
   $("mBoard").onchange = (e) => { c.board = e.target.value; done(); };
-  $("mCat").onchange = (e) => { let v = e.target.value; if (v === "__new") v = prompt("Nome da categoria") || ""; c.cat = v || undefined; if (!c.cat) delete c.cat; if (c.cat) ED.group = "cat"; done(); };
+  $("mCat").onchange = (e) => { let v = e.target.value; if (v === "__new") v = prompt("Nome da categoria") || ""; c.cat = v || undefined; if (!c.cat) delete c.cat; if (c.cat && ED.group !== "tpl") ED.group = "cat"; done(); };
   $("mPrint").onchange = (e) => { const p = DB.p[+e.target.value]; c.set = p[0]; c.number = p[1]; done(); deckCardMenu(oi, c.board); };
   $("mDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); closeSheet(); done(); };
   $("mOk").onclick = closeSheet;
@@ -1249,24 +1359,37 @@ function renderStatsPane() {
   if (isCmd) {
     const cmd = cards.filter(c => c.board === "cmd");
     checks.push([total === 100, `${total}/100 cartas`]);
-    checks.push([cmd.length >= 1 && cmd.length <= 2, cmd.length ? `Comandante: ${cmd.map(c => c.o.name).join(" + ")}` : "Sem comandante (abra uma carta e toque em Comandante)"]);
+    checks.push([cmd.length >= 1 && cmd.length <= 2, cmd.length ? `Comandante: ${cmd.map(c => c.o.name).join(" + ")}` : "Sem comandante (toque em Escolher comandante)"]);
     const dup = inMain.filter(c => c.qty > 1 && !/Basic Land/.test(c.o.type) && !/any number of cards named/i.test(c.o.text)); checks.push([!dup.length, dup.length ? `Repetidas: ${dup.map(c => c.o.name).slice(0, 4).join(", ")}` : "1 cópia de cada"]);
     const ci = deckCI(d); if (ci) { const off = inMain.filter(c => c.o.ci.some(x => !ci.has(x))); checks.push([!off.length, off.length ? `Fora da identidade: ${off.map(c => c.o.name).slice(0, 4).join(", ")}` : "Tudo na identidade de cor"]); }
   }
-  const GUIDE = isCmd ? { ramp: 10, draw: 10, removal: 8, wipe: 3 } : {};
+  const nine = cards.filter(c => c.board === "main");
+  const tplN = Object.fromEntries(TPL.map(t => [t.k, 0])); nine.forEach(c => tplCats(c).forEach(k => tplN[k] += c.qty));
+  const tplHTML = isCmd ? `<div class="tpl"><div class="tplh"><b>Template do The Command Zone</b><span class="meta">toque numa linha para ver dicas</span></div>
+    ${TPL.map(t => { const n = tplN[t.k], st = n >= t.t ? "ok" : n >= t.t * .7 ? "near" : "low";
+      return `<details class="tplrow ${st}"><summary><span>${esc(t.n)}</span><i><u style="width:${Math.min(100, Math.round(n * 100 / t.t))}%"></u></i><b>${n}/${t.t}</b></summary>
+        <div class="meta">${esc(t.tip)}</div>${t.roles ? `<button class="btn small" data-tplsearch="${t.roles[0]}">Buscar ${esc(t.n.toLowerCase())} nas cores do deck</button>` : t.k === "lands" ? `<button class="btn small" data-tplsearch="__land">Buscar terrenos nas cores do deck</button>` : ""}</details>`; }).join("")}
+    <div class="meta" style="font-size:12px">Os números somam mais de 99 de propósito: uma carta pode cobrir duas funções. É um ponto de partida, não regra — ajuste para o seu comandante.</div></div>` : "";
+  const GUIDE = {};
   $("edStats").innerHTML = `
     <div class="ed-preview hidden-mobile" id="edPreview"><div class="meta" style="text-align:center;padding:20px 0">Passe o mouse numa carta</div></div>
     <div class="card">
       <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi"><b>${missing}</b><span>faltam</span></div></div>
+      ${tplHTML}
       ${checks.length ? `<div class="checks">${checks.map(([ok, t]) => `<div class="${ok ? "ok" : "bad"}">${ok ? "✓" : "✗"} ${esc(t)}</div>`).join("")}</div>` : ""}
       <div><div class="meta">Curva de mana</div><div class="curve">${curve.map((n, i) => `<div><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
       <div><div class="meta" style="margin-bottom:4px">Símbolos de mana</div><div class="colorbar">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<span style="width:${n * 100 / ptot}%;background:${COLOR_HEX[k]}" title="${COLOR_NAME[k]}: ${n}"></span>`).join("")}</div>
         <div class="meta" style="margin-top:4px">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<i class="ms ms-${k.toLowerCase()} ms-cost"></i> ${Math.round(n * 100 / ptot)}%`).join(" · ")}</div></div>
       <div><div class="meta" style="margin-bottom:4px">Tipos</div>${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<div class="hbar"><span>${esc(t)}</span><i style="width:${Math.round(n * 100 / Math.max(1, total))}%"></i><b>${n}</b></div>`).join("")}</div>
-      <div><div class="meta" style="margin-bottom:4px">Funções${isCmd ? " (sugestão para Commander)" : ""}</div>${[...new Set([...Object.keys(GUIDE), ...Object.keys(roles)])].sort((a, b) => (roles[b] || 0) - (roles[a] || 0)).slice(0, 12).map(r => { const n = roles[r] || 0, g = GUIDE[r]; return `<div class="hbar"><span>${esc(ROLES[r])}</span><i style="width:${Math.min(100, Math.round(n * 100 / Math.max(10, g || 10)))}%;${g ? `background:${n >= g ? "var(--ok)" : "var(--warn)"}` : ""}"></i><b>${n}${g ? "/" + g : ""}</b></div>`; }).join("")}</div>
+      <div><div class="meta" style="margin-bottom:4px">Todas as funções</div>${[...new Set([...Object.keys(GUIDE), ...Object.keys(roles)])].sort((a, b) => (roles[b] || 0) - (roles[a] || 0)).slice(0, 12).map(r => { const n = roles[r] || 0, g = GUIDE[r]; return `<div class="hbar"><span>${esc(ROLES[r])}</span><i style="width:${Math.min(100, Math.round(n * 100 / Math.max(10, g || 10)))}%;${g ? `background:${n >= g ? "var(--ok)" : "var(--warn)"}` : ""}"></i><b>${n}${g ? "/" + g : ""}</b></div>`; }).join("")}</div>
       ${value ? `<div class="meta">Valor estimado: <b>${fmtUSD(value)}</b></div>` : ""}
       <div class="actions"><button class="btn small primary" id="sBuild">Montar com a coleção</button><button class="btn small" id="sCopy">Copiar lista</button><button class="btn small" id="sMiss">Copiar faltantes</button></div>
     </div>`;
+  $("edStats").querySelectorAll("[data-tplsearch]").forEach(b => b.onclick = () => {
+    const r = b.dataset.tplsearch; ED.q = ""; ED.colors.clear(); ED.cmc = ""; ED.useCI = true;
+    if (r === "__land") { ED.role = ""; ED.type = "Land"; } else { ED.role = r; ED.type = ""; }
+    ED.pane = "busca"; renderEditor(); if (!isWide()) window.scrollTo(0, 0);
+  });
   $("sBuild").onclick = () => buildDeck(d); $("sCopy").onclick = () => copyDeck(d); $("sMiss").onclick = () => copyMissing(d);
 }
 
