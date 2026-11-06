@@ -257,6 +257,22 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
   .ed-results { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 1000px) and (max-width: 1300px) { .editor { grid-template-columns: 260px 1fr 260px; } }
+/* Barras de rolagem discretas; nunca duas lado a lado */
+* { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; }
+::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 99px; } ::-webkit-scrollbar-thumb:hover { background: rgba(255,122,69,.55); }
+html { scrollbar-gutter: stable; }
+html.lock, html.lock body { overflow: hidden; }
+.ed-search, .ed-stats, .menu, .sheet .body { scrollbar-width: none; }
+.ed-search::-webkit-scrollbar, .ed-stats::-webkit-scrollbar, .menu::-webkit-scrollbar, .sheet .body::-webkit-scrollbar { display: none; }
+/* EDHREC */
+.edh-h { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 14px 2px 6px; font-weight: 600; font-size: 14px; }
+.edh-h:first-child { margin-top: 2px; }
+.edh-pct { position: absolute; left: 6%; bottom: 4%; background: rgba(20,22,26,.88); color: #fff; font: 600 11px/1 var(--font); padding: 4px 6px; border-radius: 999px; }
+.edh-rank { position: absolute; left: 6%; top: 3.5%; background: var(--grad); color: var(--accent-ink); font: 700 12px/1 var(--font); padding: 5px 7px; border-radius: 999px; }
+.edh-badge { display: block; font-size: 12px; color: var(--muted); line-height: 1.5; }
+a.btn { text-decoration: none; }
+.res .resimg { position: relative; display: block; width: 100%; }
 /* Ampliar no hover, preços, excluir deck */
 .hov { position: fixed; z-index: 75; width: 320px; pointer-events: none; }
 .hov img { width: 100%; display: block; border-radius: 4.5%; box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.06); }
@@ -690,8 +706,8 @@ $("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle(
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
 
 // Folha (sheet)
-function openSheet(body, foot = "") { $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
-function closeSheet() { $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
+function openSheet(body, foot = "") { document.documentElement.classList.add("lock"); $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
+function closeSheet() { document.documentElement.classList.remove("lock"); $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
 $("scrim").onclick = closeSheet;
 
 // ============ COLEÇÃO ============
@@ -1122,10 +1138,11 @@ function zoomImg(el) {
   const big = src ? src.replace("/normal/", "/large/") : `https://api.scryfall.com/cards/${encodeURIComponent(set)}/${encodeURIComponent(num)}?format=image&version=large`;
   $("zoomImg").onerror = () => { $("zoomImg").onerror = null; if (src) $("zoomImg").src = src; else $("zoomTxt").textContent = "Não consegui carregar a imagem (sem internet?)"; };
   $("zoomImg").style.transform = ""; $("zoomImg").src = big;
-  $("zoomTxt").textContent = (img.alt || "") + " · toque para fechar"; $("zoom").classList.remove("hidden");
+  $("zoomTxt").textContent = (img.alt || "") + " · toque para fechar"; $("zoom").classList.remove("hidden"); document.documentElement.classList.add("lock");
 }
-$("zoom").onclick = () => $("zoom").classList.add("hidden");
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("zoom").classList.add("hidden"); });
+const closeZoom = () => { $("zoom").classList.add("hidden"); if ($("sheet").classList.contains("hidden")) document.documentElement.classList.remove("lock"); };
+$("zoom").onclick = closeZoom;
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeZoom(); });
 document.addEventListener("click", (e) => { const c = e.target.closest(".detail .cardimg, .ed-preview .cardimg"); if (c) { e.stopPropagation(); zoomImg(c); } }, true);
 // ============ EDITOR DE DECKS (estilo Archidekt) ============
 const ED = { id: null, pane: "deck", group: "tpl", asked: new Set(), mode: "stack", q: "", colors: new Set(), useCI: true, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
@@ -1197,7 +1214,7 @@ function renderSearchPane() {
   const d = deckOf(); const ci = deckCI(d);
   $("edSearch").innerHTML = `
     <div class="ed-sbox">
-      <input type="search" id="edQ" placeholder="Buscar carta (nome, tipo ou texto)" value="${esc(ED.q)}">
+      <input type="search" id="edQ" placeholder="Buscar carta — vazio mostra sugestões do EDHREC" value="${esc(ED.q)}">
       <div class="chips">${["W", "U", "B", "R", "G"].map(c => `<button class="chip color" data-c="${c}" aria-pressed="${ED.colors.has(c)}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="C" aria-pressed="${ED.colors.has("C")}">Incolor</button></div>
       <div class="two"><select id="edType"><option value="">Tipo</option>${TYPES.map(t => `<option value="${t[0]}"${ED.type === t[0] ? " selected" : ""}>${t[1]}</option>`).join("")}</select>
         <select id="edRole"><option value="">Função</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${ED.role === k ? " selected" : ""}>${v}</option>`).join("")}</select></div>
@@ -1240,10 +1257,32 @@ function searchCards() {
   out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : q ? (a, b) => (norm(DB.o[b][0]).startsWith(q) - norm(DB.o[a][0]).startsWith(q)) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
   return { list: out.slice(0, LIM), total };
 }
+async function drawEdhRecs(d) {
+  const cmd = d.cards.filter(c => c.board === "cmd").map(c => c.oi); const slug = cmdSlug(cmd);
+  const seq = (ED.edhSeq = (ED.edhSeq || 0) + 1);
+  $("edCount").textContent = "Carregando recomendações do EDHREC…"; if (!EDH.mem.has("commanders/" + slug)) $("edResults").innerHTML = "";
+  let j; try { j = await edh("commanders/" + slug); } catch (e) { if (seq === ED.edhSeq) { $("edCount").textContent = "Não consegui acessar o EDHREC agora. Use a busca."; $("edResults").innerHTML = ""; } return; }
+  if (seq !== ED.edhSeq || !$("edResults")) return;
+  const inDeck = new Set(d.cards.map(c => c.oi)); const own = ED.owned ? new Set(S.cards.map(e => e.oi)) : null; const hideIn = ED.hideIn !== false;
+  const lists = j.container.json_dict.cardlists; let shown = 0;
+  const html = lists.map(l => {
+    const cards = l.cardviews.map(v => ({ v, oi: edhOi(v.name) })).filter(x => x.oi !== undefined && !(hideIn && inDeck.has(x.oi)) && !(own && !own.has(x.oi)));
+    if (!cards.length) return ""; shown += cards.length;
+    return `<div class="edh-h" style="grid-column:1/-1"><span>${esc(EDH_PT[l.header] || l.header)}</span><span class="meta">${cards.length}</span></div>` + cards.map(({ v, oi }) => {
+      const pct = v.potential_decks ? Math.round(v.num_decks * 100 / v.potential_decks) : 0; const lib = libFor(oi); const n = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
+      return `<div class="res" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
+    }).join("");
+  }).join("");
+  const deckN = (j.num_decks_avg || (j.container.json_dict.card || {}).num_decks || 0);
+  $("edCount").innerHTML = `<span class="edh-badge"><b>Sugestões do EDHREC</b>${deckN ? ` · ${deckN.toLocaleString("pt-BR")} decks` : ""} · % = decks que usam</span> <label class="meta ck" style="margin-top:4px"><input type="checkbox" id="edHideIn" ${hideIn ? "checked" : ""}> Esconder as que já estão no deck</label>`;
+  $("edHideIn").onchange = (e) => { ED.hideIn = e.target.checked; drawEdhRecs(d); };
+  $("edResults").innerHTML = html || `<div class="meta" style="grid-column:1/-1">Nada a sugerir com esses filtros${own ? " entre as cartas que vocês têm" : ""}.</div>`;
+  hoverBind($("edResults"));
+}
 function drawResults() {
   if (!$("edResults")) return;
   const hasFilter = ED.q || ED.colors.size || ED.type || ED.role || ED.cmc || ED.owned;
-  if (!hasFilter) { $("edCount").textContent = "Digite um nome ou use os filtros."; $("edResults").innerHTML = ""; return; }
+  if (!hasFilter || (ED.owned && !ED.q && !ED.colors.size && !ED.type && !ED.role && !ED.cmc)) { const dd = deckOf(); if (dd.cards.some(c => c.board === "cmd")) return drawEdhRecs(dd); if (!hasFilter) { $("edCount").textContent = "Digite um nome ou use os filtros."; $("edResults").innerHTML = ""; return; } }
   const { list, total } = searchCards(); const d = deckOf();
   $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
   $("edResults").innerHTML = list.map(i => {
@@ -1260,6 +1299,30 @@ function addToDeck(oi, board) {
   if (ex) { if (!isBasic && /commander/i.test(d.format || "Commander") && board === "main") { toast(`${DB.o[oi][0]} já está no deck (Commander é 1 de cada).`); return; } ex.qty++; }
   else { const pi = defaultPrint(oi); d.cards.push({ oi, qty: 1, board, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" }); }
   save(); toast("+1 " + DB.o[oi][0], 900); renderDeckPane(); renderStatsPane(); drawResults(); const nb = document.querySelector(`#edDeck [data-oi="${oi}"]`); if (nb) { nb.classList.add("added"); nb.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+}
+// ---- EDHREC (json.edhrec.com, dados públicos) ----
+const EDH = { mem: new Map() };
+const edhSlug = (n) => n.split(" // ")[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/['’".,!?:]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const cmdSlug = (ois) => ois.map(i => edhSlug(DB.o[i][0])).sort().join("-");
+async function edh(path) {
+  if (EDH.mem.has(path)) return EDH.mem.get(path);
+  const key = "edh:" + path;
+  try { const c = await store.get(key); if (c && Date.now() - c.at < 3 * 864e5) { EDH.mem.set(path, c.j); return c.j; } } catch (e) {}
+  const r = await fetch("https://json.edhrec.com/pages/" + path + ".json"); if (!r.ok) throw new Error("EDHREC " + r.status);
+  const j = await r.json(); EDH.mem.set(path, j); store.set(key, { at: Date.now(), j }).catch(() => {}); return j;
+}
+const edhOi = (name) => { const k = norm(name); if (DB.byName.has(k)) return DB.byName.get(k); const m = matchName(name, false); return m ? m.i : undefined; };
+const EDH_PT = { "New Cards": "Novidades", "High Synergy Cards": "Alta sinergia", "Top Cards": "Mais usadas", "Game Changers": "Game Changers", "High Lift Cards": "Fazem diferença", "Creatures": "Criaturas", "Instants": "Instantâneas", "Sorceries": "Feitiços", "Utility Artifacts": "Artefatos", "Enchantments": "Encantamentos", "Battles": "Batalhas", "Planeswalkers": "Planeswalkers", "Utility Lands": "Terrenos utilitários", "Mana Artifacts": "Artefatos de mana", "Lands": "Terrenos" };
+async function edhTopCommanders(colors) {
+  const y = await edh("commanders/year");
+  let page = y;
+  if (colors && colors.size) {
+    const want = "WUBRG".split("").filter(c => colors.has(c)).join("").toLowerCase();
+    const it = (y.related_info || []).flatMap(g => g.items || []).find(x => (x.colors || []).slice().sort((a, b) => "wubrgc".indexOf(a) - "wubrgc".indexOf(b)).join("") === want);
+    if (!it) return [];
+    page = await edh(it.url.replace(/^\//, ""));
+  }
+  return page.container.json_dict.cardlists[0].cardviews.map((v, i) => ({ oi: edhOi(v.name), name: v.name, rank: v.rank || i + 1, decks: v.num_decks })).filter(x => x.oi !== undefined);
 }
 // ---- Escolher comandante ----
 const CMD_RX = /\b(Partner|Friends forever|Doctor's companion|Choose a Background)\b/;
@@ -1288,7 +1351,19 @@ function pickCommander(d, partnerOf = null) {
     <div class="chips" id="pcC">${["W", "U", "B", "R", "G"].map(c => `<button class="chip color" data-c="${c}" aria-pressed="false"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<span class="meta">cores exatas</span></div>
     <label class="meta ck"><input type="checkbox" id="pcOwn"> Só comandantes que temos na coleção</label>
     <div class="meta" id="pcN"></div><div class="ed-results" id="pcR"></div>`, `<button class="btn" id="pcX">Cancelar</button>`);
-  const draw = () => {
+  const resHTML = (i, extra = "") => `<div class="res"><button class="resimg" data-pick="${i}">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${extra}${libFor(i) ? `<span class="ownb" style="left:auto;right:6%">✓</span>` : ""}</button><span class="resname">${esc(DB.o[i][0])}</span></div>`;
+  const draw = async () => {
+    if (!P.q.trim() && partnerOf === null) {
+      const seq = (P.seq = (P.seq || 0) + 1);
+      $("pcN").textContent = "Carregando os mais jogados do EDHREC…";
+      try {
+        let top = await edhTopCommanders(P.colors); if (seq !== P.seq) return;
+        if (P.owned) { const own = new Set(S.cards.map(e => e.oi)); top = top.filter(x => own.has(x.oi)); }
+        $("pcN").innerHTML = `<b>Mais jogados no EDHREC</b> · últimos 2 anos${P.colors.size ? " · nessas cores" : ""} — ou digite para buscar qualquer comandante`;
+        $("pcR").innerHTML = top.slice(0, 60).map(x => resHTML(x.oi, `<span class="edh-rank">#${x.rank}</span><span class="edh-pct">${x.decks.toLocaleString("pt-BR")} decks</span>`)).join("") || `<div class="meta">Nenhum dos mais jogados nessa combinação${P.owned ? " está na coleção" : ""}. Digite um nome para buscar.</div>`;
+        return;
+      } catch (e) { if (seq !== P.seq) return; /* sem internet: cai na busca local */ }
+    }
     const q = norm(P.q); const own = P.owned ? new Set(S.cards.map(e => e.oi)) : null; const out = [];
     for (const i of cmdCandidates()) {
       const o = DB.o[i];
@@ -1301,7 +1376,7 @@ function pickCommander(d, partnerOf = null) {
     const pr = (i) => { const pi = defaultPrint(i); return pi >= 0 ? -(DB.p[pi][6] || 0) : 0; };
     out.sort(q ? (a, b) => (norm(DB.o[b][0]).startsWith(q) - norm(DB.o[a][0]).startsWith(q)) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => pr(a) - pr(b));
     $("pcN").textContent = `${out.length} opç${out.length === 1 ? "ão" : "ões"}${out.length > 60 ? " (mostrando 60)" : ""}`;
-    $("pcR").innerHTML = out.slice(0, 60).map(i => `<div class="res"><button class="resimg" data-pick="${i}">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${libFor(i) ? `<span class="ownb">✓</span>` : ""}</button><span class="resname">${esc(DB.o[i][0])}</span></div>`).join("");
+    $("pcR").innerHTML = out.slice(0, 60).map(i => resHTML(i)).join("");
   };
   $("pcQ").oninput = (e) => { P.q = e.target.value; clearTimeout(P.t); P.t = setTimeout(draw, 150); };
   $("pcC").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; P.colors.has(c) ? P.colors.delete(c) : P.colors.add(c); b.setAttribute("aria-pressed", P.colors.has(c)); draw(); };
@@ -1319,6 +1394,38 @@ function setCommander(d, oi, asPartner) {
   const ci = deckCI(d); const off = d.cards.filter(c => c.board === "main" && DB.o[c.oi][4].split("").some(x => x && !ci.has(x))).length;
   toast(off ? `${DB.o[oi][0]} é o comandante. ${off} carta(s) ficaram fora das cores.` : `${DB.o[oi][0]} é o comandante!`, 3000);
   renderEditor();
+  if (!d.cards.some(c => c.board === "main")) setTimeout(() => startOptions(d), 300);
+}
+function startOptions(d) {
+  const name = d.cards.filter(c => c.board === "cmd").map(c => DB.o[c.oi][0]).join(" + ");
+  openSheet(`<h3 style="margin:0">Como começar?</h3><p class="meta" style="margin:0">${esc(name)}</p><div class="rows">
+    <button class="row" id="soAvg" style="grid-template-columns:1fr"><span><span class="rn">Usar a lista média do EDHREC</span><span class="rs">Coloca as ~99 cartas mais comuns nos decks desse comandante. Depois você troca o que quiser — o template e as sugestões continuam ajudando.</span></span></button>
+    <button class="row" id="soEmpty" style="grid-template-columns:1fr"><span><span class="rn">Começar vazio, com sugestões</span><span class="rs">A busca mostra as cartas recomendadas pelo EDHREC para esse comandante, por categoria.</span></span></button></div>`, `<button class="btn" id="soX">Fechar</button>`);
+  $("soAvg").onclick = () => loadAverageDeck(d, false); $("soEmpty").onclick = () => { closeSheet(); ED.pane = "busca"; renderEditor(); }; $("soX").onclick = closeSheet;
+}
+async function loadAverageDeck(d, ask = true) {
+  const cmd = d.cards.filter(c => c.board === "cmd").map(c => c.oi); if (!cmd.length) return toast("Escolha o comandante primeiro.");
+  const hasMain = d.cards.some(c => c.board === "main");
+  if (ask && hasMain) {
+    openSheet(`<h3 style="margin:0">Lista média do EDHREC</h3><p class="meta" style="margin:0">O deck já tem cartas. O que fazer?</p>`, `<button class="btn" id="laX">Cancelar</button><button class="btn" id="laAdd">Só adicionar as que faltam</button><button class="btn primary" id="laRep">Substituir o deck</button>`);
+    $("laX").onclick = closeSheet; $("laAdd").onclick = () => applyAverage(d, cmd, "add"); $("laRep").onclick = () => applyAverage(d, cmd, "replace"); return;
+  }
+  applyAverage(d, cmd, hasMain ? "add" : "replace");
+}
+async function applyAverage(d, cmd, mode) {
+  toast("Buscando a lista média no EDHREC…", 1500);
+  let j; try { j = await edh("average-decks/" + cmdSlug(cmd)); } catch (e) { closeSheet(); return toast("Não consegui acessar o EDHREC agora (sem internet?)."); }
+  const lists = (j.deck && j.deck.cards) || {}; const miss = []; const add = [];
+  for (const arr of Object.values(lists)) for (const [name, qty] of arr) { const oi = edhOi(name); if (oi === undefined) { miss.push(name); continue; } if (!cmd.includes(oi)) add.push([oi, qty]); }
+  if (mode === "replace") { d.cards.filter(c => c.board === "main").forEach(c => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); }); }
+  let n = 0;
+  for (const [oi, qty] of add) {
+    const ex = d.cards.find(c => c.oi === oi && c.board === "main"); if (ex) { if (/Basic Land/.test(DB.o[oi][5]) && mode === "replace") ex.qty += qty; continue; }
+    const own = S.cards.find(e => e.oi === oi); const pi = own ? null : defaultPrint(oi);
+    d.cards.push({ oi, qty, board: "main", set: own ? own.set : pi >= 0 ? DB.p[pi][0] : "", number: own ? own.number : pi >= 0 ? DB.p[pi][1] : "" }); n += qty;
+  }
+  save(); closeSheet(); ED.pane = "deck"; renderEditor();
+  toast(`${n} carta(s) da lista média adicionadas${miss.length ? ` · ${miss.length} não encontradas` : ""}`, 3500);
 }
 function commanderBanner(d) {
   if (!isCmdFormat(d)) return "";
@@ -1328,7 +1435,7 @@ function commanderBanner(d) {
   return `<div class="cmdban">${cmd.map(c => `<button class="cbimg" data-oi="${c.oi}" data-b="cmd">${cardImgHTML(fakeEntry(c), { bare: true })}</button>`).join("")}
     <div class="cbinfo"><span class="meta">Comandante</span><b>${cmd.map(c => esc(DB.o[c.oi][0])).join(" + ")}</b>
       <div>${[...ci].map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ") || '<i class="ms ms-c ms-cost"></i>'}</div>
-      <div class="actions"><button class="btn small" id="cbPick">Trocar</button>${pair ? `<button class="btn small" id="cbPartner">+ Parceiro</button>` : ""}</div></div></div>`;
+      <div class="actions"><button class="btn small" id="cbPick">Trocar</button>${pair ? `<button class="btn small" id="cbPartner">+ Parceiro</button>` : ""}<button class="btn small" id="cbAvg">Lista média EDHREC</button><a class="btn small" target="_blank" rel="noopener" href="https://edhrec.com/commanders/${esc(cmdSlug(cmd.map(c => c.oi)))}">Ver no EDHREC ↗</a></div></div></div>`;
 }
 function renderDeckPane() {
   const d = deckOf(); if (!d || !$("edDeck")) return;
@@ -1353,6 +1460,7 @@ function renderDeckPane() {
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
   $("edGroup").onchange = (e) => { ED.group = e.target.value; renderDeckPane(); };
   if ($("cbPick")) $("cbPick").onclick = () => pickCommander(d);
+  if ($("cbAvg")) $("cbAvg").onclick = () => loadAverageDeck(d, true);
   if ($("cbPartner")) $("cbPartner").onclick = () => pickCommander(d, d.cards.find(c => c.board === "cmd").oi);
   $("edMode").onchange = (e) => { ED.mode = e.target.value; renderDeckPane(); };
   const area = $("edDeck");
