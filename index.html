@@ -262,6 +262,12 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
       CAMS.idx = Math.max(0, CAMS.list.findIndex(d => d.deviceId === cur));
       $("camSwitch").classList.toggle("hidden", CAMS.list.length < 2);
       $("camSwitch").textContent = `Lente ${CAMS.idx + 1}/${CAMS.list.length}`;
+      // Android (Samsung e outros): a câmera principal é a "camera2 0"; as outras costumam ser grande-angular (foco fixo) ou tele
+      if (!deviceId && !CAMS.autoPicked) {
+        CAMS.autoPicked = true;
+        const main = CAMS.list.find(d => /camera2 0\b/.test(d.label)) || CAMS.list.find(d => /back|traseira|rear/i.test(d.label) && /\b0\b/.test(d.label));
+        if (main && main.deviceId !== cur) { await startCamera(main.deviceId); return; }
+      }
     } catch {}
   }
   const FOCUS = { modes: [], dist: null, manual: false };
