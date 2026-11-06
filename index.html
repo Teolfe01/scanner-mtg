@@ -369,24 +369,34 @@ function boxOfSection(s) {
 }
 function whereLib(e) { const s = sectionOf(e); const t = mainTypes(DB.o[e.oi][5])[0]; const tn = (TYPES.find(x => x[0] === t) || [, "Outros"])[1]; return { box: boxOfSection(s), section: s, text: `Caixa ${boxOfSection(s)} · ${sectionName(s)} · ${tn}` }; }
 
-// ============ Imagens (Scryfall) ============
-async function fillImages(entries) {
-  const need = entries.filter(e => !e.img && e.set && e.number);
-  for (let i = 0; i < need.length; i += 75) {
-    const chunk = need.slice(i, i + 75);
-    try {
-      const r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifiers: chunk.map(e => ({ set: e.set, collector_number: e.number })) }) });
-      const j = await r.json();
-      for (const c of (j.data || [])) {
-        const img = (c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {}).normal || "";
-        chunk.filter(e => e.set === c.set && e.number === normNum(c.collector_number)).forEach(e => e.img = img);
-      }
-    } catch {}
-    await sleep(120);
-  }
-  save();
+// ============ Imagens (Scryfall, em lotes, guardadas no aparelho) ============
+let IMGS = {}; const imgQueue = new Set(); let imgTimer = 0, imgBusy = false;
+const imgKey = (set, number) => set + "|" + normNum(number);
+function imgSrc(set, number) {
+  if (!set) return "";
+  const k = imgKey(set, number); if (IMGS[k]) return IMGS[k];
+  if (IMGS[k] !== "") { imgQueue.add(k); clearTimeout(imgTimer); imgTimer = setTimeout(fetchImgs, 150); }
+  return "";
 }
-const imgFor = (set, number) => `https://api.scryfall.com/cards/${set}/${encodeURIComponent(normNum(number))}?format=image&version=normal`;
+async function fetchImgs() {
+  if (imgBusy || !imgQueue.size) return; imgBusy = true;
+  try {
+    while (imgQueue.size) {
+      const keys = [...imgQueue].slice(0, 75); keys.forEach(k => imgQueue.delete(k));
+      try {
+        const r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ identifiers: keys.map(k => { const [set, collector_number] = k.split("|"); return { set, collector_number }; }) }) });
+        if (r.status === 429) { keys.forEach(k => imgQueue.add(k)); await sleep(1500); continue; }
+        const j = await r.json();
+        for (const c of (j.data || [])) { const u = (c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {}).normal; if (u) IMGS[imgKey(c.set, c.collector_number)] = u; }
+        for (const nf of (j.not_found || [])) if (nf.set) IMGS[imgKey(nf.set, nf.collector_number)] = "";
+      } catch { await sleep(2000); }
+      await sleep(150);
+    }
+    store.set("imgs", IMGS).catch(() => {});
+    document.querySelectorAll("img[data-ik]").forEach(im => { const u = IMGS[im.dataset.ik]; if (u && !im.getAttribute("src")) im.src = u; });
+  } finally { imgBusy = false; }
+}
+async function fillImages(entries) { entries.forEach(e => imgSrc(e.set, e.number)); }
 
 // ============ Componentes visuais ============
 const FLAGS = { en: "🇺🇸", pt: "🇧🇷", es: "🇪🇸", ja: "🇯🇵", fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", zhs: "🇨🇳", zht: "🇹🇼", ko: "🇰🇷", ru: "🇷🇺" };
@@ -398,8 +408,8 @@ function manaHTML(cost) {
 function setHTML(set, rar) { const r = RAR[rar] || "common"; return `<i class="ss ss-${esc(String(set).replace(/[^a-z0-9]/g, "")) || "default"} ss-${["common","uncommon","rare","mythic"].includes(r) ? r : "common"} ss-grad"></i>`; }
 function cardImgHTML(e, opts = {}) {
   const o = DB.o[e.oi]; const fc = "f-" + colorBucket(e.oi);
-  const src = e.img || (e.set ? imgFor(e.set, e.number) : "");
-  const inner = src ? `<img src="${esc(src)}" alt="${esc(o[0])}" loading="lazy" onerror="this.remove()">` : "";
+  const src = e.set ? imgSrc(e.set, e.number) : "";
+  const inner = e.set ? `<img ${src ? `src="${esc(src)}"` : ""} data-ik="${esc(imgKey(e.set, e.number))}" alt="${esc(o[0])}" loading="lazy" onload="this.style.opacity=1" onerror="this.removeAttribute('src')" style="position:absolute;inset:0;opacity:${src ? 1 : 0};transition:opacity .2s">` : "";
   const drawn = `<div class="drawn ${fc}"><div class="dn">${esc(o[0])}</div><div></div><div class="dt">${esc(o[5])}</div></div>`;
   if (opts.bare) return `<div class="cardimg">${drawn}${inner}</div>`;
   const price = priceOf(e); const dq = inDecks(e);
@@ -462,7 +472,7 @@ function colFiltered() {
 }
 function renderCol() {
   $("title").textContent = "Coleção";
-  setMenu([["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Fazer backup (arquivo)", backup], ["Restaurar backup", restore], ["Buscar imagens que faltam", async () => { toast("Buscando imagens…"); await fillImages(S.cards); renderCol(); }]]);
+  setMenu([["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Fazer backup (arquivo)", backup], ["Restaurar backup", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
   if (!$("colBars")) {
     $("bars").innerHTML = `<div id="colBars">
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
@@ -999,7 +1009,8 @@ $("lastScan").onclick = () => {
 (async () => {
   try {
     await store.open();
-    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {};
+    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; IMGS = (await store.get("imgs")) || {};
+    S.cards.forEach(e => { if (e.img && !IMGS[imgKey(e.set, e.number)]) IMGS[imgKey(e.set, e.number)] = e.img; });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
     const old = localStorage.getItem("mtgscan.list");
