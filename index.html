@@ -41,6 +41,12 @@ button { cursor: pointer; }
 .chipbtn { border: 1px solid rgba(255,255,255,.25); background: rgba(30,33,40,.75); color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
 .chipbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
+.focusring { position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px; border: 2px solid #ffd54a; border-radius: 50%; pointer-events: none; }
+.focusring.go { animation: ring 1s ease-out forwards; }
+@keyframes ring { from { transform: scale(1.5); opacity: 1; } to { transform: scale(1); opacity: .2; } }
+.mf { position: absolute; left: 12px; right: 12px; bottom: calc(166px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; background: rgba(20,22,26,.75); padding: 8px 12px; border-radius: 14px; }
+.mf input { flex: 1; accent-color: var(--accent); }
+.mflbl { font-size: 11px; color: #cfd5df; white-space: nowrap; }
 .status { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(118px + env(safe-area-inset-bottom)); background: rgba(20,22,26,.85); padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
 .bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(transparent, rgba(0,0,0,.75)); }
 .listbtn { display: inline-flex; align-items: center; gap: 10px; border: 0; background: rgba(30,33,40,.85); color: #fff; padding: 10px 16px; border-radius: 16px; font-weight: 600; }
@@ -106,8 +112,15 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
     </select>
   </div>
   <div class="status" id="status">Iniciando…</div>
+  <div class="focusring hidden" id="focusRing"></div>
+  <div class="mf hidden" id="mfWrap">
+    <button class="chipbtn" id="afBtn" aria-pressed="true">AF</button>
+    <input type="range" id="mfRange" aria-label="Foco manual (perto ↔ longe)">
+    <span class="mflbl">perto ↔ longe</span>
+  </div>
   <div class="bottom">
     <button class="listbtn" id="listBtn">Lista <b id="count">0</b></button>
+    <button class="chipbtn hidden" id="camSwitch" aria-label="Trocar lente">Lente</button>
     <button class="roundbtn hidden" id="zoomBtn" aria-label="Zoom" style="font-weight:700;font-size:16px">2×</button>
     <button class="roundbtn" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
   </div>
@@ -202,9 +215,12 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
 
   // ---------- Câmera ----------
   let stream = null, track = null;
-  async function startCamera() {
+  async function startCamera(deviceId) {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador não dá acesso à câmera. Abra a página no Chrome, por https.");
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } } });
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    const video = { width: { ideal: 3840 }, height: { ideal: 2160 } };
+    if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: "environment" };
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
     track = stream.getVideoTracks()[0];
     try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {}
     const v = $("video"); v.srcObject = stream; await v.play();
@@ -220,17 +236,62 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
     } else {
       $("zoomBtn").classList.add("hidden");
     }
+    // Foco: modos suportados e foco manual
+    FOCUS.modes = caps.focusMode || [];
+    FOCUS.dist = caps.focusDistance && caps.focusDistance.max > caps.focusDistance.min ? caps.focusDistance : null;
+    $("mfWrap").classList.toggle("hidden", !FOCUS.dist);
+    if (FOCUS.dist) { const r = $("mfRange"); r.min = FOCUS.dist.min; r.max = FOCUS.dist.max; r.step = FOCUS.dist.step || 0.01; r.value = FOCUS.dist.min + (FOCUS.dist.max - FOCUS.dist.min) * 0.15; }
+    setAF();
+    // Lentes traseiras disponíveis
+    try {
+      const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+      const back = devs.filter(d => !/front|frontal|user|facing front/i.test(d.label));
+      CAMS.list = back.length ? back : devs;
+      const cur = track.getSettings ? track.getSettings().deviceId : "";
+      CAMS.idx = Math.max(0, CAMS.list.findIndex(d => d.deviceId === cur));
+      $("camSwitch").classList.toggle("hidden", CAMS.list.length < 2);
+      $("camSwitch").textContent = `Lente ${CAMS.idx + 1}/${CAMS.list.length}`;
+    } catch {}
   }
+  const FOCUS = { modes: [], dist: null, manual: false };
+  const CAMS = { list: [], idx: 0 };
+  async function setAF() {
+    FOCUS.manual = false; $("afBtn").setAttribute("aria-pressed", "true");
+    if (FOCUS.modes.includes("continuous")) { try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} }
+  }
+  $("afBtn").onclick = () => { setAF(); toast("Foco automático", 900); };
+  $("mfRange").addEventListener("input", async (e) => {
+    FOCUS.manual = true; $("afBtn").setAttribute("aria-pressed", "false");
+    try { await track.applyConstraints({ advanced: [{ focusMode: "manual", focusDistance: parseFloat(e.target.value) }] }); } catch {}
+  });
+  $("camSwitch").onclick = async () => {
+    if (CAMS.list.length < 2) return;
+    CAMS.idx = (CAMS.idx + 1) % CAMS.list.length;
+    try { await startCamera(CAMS.list[CAMS.idx].deviceId); try { localStorage.setItem("mtgscan.cam", CAMS.list[CAMS.idx].deviceId); } catch {} }
+    catch (e) { toast("Não consegui abrir essa lente."); }
+  };
+  // Toque para focar no ponto tocado
+  $("stage").addEventListener("pointerup", async (ev) => {
+    if (!track || ev.target.closest("button, select, input, .top, .bottom, #mfWrap")) return;
+    const v = $("video"), vb = v.getBoundingClientRect(), VW = v.videoWidth, VH = v.videoHeight;
+    const sc = Math.max(vb.width / VW, vb.height / VH), ox = vb.left + (vb.width - VW * sc) / 2, oy = vb.top + (vb.height - VH * sc) / 2;
+    const px = Math.min(1, Math.max(0, (ev.clientX - ox) / sc / VW)), py = Math.min(1, Math.max(0, (ev.clientY - oy) / sc / VH));
+    const ring = $("focusRing"); ring.style.left = ev.clientX + "px"; ring.style.top = ev.clientY + "px"; ring.classList.remove("hidden"); ring.classList.remove("go"); void ring.offsetWidth; ring.classList.add("go");
+    setTimeout(() => ring.classList.add("hidden"), 1200);
+    const tries = [];
+    if (FOCUS.modes.includes("single-shot")) { tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "single-shot" }, { focusMode: "single-shot" }); }
+    if (FOCUS.modes.includes("continuous")) tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "continuous" });
+    let ok = false;
+    for (const t of tries) { try { await track.applyConstraints({ advanced: [t] }); ok = true; break; } catch {} }
+    if (!ok) { toast(FOCUS.dist ? "Use a barra de foco manual." : "Este celular não deixa o navegador controlar o foco. Tente outra lente ou afaste um pouco.", 2600); return; }
+    if (!FOCUS.manual && FOCUS.modes.includes("continuous")) setTimeout(() => track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500);
+  });
   const ZOOM = { caps: null, levels: [1], cur: 1 };
   async function setZoom(z) {
     try { await track.applyConstraints({ advanced: [{ zoom: z }] }); ZOOM.cur = z; $("zoomBtn").textContent = (z % 1 ? z.toFixed(1) : z) + "×"; try { localStorage.setItem("mtgscan.zoom", z); } catch {} } catch {}
   }
   $("zoomBtn").onclick = () => { const i = ZOOM.levels.indexOf(ZOOM.cur); setZoom(ZOOM.levels[(i + 1) % ZOOM.levels.length]); };
-  // Toque na imagem para refocar
-  $("video").addEventListener("click", async () => {
-    if (!track) return;
-    try { await track.applyConstraints({ advanced: [{ focusMode: "single-shot" }] }); setTimeout(() => track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 1500); toast("Focando…", 900); } catch {}
-  });
+
   $("torchBtn").onclick = async () => {
     const on = $("torchBtn").getAttribute("aria-pressed") !== "true";
     try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").setAttribute("aria-pressed", on); } catch { toast("Lanterna indisponível."); }
@@ -464,7 +525,8 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
     $("startBtn").classList.remove("hidden");
   }
   $("startBtn").onclick = async () => {
-    try { await startCamera(); } catch (e) { $("splashMsg").textContent = (e.name === "NotAllowedError" ? "Permissão de câmera negada. Libere a câmera para este site nas configurações do navegador." : (e.message || String(e))); return; }
+    let savedCam = ""; try { savedCam = localStorage.getItem("mtgscan.cam") || ""; } catch {}
+    try { try { await startCamera(savedCam || undefined); } catch (e0) { if (!savedCam) throw e0; await startCamera(); } } catch (e) { $("splashMsg").textContent = (e.name === "NotAllowedError" ? "Permissão de câmera negada. Libere a câmera para este site nas configurações do navegador." : (e.message || String(e))); return; }
     $("splash").classList.add("hidden");
     setStatus("Segure a uns 20 cm e use o zoom; toque para focar");
     setInterval(tick, 250);
