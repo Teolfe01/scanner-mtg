@@ -320,7 +320,7 @@ const store = {
   async get(k) { return new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); }); },
   async set(k, v) { return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 };
-const S = { cards: [], decks: [], boxes: { capacity: 280, layout: null }, settings: {} };
+const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {} };
 let saveT = 0;
 function save() { clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
@@ -797,7 +797,7 @@ function renderBoxes() {
       return `<div class="boxcard"><h3><span>Caixa ${b.n}</span><span class="meta">${n}/${cap}</span></h3><div class="bar ${pct > 100 ? "over" : ""}"><i style="width:${Math.min(100, pct)}%"></i></div>
         ${b.sections.map(s => `<button class="secrow" data-s="${s}" style="border:0;background:transparent;color:inherit;text-align:left;width:100%"><span class="sw" style="background:${COLOR_HEX[s[0]]}"></span><span>${esc(sectionName(s))}</span><span class="meta">${counts[s]}</span></button>`).join("")}
         ${pct > 100 ? `<span class="pill bad">Caixa cheia: use ⋮ → Reorganizar caixas</span>` : ""}</div>`; }).join("")}
-    <p class="meta">Modelos 3D da caixa e dos divisores para imprimir: na pasta MTG do seu PC, em "caixas-3d".</p>`;
+`;
   $("main").onclick = (ev) => { const b = ev.target.closest("[data-s]"); if (!b) return; F.where = "box" + boxOfSection(b.dataset.s); F.q = ""; F.sort = "box"; go("col"); };
 }
 function labelsSheet() {
