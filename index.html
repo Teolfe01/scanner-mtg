@@ -197,6 +197,7 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
   <div class="menu hidden" id="menu"></div>
 </div>
 
+<div class="hidden" id="backupBanner" style="position:sticky;top:0;z-index:9;background:#3b2f1f;color:#f6d9b4;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 14px;font-size:13px"><span></span><button class="btn small primary" id="backupNow">Salvar no Drive</button></div>
 <main id="main"></main>
 
 <!-- Scanner -->
@@ -322,7 +323,7 @@ const store = {
 };
 const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {} };
 let saveT = 0;
-function save() { clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+function save(silent) { if (!silent && S.settings) { S.settings.changes = (S.settings.changes || 0) + 1; setTimeout(updateBackupBanner); } clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
 // Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
 const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
@@ -472,7 +473,7 @@ function colFiltered() {
 }
 function renderCol() {
   $("title").textContent = "Coleção";
-  setMenu([["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Fazer backup (arquivo)", backup], ["Restaurar backup", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
+  setMenu([["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Salvar backup no Drive", backup], ["Restaurar backup do Drive", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
   if (!$("colBars")) {
     $("bars").innerHTML = `<div id="colBars">
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
@@ -594,10 +595,25 @@ function importDialog() {
 }
 function download(name, text, type = "text/plain") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 500); }
 function exportCSV() { const rows = [["Count", "Name", "Edition", "Collector Number", "Foil", "Language"], ...S.cards.map(e => [e.qty, e.name, e.set, e.number, e.foil ? "foil" : "", e.lang])]; download(`colecao-${new Date().toISOString().slice(0, 10)}.csv`, rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n"), "text/csv"); }
-function backup() { download(`biblioteca-mtg-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ v: 1, at: new Date().toISOString(), cards: S.cards, decks: S.decks, boxes: S.boxes }), "application/json"); S.settings.lastBackup = Date.now(); save(); }
+async function backup() {
+  const name = `biblioteca-mtg-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  const text = JSON.stringify({ v: 1, at: new Date().toISOString(), cards: S.cards, decks: S.decks, boxes: S.boxes });
+  const file = new File([text], name, { type: "application/json" });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Backup Biblioteca MTG" }); }
+    else download(name, text, "application/json");
+    S.settings.lastBackup = Date.now(); S.settings.changes = 0; save(); updateBackupBanner();
+  } catch (e) { if (e.name !== "AbortError") download(name, text, "application/json"); }
+}
+function updateBackupBanner() {
+  const b = $("backupBanner"); if (!b) return;
+  const n = S.settings.changes || 0;
+  b.classList.toggle("hidden", !(n >= 5 && S.cards.length));
+  b.querySelector("span").textContent = `${n} mudança${n === 1 ? "" : "s"} sem backup`;
+}
 function restore() {
   const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
-  inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!Array.isArray(d.cards)) throw new Error("arquivo inválido"); S.cards = d.cards; S.decks = d.decks || []; S.boxes = d.boxes || S.boxes; save(); toast("Backup restaurado."); go("col"); } catch (e) { toast("Não consegui restaurar: " + e.message); } };
+  inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!Array.isArray(d.cards)) throw new Error("arquivo inválido"); S.cards = d.cards; S.decks = d.decks || []; S.boxes = d.boxes || S.boxes; S.settings.changes = 0; save(true); toast("Backup restaurado: " + S.cards.length + " cartas."); go("col"); } catch (e) { toast("Não consegui restaurar: " + e.message); } };
   inp.click();
 }
 
@@ -855,7 +871,7 @@ function renderScan() {
   $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
   startScanner();
 }
-$("scanDest").onchange = (e) => { S.settings.scanDest = e.target.value; save(); };
+$("scanDest").onchange = (e) => { S.settings.scanDest = e.target.value; save(true); };
 async function startScanner() {
   try { await ensureOCR(); } catch (e) { $("scanStatus").textContent = "Não consegui carregar o leitor."; return; }
   let saved = S.settings.camId || "";
@@ -888,10 +904,10 @@ async function startCamera(deviceId) {
     if (!deviceId && !CAMS.auto) { CAMS.auto = true; const main = CAMS.list.find(d => /camera2 0\b/.test(d.label)); if (main && main.deviceId !== cur) return startCamera(main.deviceId); }
   } catch {}
 }
-async function setZoom(z) { try { await track.applyConstraints({ advanced: [{ zoom: z }] }); ZOOM.cur = z; $("zoomBtn").textContent = (z % 1 ? z.toFixed(1) : z) + "×"; S.settings.zoom = z; save(); } catch {} }
+async function setZoom(z) { try { await track.applyConstraints({ advanced: [{ zoom: z }] }); ZOOM.cur = z; $("zoomBtn").textContent = (z % 1 ? z.toFixed(1) : z) + "×"; S.settings.zoom = z; save(true); } catch {} }
 $("zoomBtn").onclick = () => setZoom(ZOOM.levels[(ZOOM.levels.indexOf(ZOOM.cur) + 1) % ZOOM.levels.length]);
 $("torchBtn").onclick = async () => { const on = $("torchBtn").getAttribute("aria-pressed") !== "true"; try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").setAttribute("aria-pressed", on); } catch {} };
-$("camSwitch").onclick = async () => { if (CAMS.list.length < 2) return; CAMS.idx = (CAMS.idx + 1) % CAMS.list.length; try { await startCamera(CAMS.list[CAMS.idx].deviceId); S.settings.camId = CAMS.list[CAMS.idx].deviceId; save(); } catch { toast("Não consegui abrir essa lente."); } };
+$("camSwitch").onclick = async () => { if (CAMS.list.length < 2) return; CAMS.idx = (CAMS.idx + 1) % CAMS.list.length; try { await startCamera(CAMS.list[CAMS.idx].deviceId); S.settings.camId = CAMS.list[CAMS.idx].deviceId; save(true); } catch { toast("Não consegui abrir essa lente."); } };
 $("afBtn").onclick = async () => { FOCUS.manual = false; $("afBtn").setAttribute("aria-pressed", "true"); try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} };
 $("mfRange").oninput = async (e) => { FOCUS.manual = true; $("afBtn").setAttribute("aria-pressed", "false"); try { await track.applyConstraints({ advanced: [{ focusMode: "manual", focusDistance: +e.target.value }] }); } catch {} };
 $("scanView").addEventListener("pointerup", async (ev) => {
@@ -958,7 +974,7 @@ async function scanPhoto(file) {
   } catch (e) { toast("Erro ao ler a foto."); SC.paused = false; }
 }
 $("photoInput").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); };
-for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(); };
+for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(true); };
 async function onLocked(hit, fromPhoto) {
   SC.paused = true; if (navigator.vibrate) navigator.vibrate(40);
   const p = DB.p[hit.pi];
@@ -1018,6 +1034,7 @@ $("lastScan").onclick = () => {
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
+    $("backupNow").onclick = backup; updateBackupBanner();
     go("col");
     if (S.cards.length > 20 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * 864e5)) setTimeout(() => toast("Dica: faça um backup da coleção (menu ⋮ → Fazer backup).", 3500), 1500);
   } catch (e) { $("splashMsg").textContent = "Erro ao iniciar: " + (e.message || e); }
