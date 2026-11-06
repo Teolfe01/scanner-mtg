@@ -180,6 +180,8 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 @keyframes ring { from { transform: scale(1.5); opacity: 1; } to { transform: scale(1); opacity: .2; } }
 .mf { position: absolute; left: 12px; right: 12px; bottom: 140px; display: flex; align-items: center; gap: 10px; background: rgba(20,22,26,.75); padding: 8px 12px; border-radius: 14px; color: #fff; font-size: 11px; }
 .mf input { flex: 1; accent-color: var(--accent); }
+#dbg canvas { max-width: 100%; height: auto; background: #fff; border-radius: 4px; }
+#dbg pre { margin: 0; color: #fff; font: 12px/1.35 ui-monospace, monospace; white-space: pre-wrap; max-height: 90px; overflow: auto; }
 .via { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; }
 .via.ok { color: var(--ok); background: rgba(85,208,141,.1); } .via.warn { color: var(--warn); background: rgba(240,176,74,.1); }
 @media (max-width: 380px) { .tile .tname { font-size: 12.5px; } .kpis { grid-template-columns: repeat(2, 1fr); } }
@@ -211,9 +213,11 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
     <select id="scanDest" class="chipbtn" aria-label="Destino" style="width:auto;min-height:0;padding:7px 10px"></select>
     <button class="chipbtn hidden" id="camSwitch">Lente</button>
     <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ</button>
+    <button class="chipbtn" id="dbgBtn" aria-pressed="false">🔍 Leitura</button>
   </div>
   <div class="mf hidden" id="mfWrap"><button class="chipbtn" id="afBtn" aria-pressed="true">AF</button><input type="range" id="mfRange" aria-label="Foco manual"><span>perto ↔ longe</span></div>
   <div class="scanstatus" id="scanStatus">Abrindo a câmera…</div>
+  <div id="dbg" class="hidden" style="position:absolute;left:8px;right:8px;top:110px;background:rgba(0,0,0,.8);padding:6px;border-radius:10px;display:grid;gap:4px;z-index:3"></div>
   <div class="scanbottom">
     <button class="lastscan" id="lastScan">Escaneadas <b id="sessCount">0</b></button>
     <button class="roundbtn hidden" id="zoomBtn" aria-label="Zoom">2×</button>
@@ -292,7 +296,7 @@ function lev(a, b, max) {
 function matchName(text, strict = true) {
   const k = norm(text); if (k.length < 4) return null;
   if (DB.byName.has(k)) return { i: DB.byName.get(k), d: 0 };
-  const max = k.length < 6 ? (strict ? 0 : 1) : Math.max(1, Math.floor(k.length * 0.2));
+  const max = k.length < 6 ? (strict ? 0 : 1) : Math.max(1, Math.floor(k.length * (strict ? 0.25 : 0.3)));
   let best = null;
   for (let L = k.length - max; L <= k.length + max; L++) for (const [n, i] of (DB.byLen.get(L) || [])) {
     const d = lev(k, n, best ? Math.min(max, best.d) : max); if (d <= max && (!best || d < best.d)) { best = { i, d }; if (d === 0) return best; } }
@@ -835,13 +839,22 @@ function labelsSheet() {
 const SC = { busy: false, paused: false, last: null, streak: 0, lastOi: -1, clearSeen: true, timer: 0, session: [] };
 let stream = null, track = null, worker = null;
 const LANG_CODES = { EN: "en", PT: "pt", SP: "es", ES: "es", FR: "fr", DE: "de", IT: "it", JP: "ja", JA: "ja", KO: "ko", RU: "ru", CS: "zhs", CT: "zht" };
+const SUB_NUM = { O: "0", Q: "0", D: "0", I: "1", L: "1", "|": "1", Z: "2", S: "5", B: "8", G: "6", T: "7" };
+const SUB_SET = { "0": ["O"], O: ["0"], "1": ["I", "L"], I: ["1", "L"], L: ["1", "I"], "5": ["S"], S: ["5"], "8": ["B"], B: ["8"], "2": ["Z"], Z: ["2"], "6": ["G"], G: ["6"] };
+function fixSet(tok) {
+  const t = tok.toLowerCase(); if (DB.setCodes.has(t)) return t;
+  const up = tok.toUpperCase(); const opts = [""];
+  for (const ch of up) { const alts = [ch, ...(SUB_SET[ch] || [])]; const next = []; for (const o of opts) for (const a of alts) next.push(o + a); opts.splice(0, opts.length, ...next.slice(0, 64)); }
+  const hit = opts.find(o => DB.setCodes.has(o.toLowerCase())); return hit ? hit.toLowerCase() : null;
+}
 function parseFoot(text) {
-  const lines = String(text || "").toUpperCase().replace(/[|\\]/g, " ").split(/\n/).map(l => l.trim()).filter(Boolean);
+  const lines = String(text || "").toUpperCase().replace(/[|\\]/g, " ").split(/\n/).map(l => l.trim()).filter(Boolean)
+    .map(l => l.replace(/\b([0-9OQDILZSBGT]{2,4})(?=\s*\/|\s+[CURMSLT]\b)/g, (m) => m.replace(/[OQDILZSBGT]/g, c => SUB_NUM[c] || c)));
   const firstNum = (l) => { const m = l.replace(/[©®™].*$/, "").match(/(?:^|[^A-Z0-9])0*(\d{1,4})(?=[^0-9]|$)/); return m ? m[1] : null; };
   const langM = lines.join(" ").match(/\b(EN|PT|SP|ES|FR|DE|IT|JP|JA|KO|RU|CS|CT)\b/);
   const out = [], sets = [];
   lines.forEach((l, i) => {
-    const toks = [...l.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => m[0].toLowerCase()).filter(t => DB.setCodes.has(t)); if (!toks.length) return; sets.push(...toks);
+    const toks = [...new Set([...l.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => fixSet(m[0])).filter(Boolean))]; if (!toks.length) return; sets.push(...toks);
     const nums = []; const sl = l.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); if (sl) nums.push(sl[1]);
     if (i > 0) { const pl = lines[i - 1]; const s2 = pl.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); nums.push(s2 ? s2[1] : firstNum(pl)); }
     nums.push(firstNum(l));
@@ -852,11 +865,11 @@ function parseFoot(text) {
 function decide(titleTxt, foot) {
   const nm = matchName(titleTxt);
   if (foot.prints.length) {
-    const both = nm && foot.prints.find(pi => DB.p[pi][3] === nm.i);
+    const both = nm ? foot.prints.find(pi => DB.p[pi][3] === nm.i) : undefined;
     const pi = both !== undefined ? both : (foot.prints.length === 1 ? foot.prints[0] : (nm ? undefined : foot.prints[0]));
     if (pi !== undefined) return { pi, oi: DB.p[pi][3], lang: foot.lang, via: both !== undefined ? "both" : "foot" };
   }
-  if (nm) { const ps = (DB.prints[nm.i] || []).filter(pi => foot.sets.includes(DB.p[pi][0])); return ps.length === 1 ? { pi: ps[0], oi: nm.i, lang: foot.lang, via: "name-set" } : { pi: defaultPrint(nm.i), oi: nm.i, lang: foot.lang, via: "name" }; }
+  if (nm) { const ps = (DB.prints[nm.i] || []).filter(pi => foot.sets.includes(DB.p[pi][0])); if (ps.length === 1) return { pi: ps[0], oi: nm.i, lang: foot.lang, via: "name-set" }; const dp = defaultPrint(nm.i); return dp < 0 ? null : { pi: dp, oi: nm.i, lang: foot.lang, via: "name" }; }
   return null;
 }
 async function ensureOCR() {
@@ -942,10 +955,14 @@ async function tick() {
   if (SC.busy || SC.paused || !worker || tab !== "scan") return;
   const r = guideRect(); if (!r) return; SC.busy = true;
   try {
-    await worker.setParameters({ tessedit_pageseg_mode: "7" });
-    const t1 = (await worker.recognize(crop($("video"), r, .05, .025, .66, .085, 56))).data.text.replace(/\n/g, " ").trim();
+    SC.alt = !SC.alt;
+    const c1 = SC.alt ? crop($("video"), r, .05, .025, .66, .085, 56) : crop($("video"), r, .02, 0, .8, .14, 72);
+    const c2 = SC.alt ? crop($("video"), r, .035, .895, .56, .09, 84) : crop($("video"), r, 0, .86, .7, .14, 110);
+    await worker.setParameters({ tessedit_pageseg_mode: SC.alt ? "7" : "6" });
+    const t1 = (await worker.recognize(c1)).data.text.replace(/\n/g, " ").trim();
     await worker.setParameters({ tessedit_pageseg_mode: "6" });
-    const t2 = (await worker.recognize(crop($("video"), r, .035, .895, .56, .09, 84))).data.text;
+    const t2 = (await worker.recognize(c2)).data.text;
+    if (SC.debug) { const dbg = $("dbg"); dbg.innerHTML = ""; dbg.append(c1, c2); const p = document.createElement("pre"); p.textContent = "NOME: " + t1 + "\nRODAPÉ: " + t2.trim(); dbg.append(p); }
     const hit = decide(t1, parseFoot(t2)); const g = $("guide");
     if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide"; $("scanStatus").textContent = t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; }
     else {
@@ -973,6 +990,7 @@ async function scanPhoto(file) {
     await onLocked(hit, true);
   } catch (e) { toast("Erro ao ler a foto."); SC.paused = false; }
 }
+$("dbgBtn").onclick = () => { SC.debug = !SC.debug; $("dbgBtn").setAttribute("aria-pressed", SC.debug); $("dbg").classList.toggle("hidden", !SC.debug); };
 $("photoInput").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); };
 for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(true); };
 async function onLocked(hit, fromPhoto) {
@@ -1014,8 +1032,16 @@ function commitScan(c, auto) {
 function resume() { closeSheet(); SC.streak = 0; SC.last = null; SC.paused = false; $("guide").className = "guide"; $("scanStatus").textContent = "Aponte para a próxima carta"; }
 $("lastScan").onclick = () => {
   SC.paused = true;
-  openSheet(`<h3 style="margin:0">Escaneadas nesta sessão</h3><div class="loc">${SC.session.map((x, i) => `<div><span>${x.qty}× ${esc(x.name)}<br><span class="meta">${esc(x.where)}</span></span><button class="btn small danger" data-u="${i}">Desfazer</button></div>`).join("") || `<div><span>Nada ainda.</span></div>`}</div>`, `<button class="btn primary" id="sOk">Voltar à câmera</button>`);
+  openSheet(`<h3 style="margin:0">Escaneadas nesta sessão</h3><div class="loc">${SC.session.map((x, i) => `<div><span>${x.qty}× ${esc(x.name)}<br><span class="meta">${esc(x.where)}</span></span><button class="btn small danger" data-u="${i}">Desfazer</button></div>`).join("") || `<div><span>Nada ainda.</span></div>`}</div>`, `<button class="btn" id="sShare">Enviar lista</button><button class="btn primary" id="sOk">Voltar à câmera</button>`);
   $("sOk").onclick = closeSheet;
+  $("sShare").onclick = async () => {
+    const items = SC.session.map(x => S.cards.find(y => y.key === x.key) ? { e: S.cards.find(y => y.key === x.key), q: x.qty } : null).filter(Boolean);
+    if (!items.length) return toast("Nada escaneado ainda.");
+    const rows = [["Count", "Name", "Edition", "Collector Number", "Foil", "Language"], ...items.map(({ e, q }) => [q, e.name, e.set, e.number, e.foil ? "foil" : "", e.lang])];
+    const text = rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n");
+    const file = new File([text], `escaneadas-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.csv`, { type: "text/csv" });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: "Cartas escaneadas" }); else download(file.name, text, "text/csv"); } catch {}
+  };
   $("sheetBody").onclick = (ev) => { const b = ev.target.closest("[data-u]"); if (!b) return; const x = SC.session[+b.dataset.u]; const e = S.cards.find(y => y.key === x.key);
     if (e) { e.qty -= x.qty; if (x.dest && e.decks[x.dest]) { e.decks[x.dest] = Math.max(0, e.decks[x.dest] - x.qty); if (!e.decks[x.dest]) delete e.decks[x.dest]; } if (e.qty <= 0) S.cards = S.cards.filter(y => y !== e); save(); }
     SC.session.splice(+b.dataset.u, 1); $("sessCount").textContent = SC.session.reduce((a, y) => a + y.qty, 0); $("lastScan").click(); };
