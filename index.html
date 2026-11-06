@@ -257,6 +257,18 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
   .ed-results { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 1000px) and (max-width: 1300px) { .editor { grid-template-columns: 260px 1fr 260px; } }
+/* Ampliar no hover, preços, excluir deck */
+.hov { position: fixed; z-index: 75; width: 320px; pointer-events: none; }
+.hov img { width: 100%; display: block; border-radius: 4.5%; box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.06); }
+.hov.in { animation: hovIn .18s var(--ease, ease) both; }
+@keyframes hovIn { from { opacity: 0; transform: scale(.92); } }
+.pricebox { display: grid; gap: 8px; background: var(--surface-2); border-radius: 16px; padding: 10px 12px; }
+.pricebox b { font-size: 17px; }
+.pricebox a.btn { text-decoration: none; }
+.deckcard { grid-template-columns: 56px 1fr auto !important; }
+.dkdel { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; opacity: .55; font-size: 18px; transition: opacity .2s, background .2s; }
+.dkdel:hover { opacity: 1; background: rgba(255,90,70,.15); }
+.danger-row .rn { color: var(--bad); }
 /* Comandante + template */
 .cmdban { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, rgba(232,65,58,.12), rgba(255,194,75,.06)); border-radius: 26px; padding: 12px; margin-bottom: 14px; box-shadow: 0 0 0 1px rgba(255,122,69,.18) inset; }
 .cmdban .cbimg { border: 0; background: none; padding: 0; width: 110px; flex: none; }
@@ -430,6 +442,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <p class="meta" id="loginMsg">Entre com sua conta Google para usar a biblioteca compartilhada. As cartas ficam salvas na nuvem e aparecem no celular e no PC de quem tem acesso.</p>
   <button class="btn primary" id="loginBtn">Entrar com Google</button>
 </div></div>
+<div class="hov hidden" id="hov"><img alt=""></div>
 <div class="zoom hidden" id="zoom" role="dialog" aria-label="Carta ampliada"><img id="zoomImg" alt=""><div class="meta" id="zoomTxt"></div></div>
 <div class="splash" id="splash"><div class="box">
   <h2 style="margin:0">Biblioteca MTG</h2>
@@ -450,7 +463,35 @@ const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-
 const normNum = (n) => String(n || "").toLowerCase().split("/")[0].replace(/[^0-9a-z★†\-]/g, "").replace(/^0+(?=\d)/, "");
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 function toast(msg, ms = 2200) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
-const fmtUSD = (c) => c ? "US$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+// Preços: tudo em centavos de R$. Referência = preço anotado da LigaMagic; sem ele, estimativa (Scryfall US$ × dólar do dia).
+const fmtUSD = (c) => c ? "R$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+const RATE = () => (S.settings && S.settings.usdbrl) || 5.4;
+const ligaKey = (set, number, foil) => set + "|" + normNum(number) + (foil ? "|f" : "");
+function ligaOf(set, number, foil) { const L = S.liga || {}; return L[ligaKey(set, number, foil)] || (foil ? null : null); }
+function brlOf(set, number, foil) {
+  const l = ligaOf(set, number, foil); if (l) return l.v;
+  const pi = DB.bySetNum.get(set + "|" + normNum(number)); if (pi === undefined) return 0; const p = DB.p[pi];
+  const usd = foil ? (p[7] || p[6] || 0) : (p[6] || p[7] || 0); return Math.round(usd * RATE());
+}
+const ligaURL = (oi) => "https://www.ligamagic.com.br/?view=cards/card&card=" + encodeURIComponent(DB.o[oi][0].split(" // ")[0]);
+function priceBlock(oi, set, number, foil) {
+  const l = ligaOf(set, number, foil); const v = brlOf(set, number, foil);
+  return `<div class="pricebox"><div><b>${fmtUSD(v) || "sem preço"}</b> <span class="meta">${l ? "LigaMagic · anotado em " + new Date(l.at).toLocaleDateString("pt-BR") : v ? "estimado (Scryfall × dólar)" : ""}</span></div>
+    <div class="actions"><a class="btn small" target="_blank" rel="noopener" href="${esc(ligaURL(oi))}">Ver na LigaMagic ↗</a><button class="btn small" data-ligaset="${esc(set)}|${esc(number)}|${foil ? 1 : 0}">${l ? "Atualizar preço" : "Anotar preço da Liga"}</button></div></div>`;
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-ligaset]"); if (!b) return;
+  const [set, number, f] = b.dataset.ligaset.split("|"); const cur = ligaOf(set, number, f === "1");
+  const v = prompt("Preço na LigaMagic (R$). Deixe vazio para apagar.", cur ? (cur.v / 100).toFixed(2).replace(".", ",") : "");
+  if (v === null) return; S.liga = S.liga || {}; const k = ligaKey(set, number, f === "1");
+  const n = Math.round(parseFloat(v.replace(/[^\d,.]/g, "").replace(/\.(?=\d{3})/g, "").replace(",", ".")) * 100);
+  if (!v.trim() || !n) delete S.liga[k]; else S.liga[k] = { v: n, at: Date.now() };
+  save(); toast(n ? "Preço da Liga salvo: " + fmtUSD(n) : "Preço anotado apagado"); const box = b.closest(".pricebox"); if (box) { const oi = DB.p[DB.bySetNum.get(set + "|" + normNum(number))][3]; box.outerHTML = priceBlock(oi, set, number, f === "1"); }
+});
+async function updateRate() {
+  const st = S.settings || {}; if (st.usdbrlAt && Date.now() - st.usdbrlAt < 12 * 3600e3) return;
+  try { const j = await (await fetch("https://open.er-api.com/v6/latest/USD")).json(); if (j && j.rates && j.rates.BRL) { st.usdbrl = j.rates.BRL; st.usdbrlAt = Date.now(); save(true); } } catch (e) {}
+}
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ============ Base de cartas (Scryfall, embutida) ============
@@ -511,7 +552,7 @@ function defaultPrint(oi) {
   const normal = list.filter(pi => !promo(DB.p[pi][0]) && !DB.p[pi][4]);
   const L = normal.length ? normal : list; return L[L.length - 1];
 }
-const priceOf = (e) => { const pi = DB.bySetNum.get(e.set + "|" + normNum(e.number)); if (pi === undefined) return 0; const p = DB.p[pi]; return e.foil ? (p[7] || p[6] || 0) : (p[6] || p[7] || 0); };
+const priceOf = (e) => brlOf(e.set, e.number, e.foil);
 const rarityOf = (e) => { const pi = DB.bySetNum.get(e.set + "|" + normNum(e.number)); return pi === undefined ? "c" : DB.p[pi][2]; };
 
 // ============ Armazenamento local (IndexedDB) ============
@@ -521,9 +562,9 @@ const store = {
   async get(k) { return new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); }); },
   async set(k, v) { return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 };
-const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {} };
+const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {} };
 let saveT = 0;
-function save(silent) { setTimeout(pushCloud, 300); if (!silent && S.settings) { S.settings.changes = (S.settings.changes || 0) + 1; setTimeout(updateBackupBanner); } clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+function save(silent) { setTimeout(pushCloud, 300); if (!silent && S.settings) { S.settings.changes = (S.settings.changes || 0) + 1; setTimeout(updateBackupBanner); } clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
 // Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
 const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
@@ -734,7 +775,8 @@ function openCard(key) {
   openSheet(`
     <div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3><div>${manaHTML(o.mana)}</div><div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div>
       <div class="meta">${setHTML(e.set, rarityOf(e))} ${esc(DB.sets[e.set] || e.set)} #${esc(e.number)} · ${esc((e.lang || "en").toUpperCase())}${e.foil ? " · foil" : ""}</div>
-      <div style="margin-top:6px;font-weight:600">${fmtUSD(priceOf(e)) || ""}</div></div></div>
+      </div></div>
+    ${priceBlock(e.oi, e.set, e.number, e.foil)}
     <div><h2 class="sec" style="margin-top:0">Onde está</h2><div class="loc">${locs.join("") || `<div><span>—</span></div>`}</div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
     ${o.roles.length ? `<div class="roles">${o.roles.map(r => `<span class="pill">${esc(ROLES[r])}</span>`).join("")}</div>` : ""}
@@ -843,8 +885,8 @@ function renderDecks() {
     return `<button class="deckcard" data-d="${esc(d.id)}">${fake ? cardImgHTML(fake, { bare: true }) : `<div class="cardimg"></div>`}
       <span><b>${esc(d.name)}</b><br><span class="meta">${esc(d.format || "")} · ${total} cartas</span><br>${ci.map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ")}
       <div class="bar ${have >= total ? "ok" : ""}" style="margin-top:6px"><i style="width:${total ? Math.round(have * 100 / total) : 0}%"></i></div><span class="meta">${have}/${total} montadas${d.built ? " · na caixa do deck" : ""}</span></span>
-      <span class="meta">›</span></button>`; }).join("")}</div>`;
-  $("main").onclick = (ev) => { const b = ev.target.closest("[data-d]"); if (b) go("decks", { kind: isWide() ? "edit" : "deck", id: b.dataset.d }); };
+      <span class="dkdel" role="button" tabindex="0" title="Excluir deck" data-del="${esc(d.id)}">🗑</span></button>`; }).join("")}</div>`;
+  $("main").onclick = (ev) => { const x = ev.target.closest("[data-del]"); if (x) { ev.stopPropagation(); const dd = S.decks.find(k => k.id === x.dataset.del); if (dd) deleteDeck(dd); return; } const b = ev.target.closest("[data-d]"); if (b) go("decks", { kind: isWide() ? "edit" : "deck", id: b.dataset.d }); };
 }
 function newDeck(name = "", format = "Commander", cards = [], source = "") {
   const d = { id: uid(), name: typeof name === "string" && name ? name : "Novo deck", format, source, cards, built: false, created: Date.now() };
@@ -912,7 +954,7 @@ function offerCollectionAdd(d) {
 function renderDeck(id) {
   const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
   $("title").textContent = d.name; $("bars").innerHTML = ""; $("backBtn").classList.remove("invisible");
-  setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Apagar deck", () => deleteDeck(d)]]);
+  setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.remove("hidden"); $("fab").onclick = () => addCardToDeck(d);
   const total = deckCount(d);
   const cards = d.cards.map(c => ({ ...c, o: oInfo(c.oi), have: haveFor(d, c.oi), lib: libFor(c.oi) }));
@@ -925,7 +967,7 @@ function renderDeck(id) {
   const rolesCount = {}; cards.filter(c => c.board !== "side").forEach(c => c.o.roles.forEach(r => rolesCount[r] = (rolesCount[r] || 0) + c.qty));
   const lands = cards.filter(c => mainTypes(c.o.type).includes("Land") && c.board !== "side").reduce((a, c) => a + c.qty, 0);
   const avg = nonland.length ? (nonland.reduce((a, c) => a + c.o.cmc * c.qty, 0) / nonland.reduce((a, c) => a + c.qty, 0)).toFixed(2) : "–";
-  const value = cards.reduce((a, c) => a + (c.set ? (DB.p[DB.bySetNum.get(c.set + "|" + normNum(c.number))] || [])[6] || 0 : 0) * c.qty, 0);
+  const value = cards.reduce((a, c) => a + (c.set ? brlOf(c.set, c.number, c.foil) : 0) * c.qty, 0);
   const groups = [["cmd", "Comandante"], ...TYPES.map(t => ["t:" + t[0], t[1]]), ["side", "Sideboard"]];
   const groupOf = (c) => c.board === "cmd" ? "cmd" : c.board === "side" ? "side" : "t:" + (mainTypes(c.o.type).find(t => t !== "Land") || mainTypes(c.o.type)[0] || "Artifact");
   const rowHTML = (c) => {
@@ -994,8 +1036,29 @@ function unbuildDeck(d) {
 async function copyDeck(d) { const t = ["cmd", "main", "side"].map(b => { const l = d.cards.filter(c => c.board === b); if (!l.length) return ""; return (b === "cmd" ? "Commander\n" : b === "side" ? "\nSideboard\n" : "") + l.map(c => `${c.qty} ${DB.o[c.oi][0]}`).join("\n"); }).join("\n").trim(); try { await navigator.clipboard.writeText(t); toast("Lista copiada."); } catch { download(d.name + ".txt", t); } }
 async function copyMissing(d) { const l = d.cards.map(c => [c.qty - Math.min(c.qty, haveFor(d, c.oi) + libFor(c.oi)), DB.o[c.oi][0]]).filter(x => x[0] > 0); if (!l.length) return toast("Você já tem todas as cartas."); const t = l.map(x => `${x[0]} ${x[1]}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${l.length} cartas copiadas.`); } catch { download("faltantes.txt", t); } }
 function deleteDeck(d) {
-  openSheet(`<h3 style="margin:0">Apagar "${esc(d.name)}"?</h3><p class="meta" style="margin:0">As cartas da coleção que estão no deck voltam para as caixas.</p>`, `<button class="btn" id="xNo">Cancelar</button><button class="btn danger" id="xYes">Apagar</button>`);
-  $("xNo").onclick = closeSheet; $("xYes").onclick = () => { S.cards.forEach(e => { if (e.decks) delete e.decks[d.id]; }); S.decks = S.decks.filter(x => x !== d); save(); go("decks"); };
+  const mine = S.cards.filter(e => (e.decks || {})[d.id]); const n = mine.reduce((a, e) => a + e.decks[d.id], 0);
+  openSheet(`<h3 style="margin:0">Excluir "${esc(d.name)}"</h3>
+    <p class="meta" style="margin:0">${n ? `Este deck tem <b>${n}</b> carta(s) da coleção montadas nele. O que fazer com elas?` : "Nenhuma carta da coleção está montada neste deck."}</p>
+    <div class="rows">
+      <button class="row" id="xKeep" style="grid-template-columns:1fr"><span><span class="rn">Desfazer o deck</span><span class="rs">Apaga a lista e as cartas voltam para as caixas da biblioteca (mostro onde guardar cada uma).</span></span></button>
+      ${n ? `<button class="row danger-row" id="xAll" style="grid-template-columns:1fr"><span><span class="rn">Excluir tudo</span><span class="rs">Apaga a lista e tira essas ${n} carta(s) da coleção — use se vendeu, trocou ou deu o deck.</span></span></button>` : ""}
+    </div>`, `<button class="btn" id="xNo">Cancelar</button>`);
+  $("xNo").onclick = closeSheet;
+  $("xKeep").onclick = () => {
+    const back = [];
+    for (const e of mine) { const q = e.decks[d.id]; delete e.decks[d.id]; const w = whereLib(e); for (let k = 0; k < q; k++) back.push({ name: e.name, where: w.text, box: w.box, sec: SECTIONS.indexOf(sectionOf(e)) }); }
+    S.decks = S.decks.filter(x => x !== d); save();
+    back.sort((a, b) => a.box - b.box || a.sec - b.sec || a.name.localeCompare(b.name));
+    if (!back.length) { toast("Deck excluído"); return go("decks"); }
+    openSheet(`<h3 style="margin:0">Deck desfeito — guardar ${back.length} carta(s)</h3><div class="loc">${back.map(t => `<div><span>${esc(t.name)}</span><span class="meta">${esc(t.where.replace(/^Caixa /, "Cx "))}</span></div>`).join("")}</div>`, `<button class="btn primary" id="xOk">Pronto</button>`);
+    $("xOk").onclick = () => go("decks");
+  };
+  if ($("xAll")) $("xAll").onclick = () => {
+    if (!confirm(`Tirar ${n} carta(s) da coleção de vez? Isso não dá pra desfazer.`)) return;
+    for (const e of mine) { e.qty -= e.decks[d.id]; delete e.decks[d.id]; }
+    S.cards = S.cards.filter(e => e.qty > 0); S.decks = S.decks.filter(x => x !== d); save();
+    toast(`Deck e ${n} carta(s) removidos da coleção`); go("decks");
+  };
 }
 function addCardToDeck(d) {
   openSheet(`<h3 style="margin:0">Adicionar ao deck</h3><input type="search" id="aq" placeholder="Nome da carta"><label class="meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="aOwned" checked> só cartas que eu tenho</label><div class="rows" id="aList"></div>`, `<button class="btn primary" id="aDone">Pronto</button>`);
@@ -1036,6 +1099,21 @@ document.addEventListener("pointerdown", (e) => {
   $("zoom").addEventListener("pointerleave", () => tilt(0, 0));
   window.addEventListener("deviceorientation", (e) => { if ($("zoom").classList.contains("hidden") || e.gamma == null) return; tilt(Math.max(-1, Math.min(1, e.gamma / 30)) / 2, Math.max(-1, Math.min(1, (e.beta - 45) / 30)) / 2); });
 })();
+// ============ AMPLIAR AO PASSAR O MOUSE (PC) ============
+(() => {
+  if (!matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+  const H = $("hov"), HI = H.querySelector("img"); let t = null, cur = null;
+  const hide = () => { clearTimeout(t); cur = null; H.classList.add("hidden"); };
+  const place = (x, y) => { const w = 320, h = w * 680 / 488, m = 18; let left = x + m; if (left + w > innerWidth - 8) left = x - w - m; let top = Math.min(Math.max(8, y - h / 2), innerHeight - h - 8); H.style.left = Math.max(8, left) + "px"; H.style.top = top + "px"; };
+  document.addEventListener("mouseover", (e) => {
+    const c = e.target.closest(".cardimg"); if (c === cur) return;
+    if (!c || c.closest("#zoom, #hov, .ed-preview, .detail, #scanView")) { hide(); return; }
+    const img = c.querySelector("img"); const src = img && (img.currentSrc || img.getAttribute("src")); if (!src) { hide(); return; }
+    cur = c; clearTimeout(t); t = setTimeout(() => { HI.src = src; H.classList.remove("hidden"); H.classList.remove("in"); void H.offsetWidth; H.classList.add("in"); place(e.clientX, e.clientY); }, 220);
+  });
+  document.addEventListener("mousemove", (e) => { if (cur && !H.classList.contains("hidden")) place(e.clientX, e.clientY); }, { passive: true });
+  ["scroll", "mousedown", "keydown", "dragstart"].forEach(ev => document.addEventListener(ev, hide, true));
+})();
 // ============ ZOOM ============
 function zoomImg(el) {
   const img = el.querySelector("img"); if (!img) return;
@@ -1056,7 +1134,7 @@ const isWide = () => window.innerWidth >= 1000;
 const deckOf = () => S.decks.find(d => d.id === ED.id);
 function printFor(c) { if (c.set && c.number) { const pi = DB.bySetNum.get(c.set + "|" + normNum(c.number)); if (pi !== undefined) return pi; } return defaultPrint(c.oi); }
 function fakeEntry(c) { const pi = printFor(c); return { oi: c.oi, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "", foil: false, lang: "en" }; }
-function cardPrice(c) { const pi = printFor(c); return pi >= 0 ? (DB.p[pi][6] || DB.p[pi][7] || 0) : 0; }
+function cardPrice(c) { const pi = printFor(c); return pi >= 0 ? brlOf(DB.p[pi][0], DB.p[pi][1], c.foil) : 0; }
 function deckCI(d) { const cmd = d.cards.filter(c => c.board === "cmd"); return cmd.length ? new Set(cmd.flatMap(c => DB.o[c.oi][4].split("")).filter(Boolean)) : null; }
 function primaryType(oi) { const t = mainTypes(DB.o[oi][5]); return t.find(x => x !== "Land") || t[0] || "Other"; }
 const TYPE_PT = Object.fromEntries(TYPES.map(t => [t[0], t[1]]));
@@ -1101,7 +1179,7 @@ function renderEditor() {
   const d = deckOf(); if (!d) return go("decks");
   document.body.classList.add("wide");
   $("title").textContent = d.name; $("backBtn").classList.remove("invisible"); $("bars").innerHTML = "";
-  setMenu([["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)]]);
+  setMenu([["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.add("hidden"); $("main").onclick = null;
   $("main").innerHTML = `
     <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}</div>
@@ -1305,13 +1383,14 @@ function deckCardMenu(oi, board) {
   const o = oInfo(oi); const st = ownStatus(d, c);
   const cats = [...new Set(d.cards.map(x => x.cat).filter(Boolean))];
   openSheet(`<div class="detail">${cardImgHTML(fakeEntry(c), { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}</div>
-      <div class="meta">${BOARD_NAME[c.board]} · ${fmtUSD(cardPrice(c)) || "sem preço"}</div>
+      <div class="meta">${BOARD_NAME[c.board]}</div>
       <span class="pill ${st === "ok" ? "ok" : st === "lib" ? "warn" : "bad"}">${st === "ok" ? "montada no deck" : st === "lib" ? "temos na caixa" : "não temos"}</span></div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
+    ${(() => { const pi = printFor(c); return pi >= 0 ? priceBlock(oi, DB.p[pi][0], DB.p[pi][1], c.foil) : ""; })()}
     <div class="actions" style="align-items:center"><span class="meta">Quantidade</span><span class="stepper"><button id="mM">−</button><span id="mQ">${c.qty}</span><button id="mP">+</button></span></div>
     <div class="two"><select id="mBoard">${Object.entries(BOARD_NAME).map(([k, v]) => `<option value="${k}"${k === c.board ? " selected" : ""}>${v}</option>`).join("")}</select>
       <select id="mCat"><option value="">Categoria: automática (${esc(tplName(tplCats({ oi })[0]))})</option>${[...new Set([...TPL.map(t => t.n), ...cats])].map(x => `<option${x === c.cat ? " selected" : ""}>${esc(x)}</option>`).join("")}<option value="__new">+ Nova…</option></select></div>
-    <select id="mPrint">${(DB.prints[oi] || []).slice().reverse().map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}${DB.p[pi][6] ? " · " + fmtUSD(DB.p[pi][6]) : ""}</option>`).join("")}</select>`,
+    <select id="mPrint">${(DB.prints[oi] || []).slice().reverse().map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}${brlOf(DB.p[pi][0], DB.p[pi][1]) ? " · " + fmtUSD(brlOf(DB.p[pi][0], DB.p[pi][1])) : ""}</option>`).join("")}</select>`,
     `<button class="btn danger" id="mDel">Remover</button><button class="btn primary" id="mOk">OK</button>`);
   const done = () => { save(); renderDeckPane(); renderStatsPane(); };
   $("mM").onclick = () => { if (c.qty > 1) { c.qty--; $("mQ").textContent = c.qty; releaseExtra(d, oi); done(); } };
@@ -1325,7 +1404,8 @@ function deckCardMenu(oi, board) {
 function cardInfo(oi) {
   const o = oInfo(oi); const lib = libFor(oi);
   openSheet(`<div class="detail">${cardImgHTML(fakeEntry({ oi }), { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div><div class="meta">${lib ? `Temos ${lib} livre(s) nas caixas` : "Não temos"}</div></div></div>
-    ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}${o.roles.length ? `<div class="roles">${o.roles.map(r => `<span class="pill">${esc(ROLES[r])}</span>`).join("")}</div>` : ""}`,
+    ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}${o.roles.length ? `<div class="roles">${o.roles.map(r => `<span class="pill">${esc(ROLES[r])}</span>`).join("")}</div>` : ""}
+    ${(() => { const pi = defaultPrint(oi); return pi >= 0 ? priceBlock(oi, DB.p[pi][0], DB.p[pi][1], false) : ""; })()}`,
     `<button class="btn" id="iCmd">Comandante</button><button class="btn" id="iSide">Sideboard</button><button class="btn" id="iMaybe">Talvez</button><button class="btn primary" id="iMain">Adicionar</button>`);
   $("iMain").onclick = () => { closeSheet(); addToDeck(oi, "main"); };
   $("iSide").onclick = () => { closeSheet(); addToDeck(oi, "side"); };
@@ -1674,6 +1754,9 @@ function startSync() {
   }, err => cloudError(err));
   CLOUD.unsub.push(watch("cards", S.cards, "key", localCards));
   CLOUD.unsub.push(watch("decks", S.decks, "id", localDecks));
+  CLOUD.unsub.push(base().collection("meta").doc("liga").onSnapshot(doc => {
+    if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/liga", JSON.stringify(d)); S.liga = Object.assign({}, S.liga, d.p || {}); store.set("liga", S.liga).catch(() => {}); }
+  }, cloudError));
   CLOUD.unsub.push(base().collection("meta").doc("boxes").onSnapshot(doc => {
     if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/boxes", JSON.stringify(d)); S.boxes.capacity = d.capacity || S.boxes.capacity; S.boxes.layout = d.layout || S.boxes.layout; }
     else if (!CLOUD.synced.boxes) setTimeout(pushCloud, 500);
@@ -1695,6 +1778,7 @@ async function pushCloud() {
     S.cards.forEach(e => want.set("cards/" + docId(e.key), e));
     S.decks.forEach(d => want.set("decks/" + docId(d.id), d));
     want.set("meta/boxes", { capacity: S.boxes.capacity, layout: S.boxes.layout || null });
+    want.set("meta/liga", { p: S.liga || {} });
     for (const [path, obj] of want) { const j = JSON.stringify(obj); if (CLOUD.last.get(path) !== j) { ops.push(["set", path, JSON.parse(j)]); CLOUD.last.set(path, j); } }
     for (const path of [...CLOUD.last.keys()]) if ((path.startsWith("cards/") || path.startsWith("decks/")) && !want.has(path)) { ops.push(["del", path]); CLOUD.last.delete(path); }
     for (let i = 0; i < ops.length; i += 400) {
@@ -1727,7 +1811,7 @@ function accountMenu() {
 (async () => {
   try {
     await store.open();
-    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; IMGS = (await store.get("imgs")) || {};
+    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; S.liga = (await store.get("liga")) || {}; IMGS = (await store.get("imgs")) || {};
     S.cards.forEach(e => { if (e.img && !IMGS[imgKey(e.set, e.number)]) IMGS[imgKey(e.set, e.number)] = e.img; });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
@@ -1737,7 +1821,7 @@ function accountMenu() {
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
     $("backupNow").onclick = backup; updateBackupBanner();
-    go("col");
+    go("col"); updateRate().then(() => { if (tab === "col") renderCol(); });
     try {
       const u = await cloudInit();
       if (u) afterLogin(u);
