@@ -3,616 +3,1014 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1d2129">
-<title>Scanner MTG</title>
+<meta name="theme-color" content="#262b34">
+<title>Biblioteca MTG</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="css/mana.css">
+<link rel="stylesheet" href="css/keyrune.css">
 <style>
-/* Layout: câmera em tela cheia com moldura-guia da carta; barra de status embaixo; folha de resultado que sobe com a carta reconhecida; lista da sessão em outra folha. Tema escuro único. */
+/* Layout: app de coleção para celular com navegação inferior (Coleção, Escanear, Decks, Caixas). Barra de título fixa; conteúdo rolável; folhas que sobem de baixo para detalhes. Tema único escuro. */
 :root {
   --bg: #1d2129; --bar: #262b34; --surface: #2b3039; --surface-2: #343a45;
   --ink: #eef1f6; --muted: #9aa3b3; --line: #3a404c;
   --accent: #f2a35e; --accent-ink: #1d1a16; --link: #7ea8de; --ok: #55d08d; --warn: #f0b04a; --bad: #f08a7a;
+  --fW: #e8e0c4; --fU: #3d7cc0; --fB: #6b6467; --fR: #cf5a40; --fG: #3f9a5c; --fM: #d0a94e; --fC: #9aa3ab; --fL: #9a7a52;
   --font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --nav-h: 64px;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #000; color: var(--ink); font: 15px/1.4 var(--font); overflow: hidden; -webkit-text-size-adjust: 100%; }
-button, input, select { font: inherit; color: inherit; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.4 var(--font); -webkit-text-size-adjust: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 .hidden { display: none !important; }
+.invisible { visibility: hidden; }
+.meta { color: var(--muted); font-size: 13px; }
+.mana { display: inline-flex; gap: 2px; align-items: center; font-size: 14px; flex: none; }
 
-#stage { position: fixed; inset: 0; }
-#video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
-.shade { position: absolute; inset: 0; pointer-events: none; }
-.guide { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); aspect-ratio: 63 / 88; width: min(64vw, 50vh * 63 / 88); border-radius: 4.5% / 3.2%;
-  box-shadow: 0 0 0 200vmax rgba(0,0,0,.45); border: 3px solid rgba(255,255,255,.85); transition: border-color .15s; }
-.guide.seen { border-color: var(--warn); }
-.guide.lock { border-color: var(--ok); }
-.guide .band { position: absolute; left: 5%; right: 5%; border: 1.5px dashed rgba(255,255,255,.55); border-radius: 4px; }
-.guide .band.title { top: 2.5%; height: 8%; }
-.guide .band.foot { bottom: 1.8%; height: 8.5%; right: 45%; }
-.guide .lbl { position: absolute; left: 0; top: -22px; font-size: 11px; color: rgba(255,255,255,.8); white-space: nowrap; }
+/* Barra de título */
+.appbar { position: sticky; top: 0; z-index: 10; background: var(--bar); box-shadow: 0 1px 0 rgba(0,0,0,.35); padding-top: env(safe-area-inset-top); }
+.titlebar { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; padding: 8px 10px 4px; max-width: 900px; margin: 0 auto; }
+.titlebar h1 { margin: 0; text-align: center; font-size: 20px; font-weight: 600; }
+.iconbtn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--ink); position: relative; }
+.iconbtn:hover { background: rgba(255,255,255,.06); }
+.iconbtn svg { width: 24px; height: 24px; }
+.iconbtn select { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.toolbar { display: grid; grid-template-columns: 1fr auto auto; gap: 4px; align-items: center; padding: 4px 12px 10px; max-width: 900px; margin: 0 auto; }
+.toolbar input { border: 0; background: #3a404b; border-radius: 12px; padding: 0 14px; height: 44px; font-size: 16px; width: 100%; min-width: 0; }
+.toolbar input::placeholder { color: #a7afbd; }
+.subbar { background: #1f2a36; }
+.subrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 14px; max-width: 900px; margin: 0 auto; flex-wrap: wrap; }
+.count { color: var(--link); font-style: italic; font-variant-numeric: tabular-nums; }
+.addfilter { border: 0; background: transparent; color: var(--link); font-style: italic; display: inline-flex; align-items: center; gap: 8px; padding: 0; }
+.addfilter .plus { width: 32px; height: 32px; border-radius: 50%; background: #5a7ea8; color: #10161d; display: grid; place-items: center; font-size: 22px; font-style: normal; font-weight: 700; }
+.filterpanel { display: grid; gap: 10px; padding: 0 14px 12px; max-width: 900px; margin: 0 auto; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 11px; font-size: 13px; min-height: 34px; display: inline-flex; align-items: center; gap: 6px; }
+.chip[aria-pressed="true"] { border-color: var(--link); background: rgba(126,168,222,.18); color: #cfe0f6; }
+.chip .ms { font-size: 18px; }
+select, input[type="text"], input[type="search"], input[type="number"], textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 11px; min-height: 42px; width: 100%; color: var(--ink); }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-.top { position: absolute; left: 0; right: 0; top: 0; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; display: flex; gap: 8px; align-items: center; background: linear-gradient(rgba(0,0,0,.7), transparent); }
-.top h1 { margin: 0 auto 0 4px; font-size: 18px; font-weight: 600; }
-.chipbtn { border: 1px solid rgba(255,255,255,.25); background: rgba(30,33,40,.75); color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
-.chipbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+main { max-width: 900px; margin: 0 auto; padding: 12px 12px calc(var(--nav-h) + 90px + env(safe-area-inset-bottom)); }
+.empty { padding: 36px 16px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; }
+h2.sec { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 18px 4px 8px; font-weight: 600; display: flex; justify-content: space-between; }
 
-.focusring { position: absolute; width: 74px; height: 74px; margin: -37px 0 0 -37px; border: 2px solid #ffd54a; border-radius: 50%; pointer-events: none; }
-.focusring.go { animation: ring 1s ease-out forwards; }
-@keyframes ring { from { transform: scale(1.5); opacity: 1; } to { transform: scale(1); opacity: .2; } }
-.mf { position: absolute; left: 12px; right: 12px; bottom: calc(166px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; background: rgba(20,22,26,.75); padding: 8px 12px; border-radius: 14px; }
-.mf input { flex: 1; accent-color: var(--accent); }
-.mflbl { font-size: 11px; color: #cfd5df; white-space: nowrap; }
-.status { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(118px + env(safe-area-inset-bottom)); background: rgba(20,22,26,.85); padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
-.bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(transparent, rgba(0,0,0,.75)); }
-.listbtn { display: inline-flex; align-items: center; gap: 10px; border: 0; background: rgba(30,33,40,.85); color: #fff; padding: 10px 16px; border-radius: 16px; font-weight: 600; }
-.listbtn b { background: var(--accent); color: var(--accent-ink); min-width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center; padding: 0 7px; }
-.roundbtn { width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); background: rgba(30,33,40,.85); color: #fff; display: grid; place-items: center; }
-.roundbtn svg { width: 26px; height: 26px; }
-.roundbtn[aria-pressed="true"] { background: #fff3c4; color: #222; }
+/* Navegação inferior */
+nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; background: var(--bar); box-shadow: 0 -1px 0 rgba(0,0,0,.4); display: grid; grid-template-columns: repeat(4, 1fr); padding-bottom: env(safe-area-inset-bottom); }
+nav.bottom button { border: 0; background: transparent; color: var(--muted); height: var(--nav-h); display: grid; place-items: center; gap: 2px; font-size: 12px; padding: 6px 0; }
+nav.bottom button svg { width: 24px; height: 24px; }
+nav.bottom button[aria-current="page"] { color: var(--accent); }
+
+/* Grade */
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 640px) { .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 860px) { .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+.tile { background: var(--surface); border: 0; border-radius: 14px; padding: 8px 6px 6px; display: grid; gap: 6px; text-align: center; color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,.25); min-width: 0; }
+.tile .tname { font-weight: 600; font-size: 13.5px; line-height: 1.2; min-height: 2.4em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; align-self: center; overflow-wrap: anywhere; }
+.cardimg { position: relative; aspect-ratio: 488 / 680; border-radius: 6% / 4.3%; overflow: hidden; background: #111; }
+.cardimg img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cardimg .qtyb { position: absolute; left: 6%; top: 3.5%; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px; background: rgba(20,22,26,.85); color: #fff; font: 700 14px/26px var(--font); }
+.cardimg .price { position: absolute; left: 5%; bottom: 16%; background: rgba(20,22,26,.85); color: #fff; font-weight: 600; font-size: 11px; padding: 5px 7px; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cardimg .flag { position: absolute; left: 6%; bottom: 5%; font-size: 15px; line-height: 1; }
+.cardimg .flag.txt { font-size: 10px; font-weight: 700; background: rgba(20,22,26,.85); padding: 3px 5px; border-radius: 4px; }
+.cardimg .dot { position: absolute; right: 6%; bottom: 5%; width: 18px; height: 18px; border-radius: 50%; border: 3px solid rgba(20,22,26,.85); background: conic-gradient(#ff9ec7, #9ed8ff, #b6ffa8, #fff59e, #ff9ec7); }
+.cardimg .deckb { position: absolute; right: 5%; top: 3.5%; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 6px; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drawn { position: absolute; inset: 0; padding: 22% 8% 28%; display: grid; grid-template-rows: auto 1fr auto; gap: 6%; background: linear-gradient(180deg, color-mix(in srgb, var(--frame, var(--fC)) 55%, #1a1a1a), color-mix(in srgb, var(--frame, var(--fC)) 25%, #111)); }
+.drawn .dn { background: rgba(255,255,255,.85); color: #1a1a1a; border-radius: 4px; padding: 4px 5px; font-size: 10px; font-weight: 600; text-align: left; }
+.drawn .dt { background: rgba(255,255,255,.85); color: #1a1a1a; border-radius: 3px; padding: 3px 5px; font-size: 9px; text-align: left; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.f-W { --frame: var(--fW); } .f-U { --frame: var(--fU); } .f-B { --frame: var(--fB); } .f-R { --frame: var(--fR); } .f-G { --frame: var(--fG); } .f-M { --frame: var(--fM); } .f-C { --frame: var(--fC); } .f-L { --frame: var(--fL); }
+.setline { display: flex; align-items: center; justify-content: center; gap: 4px; font-weight: 600; font-size: 13px; min-width: 0; }
+.setline .ss { font-size: 17px; }
+.setline .num { font-style: italic; font-weight: 400; color: var(--muted); }
+
+/* Listas */
+.rows { display: grid; gap: 8px; }
+.row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: var(--surface); border: 0; border-radius: 12px; padding: 6px 10px 6px 6px; text-align: left; color: var(--ink); width: 100%; }
+.row .cardimg { width: 44px; border-radius: 3px; }
+.row .rn { font-weight: 600; overflow-wrap: anywhere; }
+.row .rs { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.row .rr { text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: #cfd5df; background: var(--surface-2); white-space: nowrap; }
+.pill.ok { color: var(--ok); border-color: rgba(85,208,141,.4); }
+.pill.warn { color: var(--warn); border-color: rgba(240,176,74,.4); }
+.pill.bad { color: var(--bad); border-color: rgba(240,138,122,.4); }
+.pill.acc { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 12px; padding: 10px 14px; font-weight: 600; min-height: 44px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { min-height: 34px; padding: 6px 10px; font-size: 13px; border-radius: 10px; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.card { background: var(--surface); border-radius: 14px; padding: 14px; display: grid; gap: 10px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.fab { position: fixed; right: 18px; bottom: calc(var(--nav-h) + 18px + env(safe-area-inset-bottom)); width: 64px; height: 64px; border-radius: 20px; border: 3px solid #7a4a1f; background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; box-shadow: 0 6px 18px rgba(0,0,0,.5); z-index: 12; }
+.fab svg { width: 34px; height: 34px; }
+
+/* Decks */
+.deckcard { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; background: var(--surface); border-radius: 14px; padding: 10px; border: 0; color: var(--ink); text-align: left; width: 100%; }
+.deckcard .cardimg { width: 56px; border-radius: 4px; }
+.deckcard b { font-size: 16px; }
+.bar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.bar.ok i { background: var(--ok); }
+.bar.over i { background: var(--bad); }
+.curve { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; align-items: end; height: 110px; padding: 6px 0 0; }
+.curve div { display: grid; grid-template-rows: auto 1fr auto; align-items: end; justify-items: center; height: 100%; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.curve i { display: block; width: 100%; background: var(--link); border-radius: 4px 4px 0 0; min-height: 2px; }
+.colorbar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.kpi { background: var(--surface-2); border-radius: 10px; padding: 8px; text-align: center; }
+.kpi b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.kpi span { font-size: 11px; color: var(--muted); }
+.roles { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Caixas */
+.boxcard { background: var(--surface); border-radius: 14px; padding: 12px; display: grid; gap: 8px; }
+.boxcard h3 { margin: 0; font-size: 17px; display: flex; justify-content: space-between; gap: 8px; }
+.secrow { display: grid; grid-template-columns: 14px 1fr auto; gap: 8px; align-items: center; font-size: 14px; padding: 4px 0; border-top: 1px solid var(--line); }
+.secrow .sw { width: 14px; height: 14px; border-radius: 3px; }
 
 /* Folhas */
-.sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 88vh; background: var(--bar); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.6); z-index: 20; display: grid; grid-template-rows: auto 1fr auto; padding-bottom: env(safe-area-inset-bottom); }
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 92vh; background: var(--bar); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.6); z-index: 30; display: grid; grid-template-rows: auto 1fr auto; padding-bottom: env(safe-area-inset-bottom); }
 .sheet .grab { width: 44px; height: 5px; border-radius: 3px; background: #4a515e; margin: 8px auto 0; }
-.sheet .body { overflow: auto; padding: 12px 16px; }
-.sheet .foot { padding: 10px 16px 14px; display: flex; gap: 10px; border-top: 1px solid var(--line); }
-.btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 14px; padding: 12px 14px; font-weight: 600; min-height: 50px; }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn.small { flex: none; min-height: 36px; padding: 6px 12px; font-size: 13px; border-radius: 10px; }
-.btn.danger { color: var(--bad); }
+.sheet .body { overflow: auto; padding: 12px 16px; display: grid; gap: 12px; align-content: start; }
+.sheet .foot { padding: 10px 16px 14px; display: flex; gap: 10px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.sheet .foot .btn { flex: 1; }
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 29; }
+.detail { display: grid; grid-template-columns: 120px 1fr; gap: 14px; align-items: start; }
+.detail .cardimg { width: 120px; }
+.detail h3 { margin: 0 0 4px; font-size: 19px; line-height: 1.2; }
+.textbox { background: var(--surface); border-radius: 10px; padding: 10px 12px; white-space: pre-wrap; font-size: 14px; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; height: 40px; background: var(--surface); }
+.stepper button { border: 0; background: transparent; width: 40px; height: 100%; font-size: 20px; color: var(--accent); }
+.stepper span { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.loc { display: grid; gap: 6px; }
+.loc div { display: flex; justify-content: space-between; gap: 8px; background: var(--surface); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+.toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); background: #eef1f6; color: #1d2129; padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+.menu { position: absolute; right: 10px; top: 52px; background: var(--surface-2); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.5); padding: 6px; display: grid; min-width: 240px; z-index: 40; }
+.menu button { border: 0; background: transparent; text-align: left; padding: 11px 12px; border-radius: 8px; color: var(--ink); }
+.menu button:hover { background: rgba(255,255,255,.06); }
+.splash { position: fixed; inset: 0; z-index: 70; background: var(--bg); display: grid; place-items: center; padding: 24px; text-align: center; }
+.splash .box { display: grid; gap: 14px; max-width: 360px; width: 100%; }
+.pbar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.pbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 
-.result { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; }
-.result img, .result .ph { width: 112px; aspect-ratio: 488/680; border-radius: 6px; background: #111; object-fit: cover; }
-.result h2 { margin: 0 0 4px; font-size: 20px; line-height: 1.2; }
-.meta { color: var(--muted); font-size: 13px; }
-.price { font-size: 16px; font-weight: 600; margin: 6px 0; font-variant-numeric: tabular-nums; }
-.via { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; margin-top: 4px; }
-.via.ok { color: var(--ok); background: rgba(85,208,141,.1); }
-.via.warn { color: var(--warn); background: rgba(240,176,74,.1); }
-.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
-.opts label { display: grid; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
-select { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 10px; min-height: 42px; width: 100%; color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 14px; }
-.row3 { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
-.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; height: 44px; background: var(--surface); }
-.stepper button { border: 0; background: transparent; width: 44px; height: 100%; font-size: 22px; color: var(--accent); }
-.stepper span { min-width: 30px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
-.toggle { display: inline-flex; gap: 8px; align-items: center; font-size: 15px; }
-.toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
-
-.items { display: grid; gap: 8px; }
-.item { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: var(--surface); border-radius: 12px; padding: 6px 10px 6px 6px; }
-.item img, .item .ph { width: 44px; aspect-ratio: 488/680; border-radius: 3px; object-fit: cover; background: #111; }
-.item .nm { font-weight: 600; overflow-wrap: anywhere; }
-.item .act { display: flex; gap: 4px; align-items: center; }
-.item .act button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 18px; }
-.sum { display: flex; justify-content: space-between; color: var(--link); font-style: italic; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
-.empty { text-align: center; color: var(--muted); padding: 24px 8px; }
-.toast { position: fixed; left: 50%; top: calc(70px + env(safe-area-inset-top)); transform: translateX(-50%); background: #eef1f6; color: #1d2129; padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 50; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
-.splash { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: grid; place-items: center; padding: 24px; text-align: center; }
-.splash .box { display: grid; gap: 14px; max-width: 360px; }
-.splash h2 { margin: 0; font-size: 22px; }
-.bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
-.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+/* Scanner */
+#scanView { position: fixed; inset: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); background: #000; z-index: 5; }
+#video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.guide { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); aspect-ratio: 63 / 88; width: min(64vw, 46vh * 63 / 88); border-radius: 4.5% / 3.2%; box-shadow: 0 0 0 200vmax rgba(0,0,0,.45); border: 3px solid rgba(255,255,255,.85); }
+.guide.seen { border-color: var(--warn); } .guide.lock { border-color: var(--ok); }
+.guide .band { position: absolute; left: 5%; right: 5%; border: 1.5px dashed rgba(255,255,255,.5); border-radius: 4px; }
+.guide .band.t { top: 2.5%; height: 8%; } .guide .band.f { bottom: 1.8%; height: 8.5%; right: 45%; }
+.scantop { position: absolute; left: 0; right: 0; top: 0; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; display: flex; gap: 6px; align-items: center; background: linear-gradient(rgba(0,0,0,.75), transparent); flex-wrap: wrap; }
+.chipbtn { border: 1px solid rgba(255,255,255,.25); background: rgba(30,33,40,.8); color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.chipbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.scanstatus { position: absolute; left: 50%; transform: translateX(-50%); bottom: 96px; background: rgba(20,22,26,.85); padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; color: #fff; }
+.scanbottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 12px 16px 16px; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: linear-gradient(transparent, rgba(0,0,0,.8)); }
+.roundbtn { width: 54px; height: 54px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); background: rgba(30,33,40,.85); color: #fff; display: grid; place-items: center; font-weight: 700; }
+.roundbtn svg { width: 24px; height: 24px; }
+.roundbtn[aria-pressed="true"] { background: #fff3c4; color: #222; }
+.lastscan { display: inline-flex; gap: 8px; align-items: center; border: 0; background: rgba(30,33,40,.85); color: #fff; padding: 8px 12px; border-radius: 14px; font-size: 13px; max-width: 46%; }
+.lastscan b { background: var(--accent); color: var(--accent-ink); border-radius: 999px; min-width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0 6px; }
+.focusring { position: absolute; width: 70px; height: 70px; margin: -35px 0 0 -35px; border: 2px solid #ffd54a; border-radius: 50%; pointer-events: none; animation: ring 1s ease-out forwards; }
+@keyframes ring { from { transform: scale(1.5); opacity: 1; } to { transform: scale(1); opacity: .2; } }
+.mf { position: absolute; left: 12px; right: 12px; bottom: 140px; display: flex; align-items: center; gap: 10px; background: rgba(20,22,26,.75); padding: 8px 12px; border-radius: 14px; color: #fff; font-size: 11px; }
+.mf input { flex: 1; accent-color: var(--accent); }
+.via { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; }
+.via.ok { color: var(--ok); background: rgba(85,208,141,.1); } .via.warn { color: var(--warn); background: rgba(240,176,74,.1); }
+@media (max-width: 380px) { .tile .tname { font-size: 12.5px; } .kpis { grid-template-columns: repeat(2, 1fr); } }
 </style>
 </head>
 <body>
-<div id="stage">
+
+<div class="appbar" id="appbar">
+  <div class="titlebar">
+    <button class="iconbtn invisible" id="backBtn" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H6M11 6l-6 6 6 6"/></svg></button>
+    <h1 id="title">Coleção</h1>
+    <button class="iconbtn" id="menuBtn" aria-label="Mais opções"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/></svg></button>
+  </div>
+  <div id="bars"></div>
+  <div class="menu hidden" id="menu"></div>
+</div>
+
+<main id="main"></main>
+
+<!-- Scanner -->
+<div id="scanView" class="hidden">
   <video id="video" playsinline autoplay muted></video>
-  <div class="guide" id="guide"><div class="band title"><span class="lbl">nome</span></div><div class="band foot"><span class="lbl" style="top:auto;bottom:-20px">coleção · número</span></div></div>
-  <div class="top">
-    <h1>Scanner</h1>
+  <div class="guide" id="guide"><div class="band t"></div><div class="band f"></div></div>
+  <div class="scantop">
+    <button class="chipbtn" id="autoBtn" aria-pressed="false">Auto</button>
+    <button class="chipbtn" id="foilBtn" aria-pressed="false">Foil</button>
+    <select id="langSel" class="chipbtn" aria-label="Idioma" style="width:auto;min-height:0;padding:7px 10px"><option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option></select>
+    <select id="scanDest" class="chipbtn" aria-label="Destino" style="width:auto;min-height:0;padding:7px 10px"></select>
+    <button class="chipbtn hidden" id="camSwitch">Lente</button>
     <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ</button>
-    <button class="chipbtn" id="autoBtn" aria-pressed="false" title="Adiciona sozinho quando reconhecer">Auto</button>
-    <button class="chipbtn" id="foilBtn" aria-pressed="false" title="Marcar as próximas como foil">Foil</button>
-    <select id="langSel" class="chipbtn" aria-label="Idioma das próximas cartas" style="width:auto;min-height:0;padding:7px 10px">
-      <option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option>
-    </select>
   </div>
-  <div class="status" id="status">Iniciando…</div>
-  <div class="focusring hidden" id="focusRing"></div>
-  <div class="mf hidden" id="mfWrap">
-    <button class="chipbtn" id="afBtn" aria-pressed="true">AF</button>
-    <input type="range" id="mfRange" aria-label="Foco manual (perto ↔ longe)">
-    <span class="mflbl">perto ↔ longe</span>
-  </div>
-  <div class="bottom">
-    <button class="listbtn" id="listBtn">Lista <b id="count">0</b></button>
-    <button class="chipbtn hidden" id="camSwitch" aria-label="Trocar lente">Lente</button>
-    <label class="roundbtn" id="photoBtn" aria-label="Tirar foto com a câmera do celular" title="Foto com foco da câmera do celular"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none"></label>
-    <button class="roundbtn hidden" id="zoomBtn" aria-label="Zoom" style="font-weight:700;font-size:16px">2×</button>
-    <button class="roundbtn" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
+  <div class="mf hidden" id="mfWrap"><button class="chipbtn" id="afBtn" aria-pressed="true">AF</button><input type="range" id="mfRange" aria-label="Foco manual"><span>perto ↔ longe</span></div>
+  <div class="scanstatus" id="scanStatus">Abrindo a câmera…</div>
+  <div class="scanbottom">
+    <button class="lastscan" id="lastScan">Escaneadas <b id="sessCount">0</b></button>
+    <button class="roundbtn hidden" id="zoomBtn" aria-label="Zoom">2×</button>
+    <label class="roundbtn" aria-label="Foto com a câmera do celular"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none"></label>
+    <button class="roundbtn hidden" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
   </div>
 </div>
 
-<!-- Resultado -->
-<div class="sheet hidden" id="resSheet" role="dialog" aria-label="Carta reconhecida">
-  <div class="grab"></div>
-  <div class="body" id="resBody"></div>
-  <div class="foot">
-    <button class="btn" id="skipBtn">Pular</button>
-    <button class="btn primary" id="addBtn">Adicionar</button>
-  </div>
-</div>
+<button class="fab hidden" id="fab" aria-label="Adicionar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 4v16M4 12h16"/></svg></button>
 
-<!-- Lista -->
-<div class="sheet hidden" id="listSheet" role="dialog" aria-label="Cartas escaneadas">
-  <div class="grab"></div>
-  <div class="body" id="listBody"></div>
-  <div class="foot" style="flex-wrap:wrap">
-    <button class="btn" id="closeList">Voltar à câmera</button>
-    <button class="btn primary" id="copyBtn">Copiar para a Biblioteca</button>
-    <button class="btn small" id="dlBtn">Baixar CSV</button>
-    <button class="btn small danger" id="clearBtn">Limpar lista</button>
-  </div>
-</div>
+<nav class="bottom" id="nav">
+  <button data-tab="col" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="9" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Coleção</button>
+  <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
+  <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
+  <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
+</nav>
 
-<div class="splash" id="splash">
-  <div class="box">
-    <h2>Scanner MTG</h2>
-    <p class="meta" id="splashMsg">Carregando o leitor e a lista de cartas (só na primeira vez, cerca de 10 MB)…</p>
-    <div class="bar"><i id="splashBar"></i></div>
-    <button class="btn primary hidden" id="startBtn">Abrir a câmera</button>
-  </div>
-</div>
+<div class="scrim hidden" id="scrim"></div>
+<div class="sheet hidden" id="sheet" role="dialog"><div class="grab"></div><div class="body" id="sheetBody"></div><div class="foot" id="sheetFoot"></div></div>
+
+<div class="splash" id="splash"><div class="box">
+  <h2 style="margin:0">Biblioteca MTG</h2>
+  <p class="meta" id="splashMsg">Carregando a base de cartas… (só na primeira vez, uns 4 MB)</p>
+  <div class="pbar"><i id="splashBar"></i></div>
+</div></div>
 
 <script src="lib/tesseract.min.js"></script>
 <script>
 (() => {
-  "use strict";
-  const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
-  const normNum = (n) => String(n || "").toLowerCase().split("/")[0].replace(/[^0-9a-z★†\-]/g, "").replace(/^0+(?=\d)/, "");
-  function toast(msg, ms = 2200) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
-  const fmtUSD = (v) => v ? "US$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
-  const LANG_CODES = { EN: "en", PT: "pt", SP: "es", ES: "es", FR: "fr", DE: "de", IT: "it", JP: "ja", JA: "ja", KO: "ko", RU: "ru", CS: "zhs", CT: "zht", ZHS: "zhs", ZHT: "zht" };
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+const normNum = (n) => String(n || "").toLowerCase().split("/")[0].replace(/[^0-9a-z★†\-]/g, "").replace(/^0+(?=\d)/, "");
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+function toast(msg, ms = 2200) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
+const fmtUSD = (c) => c ? "US$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-  // ---------- Índice local (nomes + coleção/número) ----------
-  const IDX = { names: [], normNames: [], byLen: new Map(), bySetNum: new Map(), sets: new Set(), prints: [] };
-  async function loadIndex() {
-    const r = await fetch("data/index.json"); const d = await r.json();
-    IDX.names = d.names; IDX.built = d.built;
-    d.names.forEach((n, i) => {
-      const parts = n.includes(" // ") ? [n, ...n.split(" // ")] : [n];
-      parts.forEach(pn => { const k = norm(pn); if (!IDX.byLen.has(k.length)) IDX.byLen.set(k.length, []); IDX.byLen.get(k.length).push([k, i]); });
-      IDX.prints[i] = [];
-    });
-    d.p.forEach((p, i) => { IDX.bySetNum.set(p[0] + "|" + normNum(p[1]), p); IDX.sets.add(p[0]); IDX.prints[p[2]].push(p); });
-  }
-  function lev(a, b, max) {
-    if (Math.abs(a.length - b.length) > max) return max + 1;
-    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
-    for (let i = 1; i <= a.length; i++) {
-      const cur = [i]; let best = i;
-      for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); if (cur[j] < best) best = cur[j]; }
-      if (best > max) return max + 1; prev = cur;
-    }
-    return prev[b.length];
-  }
-  function matchName(text) {
-    const k = norm(text); if (k.length < 4) return null;
-    const max = k.length < 6 ? 0 : Math.max(1, Math.floor(k.length * 0.2));
-    let best = null;
-    for (let L = k.length - max; L <= k.length + max; L++) {
-      for (const [n, i] of (IDX.byLen.get(L) || [])) {
-        const d = lev(k, n, best ? Math.min(max, best.d) : max);
-        if (d <= max && (!best || d < best.d)) { best = { i, d }; if (d === 0) return best; }
-      }
-    }
-    return best;
-  }
-  function parseFoot(text) {
-    // Rodapé: linha 1 = número (ex. "199/274 C" ou "C 0150"); linha 2 = coleção + idioma (ex. "M21 • PT")
-    const lines = String(text || "").toUpperCase().replace(/[|\\]/g, " ").split(/\n/).map(l => l.trim()).filter(Boolean);
-    const firstNum = (l) => { const m = l.replace(/[©®™].*$/, "").match(/(?:^|[^A-Z0-9])0*(\d{1,4})(?=[^0-9]|$)/); return m ? m[1] : null; };
-    const langM = lines.join(" ").match(/\b(EN|PT|SP|ES|FR|DE|IT|JP|JA|KO|RU|CS|CT)\b/);
-    const out = [], sets = [];
-    lines.forEach((l, i) => {
-      const toks = [...l.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => m[0].toLowerCase()).filter(t => IDX.sets.has(t));
-      if (!toks.length) return;
-      sets.push(...toks);
-      const nums = [];
-      const slash = l.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); if (slash) nums.push(slash[1]);
-      if (i > 0) { const pl = lines[i - 1]; const s2 = pl.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); nums.push(s2 ? s2[1] : firstNum(pl)); }
-      nums.push(firstNum(l));
-      for (const t of toks) for (const n of nums) { if (!n) continue; const p = IDX.bySetNum.get(t + "|" + n); if (p && !out.includes(p)) out.push(p); }
-    });
-    return { prints: out, sets, lang: langM ? LANG_CODES[langM[1]] : "" };
-  }
+// ============ Base de cartas (Scryfall, embutida) ============
+const DB = { o: [], p: [], sets: {}, roles: [], bySetNum: new Map(), byLen: new Map(), byName: new Map(), prints: [], setCodes: new Set() };
+const ROLES = { ramp: "Ramp", fixing: "Correção de mana", draw: "Compra", removal: "Remoção", wipe: "Board wipe", counter: "Contramágica", tutor: "Tutor", tokens: "Fichas", counters: "Marcadores", anthem: "Buff global", pump: "Truque", evasion: "Evasão", protection: "Proteção", recursion: "Recursão", graveyard: "Cemitério", burn: "Dano direto", lifegain: "Ganho de vida", discard: "Descarte", mill: "Mill", sacrifice: "Sacrifício", blink: "Blink", copy: "Cópia", steal: "Roubo", stax: "Taxa/Stax", finisher: "Finalizador" };
+const TYPES = [["Creature", "Criaturas"], ["Planeswalker", "Planeswalkers"], ["Instant", "Instantâneas"], ["Sorcery", "Feitiços"], ["Enchantment", "Encantamentos"], ["Artifact", "Artefatos"], ["Battle", "Batalhas"], ["Land", "Terrenos"]];
+const RAR = { c: "common", u: "uncommon", r: "rare", m: "mythic", s: "special", b: "bonus" };
+async function loadDB(progress) {
+  const r = await fetch("data/cards.json.gz");
+  const total = +r.headers.get("content-length") || 3500000;
+  const reader = r.body.getReader(); const chunks = []; let got = 0;
+  for (;;) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); got += value.length; progress(Math.min(.95, got / total)); }
+  let blob = new Blob(chunks);
+  const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+  const txt = head[0] === 31 && head[1] === 139 ? await new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).text() : await blob.text();
+  const d = JSON.parse(txt);
+  Object.assign(DB, { o: d.o, p: d.p, sets: d.sets, roles: d.roles, built: d.built });
+  d.o.forEach((o, i) => {
+    const parts = o[0].includes(" // ") ? [o[0], ...o[0].split(" // ")] : [o[0]];
+    parts.forEach(n => { const k = norm(n); if (!DB.byLen.has(k.length)) DB.byLen.set(k.length, []); DB.byLen.get(k.length).push([k, i]); if (!DB.byName.has(k)) DB.byName.set(k, i); });
+    DB.prints[i] = [];
+  });
+  d.p.forEach((p, i) => { DB.bySetNum.set(p[0] + "|" + normNum(p[1]), i); DB.setCodes.add(p[0]); DB.prints[p[3]].push(i); });
+}
+const O = (oi) => DB.o[oi]; // [name, mana, cmc, colors, ci, type, text, pt, roles]
+function oInfo(oi) {
+  const o = DB.o[oi]; if (!o) return null;
+  return { name: o[0], mana: o[1], cmc: o[2], colors: o[3].split("").filter(Boolean), ci: o[4].split("").filter(Boolean), type: o[5], text: o[6], pt: o[7], roles: o[8].split("").map(ch => DB.roles[parseInt(ch, 36)]).filter(r => ROLES[r]) };
+}
+function mainTypes(type) { const f = String(type || "").split("—")[0]; return TYPES.map(t => t[0]).filter(t => f.includes(t)); }
+function lev(a, b, max) {
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) { const cur = [i]; let best = i;
+    for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); if (cur[j] < best) best = cur[j]; }
+    if (best > max) return max + 1; prev = cur; }
+  return prev[b.length];
+}
+function matchName(text, strict = true) {
+  const k = norm(text); if (k.length < 4) return null;
+  if (DB.byName.has(k)) return { i: DB.byName.get(k), d: 0 };
+  const max = k.length < 6 ? (strict ? 0 : 1) : Math.max(1, Math.floor(k.length * 0.2));
+  let best = null;
+  for (let L = k.length - max; L <= k.length + max; L++) for (const [n, i] of (DB.byLen.get(L) || [])) {
+    const d = lev(k, n, best ? Math.min(max, best.d) : max); if (d <= max && (!best || d < best.d)) { best = { i, d }; if (d === 0) return best; } }
+  return best;
+}
+function searchNames(q, limit = 12) {
+  const k = norm(q); if (k.length < 2) return [];
+  const out = [];
+  for (let i = 0; i < DB.o.length && out.length < limit; i++) if (norm(DB.o[i][0]).startsWith(k)) out.push(i);
+  if (out.length < limit) for (let i = 0; i < DB.o.length && out.length < limit; i++) { const n = norm(DB.o[i][0]); if (!n.startsWith(k) && n.includes(k)) out.push(i); }
+  return out;
+}
+function defaultPrint(oi) {
+  const list = DB.prints[oi] || []; if (!list.length) return -1;
+  const promo = (c) => (c.length === 4 && c[0] === "p") || ["sld", "plst", "slp"].includes(c);
+  const normal = list.filter(pi => !promo(DB.p[pi][0]) && !DB.p[pi][4]);
+  const L = normal.length ? normal : list; return L[L.length - 1];
+}
+const priceOf = (e) => { const pi = DB.bySetNum.get(e.set + "|" + normNum(e.number)); if (pi === undefined) return 0; const p = DB.p[pi]; return e.foil ? (p[7] || p[6] || 0) : (p[6] || p[7] || 0); };
+const rarityOf = (e) => { const pi = DB.bySetNum.get(e.set + "|" + normNum(e.number)); return pi === undefined ? "c" : DB.p[pi][2]; };
 
-  // ---------- Câmera ----------
-  let stream = null, track = null;
-  async function startCamera(deviceId) {
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador não dá acesso à câmera. Abra a página no Chrome, por https.");
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    const video = { width: { ideal: 3840 }, height: { ideal: 2160 } };
-    if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: "environment" };
-    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
-    track = stream.getVideoTracks()[0];
-    try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {}
-    const v = $("video"); v.srcObject = stream; await v.play();
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    $("torchBtn").classList.toggle("hidden", !caps.torch);
-    // Zoom: deixa segurar o celular mais longe (onde a câmera consegue focar) com a carta grande na tela
-    ZOOM.caps = caps.zoom || null;
-    if (ZOOM.caps && ZOOM.caps.max > 1) {
-      ZOOM.levels = [1, 1.5, 2, 2.5, 3].filter(z => z >= ZOOM.caps.min && z <= ZOOM.caps.max);
-      let saved = 2; try { saved = parseFloat(localStorage.getItem("mtgscan.zoom")) || 2; } catch {}
-      await setZoom(ZOOM.levels.includes(saved) ? saved : ZOOM.levels[Math.min(2, ZOOM.levels.length - 1)]);
-      $("zoomBtn").classList.remove("hidden");
-    } else {
-      $("zoomBtn").classList.add("hidden");
-    }
-    // Foco: modos suportados e foco manual
-    FOCUS.modes = caps.focusMode || [];
-    FOCUS.dist = caps.focusDistance && caps.focusDistance.max > caps.focusDistance.min ? caps.focusDistance : null;
-    $("mfWrap").classList.toggle("hidden", !FOCUS.dist);
-    if (FOCUS.dist) { const r = $("mfRange"); r.min = FOCUS.dist.min; r.max = FOCUS.dist.max; r.step = FOCUS.dist.step || 0.01; r.value = FOCUS.dist.min + (FOCUS.dist.max - FOCUS.dist.min) * 0.15; }
-    setAF();
-    // Lentes traseiras disponíveis
+// ============ Armazenamento local (IndexedDB) ============
+const store = {
+  db: null,
+  async open() { this.db = await new Promise((res, rej) => { const r = indexedDB.open("biblioteca-mtg", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async get(k) { return new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); }); },
+  async set(k, v) { return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
+};
+const S = { cards: [], decks: [], boxes: { capacity: 280, layout: null }, settings: {} };
+let saveT = 0;
+function save() { clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+
+// Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
+const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
+const inDecks = (e) => Object.values(e.decks || {}).reduce((a, b) => a + b, 0);
+const freeQty = (e) => Math.max(0, e.qty - inDecks(e));
+function addToCollection({ oi, set, number, lang, foil, qty = 1, img = "" }) {
+  const key = entryKey(set, number, foil, lang);
+  let e = S.cards.find(x => x.key === key);
+  if (e) { e.qty += qty; if (img && !e.img) e.img = img; }
+  else { e = { key, oi, name: DB.o[oi][0], set, number: normNum(number), lang: lang || "en", foil: !!foil, qty, img, added: Date.now(), decks: {} }; S.cards.push(e); }
+  save(); return e;
+}
+
+// ============ Organização das caixas: cor → raridade → tipo → nome ============
+const COLOR_ORDER = [["W", "Branco"], ["U", "Azul"], ["B", "Preto"], ["R", "Vermelho"], ["G", "Verde"], ["M", "Multicolor"], ["C", "Incolor"], ["L", "Terrenos"]];
+const COLOR_NAME = Object.fromEntries(COLOR_ORDER);
+const COLOR_HEX = { W: "#e8e0c4", U: "#3d7cc0", B: "#6b6467", R: "#cf5a40", G: "#3f9a5c", M: "#d0a94e", C: "#9aa3ab", L: "#9a7a52" };
+function colorBucket(oi) {
+  const o = DB.o[oi]; const cols = o[3]; const types = mainTypes(o[5]);
+  if (types.includes("Land") && !cols) return "L";
+  if (!cols) return "C"; if (cols.length > 1) return "M"; return cols;
+}
+const tierOf = (e) => ["r", "m", "s", "b"].includes(rarityOf(e)) ? "R" : "C";
+const TIER_NAME = { R: "Raras e míticas", C: "Comuns e incomuns" };
+const SECTIONS = COLOR_ORDER.flatMap(([c]) => ["R", "C"].map(t => c + t));
+const sectionOf = (e) => colorBucket(e.oi) + tierOf(e);
+const sectionName = (s) => `${COLOR_NAME[s[0]]} · ${TIER_NAME[s[1]]}`;
+function typeRank(oi) { const t = mainTypes(DB.o[oi][5]); const idx = TYPES.findIndex(x => t.includes(x[0])); return idx < 0 ? 99 : idx; }
+function sectionCounts() { const c = Object.fromEntries(SECTIONS.map(s => [s, 0])); for (const e of S.cards) c[sectionOf(e)] += freeQty(e); return c; }
+function buildLayout() {
+  const cap = S.boxes.capacity, counts = sectionCounts(), boxes = []; let cur = { sections: [], n: 0 };
+  for (const s of SECTIONS) {
+    const n = counts[s];
+    if (cur.sections.length && cur.n + n > cap * 0.85) { boxes.push(cur); cur = { sections: [], n: 0 }; }
+    cur.sections.push(s); cur.n += n;
+  }
+  boxes.push(cur);
+  S.boxes.layout = boxes.map((b, i) => ({ n: i + 1, sections: b.sections }));
+  save();
+}
+function boxOfSection(s) {
+  if (!S.boxes.layout) buildLayout();
+  const b = S.boxes.layout.find(b => b.sections.includes(s)); return b ? b.n : 1;
+}
+function whereLib(e) { const s = sectionOf(e); const t = mainTypes(DB.o[e.oi][5])[0]; const tn = (TYPES.find(x => x[0] === t) || [, "Outros"])[1]; return { box: boxOfSection(s), section: s, text: `Caixa ${boxOfSection(s)} · ${sectionName(s)} · ${tn}` }; }
+
+// ============ Imagens (Scryfall) ============
+async function fillImages(entries) {
+  const need = entries.filter(e => !e.img && e.set && e.number);
+  for (let i = 0; i < need.length; i += 75) {
+    const chunk = need.slice(i, i + 75);
     try {
-      const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
-      const back = devs.filter(d => !/front|frontal|user|facing front/i.test(d.label));
-      CAMS.list = back.length ? back : devs;
-      const cur = track.getSettings ? track.getSettings().deviceId : "";
-      CAMS.idx = Math.max(0, CAMS.list.findIndex(d => d.deviceId === cur));
-      $("camSwitch").classList.toggle("hidden", CAMS.list.length < 2);
-      $("camSwitch").textContent = `Lente ${CAMS.idx + 1}/${CAMS.list.length}`;
-      // Android (Samsung e outros): a câmera principal é a "camera2 0"; as outras costumam ser grande-angular (foco fixo) ou tele
-      if (!deviceId && !CAMS.autoPicked) {
-        CAMS.autoPicked = true;
-        const main = CAMS.list.find(d => /camera2 0\b/.test(d.label)) || CAMS.list.find(d => /back|traseira|rear/i.test(d.label) && /\b0\b/.test(d.label));
-        if (main && main.deviceId !== cur) { await startCamera(main.deviceId); return; }
+      const r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifiers: chunk.map(e => ({ set: e.set, collector_number: e.number })) }) });
+      const j = await r.json();
+      for (const c of (j.data || [])) {
+        const img = (c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {}).normal || "";
+        chunk.filter(e => e.set === c.set && e.number === normNum(c.collector_number)).forEach(e => e.img = img);
       }
     } catch {}
+    await sleep(120);
   }
-  const FOCUS = { modes: [], dist: null, manual: false };
-  const CAMS = { list: [], idx: 0 };
-  async function setAF() {
-    FOCUS.manual = false; $("afBtn").setAttribute("aria-pressed", "true");
-    if (FOCUS.modes.includes("continuous")) { try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} }
+  save();
+}
+const imgFor = (set, number) => `https://api.scryfall.com/cards/${set}/${encodeURIComponent(normNum(number))}?format=image&version=normal`;
+
+// ============ Componentes visuais ============
+const FLAGS = { en: "🇺🇸", pt: "🇧🇷", es: "🇪🇸", ja: "🇯🇵", fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹", zhs: "🇨🇳", zht: "🇹🇼", ko: "🇰🇷", ru: "🇷🇺" };
+const emojiOK = /Android|iPhone|iPad|Mac/i.test(navigator.userAgent);
+function manaHTML(cost) {
+  if (!cost) return "";
+  return `<span class="mana">${String(cost).split(" // ").map(side => (side.match(/\{[^}]+\}/g) || []).map(m => { const s = m.slice(1, -1).toLowerCase().replace(/\//g, ""); return `<i class="ms ms-${esc(s === "t" ? "tap" : s)} ms-cost ms-shadow"></i>`; }).join("")).join(`<span style="opacity:.6;margin:0 3px">//</span>`)}</span>`;
+}
+function setHTML(set, rar) { const r = RAR[rar] || "common"; return `<i class="ss ss-${esc(String(set).replace(/[^a-z0-9]/g, "")) || "default"} ss-${["common","uncommon","rare","mythic"].includes(r) ? r : "common"} ss-grad"></i>`; }
+function cardImgHTML(e, opts = {}) {
+  const o = DB.o[e.oi]; const fc = "f-" + colorBucket(e.oi);
+  const src = e.img || (e.set ? imgFor(e.set, e.number) : "");
+  const inner = src ? `<img src="${esc(src)}" alt="${esc(o[0])}" loading="lazy" onerror="this.remove()">` : "";
+  const drawn = `<div class="drawn ${fc}"><div class="dn">${esc(o[0])}</div><div></div><div class="dt">${esc(o[5])}</div></div>`;
+  if (opts.bare) return `<div class="cardimg">${drawn}${inner}</div>`;
+  const price = priceOf(e); const dq = inDecks(e);
+  const deckName = dq ? (S.decks.find(d => e.decks[d.id]) || {}).name : "";
+  return `<div class="cardimg">${drawn}${inner}
+    ${e.qty > 1 ? `<span class="qtyb">${e.qty}</span>` : ""}
+    ${dq ? `<span class="deckb" title="Em deck">${esc(deckName)}${dq < e.qty ? ` ${dq}/${e.qty}` : ""}</span>` : ""}
+    ${price ? `<span class="price">${fmtUSD(price)}</span>` : ""}
+    ${emojiOK && FLAGS[e.lang] ? `<span class="flag">${FLAGS[e.lang]}</span>` : `<span class="flag txt">${esc((e.lang || "en").toUpperCase())}</span>`}
+    ${e.foil ? `<span class="dot" title="Foil"></span>` : ""}</div>`;
+}
+
+// ============ Navegação ============
+let tab = "col", view = null; // view: {kind:'deck', id}
+const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes };
+function go(t, v = null) {
+  if (t !== "scan" && tab === "scan") stopCamera();
+  tab = t; view = v; closeSheet(); $("menu").classList.add("hidden");
+  document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
+  const scan = t === "scan";
+  $("scanView").classList.toggle("hidden", !scan); $("appbar").classList.toggle("hidden", scan); $("main").classList.toggle("hidden", scan);
+  $("backBtn").classList.toggle("invisible", !v);
+  $("fab").classList.add("hidden");
+  window.scrollTo(0, 0);
+  views[t]();
+}
+$("nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) go(b.dataset.tab); });
+$("backBtn").onclick = () => go(tab);
+function setMenu(items) {
+  $("menu").innerHTML = items.map((it, i) => `<button data-i="${i}">${esc(it[0])}</button>`).join("");
+  $("menu").onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b) return; $("menu").classList.add("hidden"); items[+b.dataset.i][1](); };
+  $("menuBtn").classList.toggle("invisible", !items.length);
+}
+$("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
+document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
+
+// Folha (sheet)
+function openSheet(body, foot = "") { $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
+function closeSheet() { $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
+$("scrim").onclick = closeSheet;
+
+// ============ COLEÇÃO ============
+const F = { q: "", colors: new Set(), type: "", role: "", where: "", sort: "name", view: "grid", open: false };
+function colFiltered() {
+  const q = norm(F.q);
+  let arr = S.cards.filter(e => e.qty > 0);
+  if (q) arr = arr.filter(e => norm(e.name + " " + DB.o[e.oi][5] + " " + e.set).includes(q));
+  if (F.colors.size) arr = arr.filter(e => { const b = colorBucket(e.oi); return [...F.colors].every(c => c === b || (b === "M" && DB.o[e.oi][3].includes(c))); });
+  if (F.type) arr = arr.filter(e => mainTypes(DB.o[e.oi][5]).includes(F.type));
+  if (F.role) arr = arr.filter(e => oInfo(e.oi).roles.includes(F.role));
+  if (F.where === "lib") arr = arr.filter(e => freeQty(e) > 0); else if (F.where === "deck") arr = arr.filter(e => inDecks(e) > 0);
+  else if (F.where.startsWith("box")) { const n = +F.where.slice(3); arr = arr.filter(e => freeQty(e) > 0 && boxOfSection(sectionOf(e)) === n); }
+  const by = {
+    name: (a, b) => a.name.localeCompare(b.name), price: (a, b) => priceOf(b) - priceOf(a),
+    recent: (a, b) => b.added - a.added, cmc: (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || a.name.localeCompare(b.name),
+    box: (a, b) => { const sa = SECTIONS.indexOf(sectionOf(a)), sb = SECTIONS.indexOf(sectionOf(b)); return boxOfSection(sectionOf(a)) - boxOfSection(sectionOf(b)) || sa - sb || typeRank(a.oi) - typeRank(b.oi) || a.name.localeCompare(b.name); },
+    set: (a, b) => a.set.localeCompare(b.set) || (parseInt(a.number) || 0) - (parseInt(b.number) || 0)
+  }[F.sort];
+  return arr.sort(by);
+}
+function renderCol() {
+  $("title").textContent = "Coleção";
+  setMenu([["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Fazer backup (arquivo)", backup], ["Restaurar backup", restore], ["Buscar imagens que faltam", async () => { toast("Buscando imagens…"); await fillImages(S.cards); renderCol(); }]]);
+  if (!$("colBars")) {
+    $("bars").innerHTML = `<div id="colBars">
+      <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
+        <button class="iconbtn" id="viewBtn" aria-label="Grade ou lista"></button>
+        <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg>
+          <select id="sortSel" aria-label="Ordenar"><option value="name">Nome</option><option value="box">Ordem das caixas</option><option value="price">Preço</option><option value="recent">Recentes</option><option value="cmc">Custo de mana</option><option value="set">Coleção e número</option></select></span></div>
+      <div class="subbar"><div class="subrow"><span class="count" id="colCount"></span><button class="addfilter" id="filterToggle">Filtros <span class="plus">+</span></button></div>
+        <div class="filterpanel hidden" id="filterPanel">
+          <div class="chips" id="colorChips">${COLOR_ORDER.slice(0, 5).map(([c, n]) => `<button class="chip" data-c="${c}" aria-pressed="false" aria-label="${n}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="M" aria-pressed="false">Multi</button><button class="chip" data-c="C" aria-pressed="false">Incolor</button><button class="chip" data-c="L" aria-pressed="false">Terrenos</button></div>
+          <div class="two"><select id="typeSel"><option value="">Todos os tipos</option>${TYPES.map(t => `<option value="${t[0]}">${t[1]}</option>`).join("")}</select>
+            <select id="roleSel"><option value="">Todas as funções</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></div>
+          <select id="whereSel"></select>
+        </div></div></div>`;
+    $("q").oninput = (e) => { F.q = e.target.value; drawCol(); };
+    $("sortSel").onchange = (e) => { F.sort = e.target.value; drawCol(); };
+    $("viewBtn").onclick = () => { F.view = F.view === "grid" ? "list" : "grid"; drawCol(); };
+    $("filterToggle").onclick = () => $("filterPanel").classList.toggle("hidden");
+    $("colorChips").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; F.colors.has(c) ? F.colors.delete(c) : F.colors.add(c); b.setAttribute("aria-pressed", F.colors.has(c)); drawCol(); };
+    $("typeSel").onchange = (e) => { F.type = e.target.value; drawCol(); };
+    $("roleSel").onchange = (e) => { F.role = e.target.value; drawCol(); };
+    $("whereSel").onchange = (e) => { F.where = e.target.value; drawCol(); };
   }
-  $("afBtn").onclick = () => { setAF(); toast("Foco automático", 900); };
-  $("mfRange").addEventListener("input", async (e) => {
-    FOCUS.manual = true; $("afBtn").setAttribute("aria-pressed", "false");
-    try { await track.applyConstraints({ advanced: [{ focusMode: "manual", focusDistance: parseFloat(e.target.value) }] }); } catch {}
-  });
-  $("camSwitch").onclick = async () => {
-    if (CAMS.list.length < 2) return;
-    CAMS.idx = (CAMS.idx + 1) % CAMS.list.length;
-    try { await startCamera(CAMS.list[CAMS.idx].deviceId); try { localStorage.setItem("mtgscan.cam", CAMS.list[CAMS.idx].deviceId); } catch {} }
-    catch (e) { toast("Não consegui abrir essa lente."); }
+  $("q").value = F.q; $("sortSel").value = F.sort; $("typeSel").value = F.type; $("roleSel").value = F.role;
+  $("colorChips").querySelectorAll("[data-c]").forEach(x => x.setAttribute("aria-pressed", F.colors.has(x.dataset.c)));
+  $("colBars").classList.remove("hidden"); document.querySelectorAll("#bars > div:not(#colBars)").forEach(x => x.remove());
+  if (!S.boxes.layout) buildLayout();
+  $("whereSel").innerHTML = `<option value="">Em qualquer lugar</option><option value="lib">Nas caixas</option><option value="deck">Em decks</option>` + S.boxes.layout.map(b => `<option value="box${b.n}">Caixa ${b.n}</option>`).join("");
+  $("whereSel").value = F.where;
+  $("fab").classList.remove("hidden"); $("fab").onclick = () => go("scan");
+  drawCol();
+}
+function drawCol() {
+  const arr = colFiltered();
+  const n = arr.reduce((a, e) => a + e.qty, 0), val = arr.reduce((a, e) => a + priceOf(e) * e.qty, 0);
+  $("colCount").textContent = `${n} carta${n === 1 ? "" : "s"}${val ? " · ≈ " + fmtUSD(val) : ""}`;
+  $("viewBtn").innerHTML = F.view === "grid" ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>`;
+  if (!S.cards.length) { $("main").innerHTML = `<div class="empty">Sua coleção está vazia.<br>Toque no + ou em Escanear para começar.</div>`; return; }
+  if (!arr.length) { $("main").innerHTML = `<div class="empty">Nenhuma carta com esses filtros.</div>`; return; }
+  const LIM = 600; const shown = arr.slice(0, LIM);
+  if (F.view === "list") {
+    $("main").innerHTML = `<div class="rows">${shown.map(e => `<button class="row" data-k="${esc(e.key)}">${cardImgHTML(e, { bare: true })}
+      <span><span class="rn">${esc(e.name)}</span><span class="rs">${manaHTML(DB.o[e.oi][1])}${setHTML(e.set, rarityOf(e))}<span>${esc(e.set.toUpperCase())} #${esc(e.number)}</span>${e.foil ? `<span class="pill">foil</span>` : ""}${inDecks(e) ? `<span class="pill acc">deck</span>` : ""}</span><span class="rs">${esc(freeQty(e) ? whereLib(e).text : "")}</span></span>
+      <span class="rr"><b>${e.qty}×</b><br>${fmtUSD(priceOf(e))}</span></button>`).join("")}</div>`;
+  } else {
+    $("main").innerHTML = `<div class="grid">${shown.map(e => `<button class="tile" data-k="${esc(e.key)}"><span class="tname">${esc(e.name)}</span>${cardImgHTML(e)}
+      <span class="setline">${setHTML(e.set, rarityOf(e))}<span>${esc(e.set.toUpperCase())}</span><span class="num">#${esc(e.number)}</span></span></button>`).join("")}</div>`;
+  }
+  if (arr.length > LIM) $("main").insertAdjacentHTML("beforeend", `<p class="meta" style="text-align:center">Mostrando ${LIM} de ${arr.length}. Use o filtro para achar o resto.</p>`);
+  $("main").onclick = (ev) => { const b = ev.target.closest("[data-k]"); if (b) openCard(b.dataset.k); };
+}
+function openCard(key) {
+  const e = S.cards.find(x => x.key === key); if (!e) return;
+  const o = oInfo(e.oi); const lib = freeQty(e);
+  const locs = [];
+  if (lib) locs.push(`<div><span>📦 ${esc(whereLib(e).text)}</span><b>${lib}×</b></div>`);
+  for (const [did, q] of Object.entries(e.decks || {})) { const d = S.decks.find(x => x.id === did); if (d && q) locs.push(`<div><span>🃏 Deck: ${esc(d.name)}</span><b>${q}×</b></div>`); }
+  openSheet(`
+    <div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3><div>${manaHTML(o.mana)}</div><div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div>
+      <div class="meta">${setHTML(e.set, rarityOf(e))} ${esc(DB.sets[e.set] || e.set)} #${esc(e.number)} · ${esc((e.lang || "en").toUpperCase())}${e.foil ? " · foil" : ""}</div>
+      <div style="margin-top:6px;font-weight:600">${fmtUSD(priceOf(e)) || ""}</div></div></div>
+    <div><h2 class="sec" style="margin-top:0">Onde está</h2><div class="loc">${locs.join("") || `<div><span>—</span></div>`}</div></div>
+    ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
+    ${o.roles.length ? `<div class="roles">${o.roles.map(r => `<span class="pill">${esc(ROLES[r])}</span>`).join("")}</div>` : ""}
+    <div class="actions" style="align-items:center"><span class="meta">Quantidade</span><span class="stepper"><button id="cMinus">−</button><span id="cQty">${e.qty}</span><button id="cPlus">+</button></span>
+      <label class="meta" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="cFoil" ${e.foil ? "checked" : ""}> foil</label></div>
+    <a class="btn small" style="justify-self:start;text-decoration:none" target="_blank" rel="noopener" href="https://scryfall.com/card/${esc(e.set)}/${esc(e.number)}">Ver no Scryfall ↗</a>`,
+    `<button class="btn danger" id="cDel">Remover</button><button class="btn primary" id="cOk">Fechar</button>`);
+  $("cMinus").onclick = () => { if (e.qty > Math.max(1, inDecks(e))) { e.qty--; $("cQty").textContent = e.qty; save(); } else toast(inDecks(e) ? "Essa cópia está em um deck. Tire do deck primeiro." : "Para apagar, use Remover."); };
+  $("cPlus").onclick = () => { e.qty++; $("cQty").textContent = e.qty; save(); };
+  $("cFoil").onchange = (ev) => { const nk = entryKey(e.set, e.number, ev.target.checked, e.lang); if (S.cards.some(x => x.key === nk && x !== e)) { toast("Já existe essa versão; ajuste a quantidade nela."); ev.target.checked = e.foil; return; } e.foil = ev.target.checked; e.key = nk; save(); };
+  let armed = false;
+  $("cDel").onclick = (ev) => {
+    if (inDecks(e)) { toast("Essa carta está em um deck. Tire do deck primeiro."); return; }
+    if (!armed) { armed = true; ev.target.textContent = "Toque de novo"; return; }
+    S.cards = S.cards.filter(x => x !== e); save(); closeSheet(); drawCol(); toast(`${e.name} removida.`);
   };
-  // Toque para focar no ponto tocado
-  $("stage").addEventListener("pointerup", async (ev) => {
-    if (!track || ev.target.closest("button, select, input, label, .top, .bottom, #mfWrap")) return;
-    const v = $("video"), vb = v.getBoundingClientRect(), VW = v.videoWidth, VH = v.videoHeight;
-    const sc = Math.max(vb.width / VW, vb.height / VH), ox = vb.left + (vb.width - VW * sc) / 2, oy = vb.top + (vb.height - VH * sc) / 2;
-    const px = Math.min(1, Math.max(0, (ev.clientX - ox) / sc / VW)), py = Math.min(1, Math.max(0, (ev.clientY - oy) / sc / VH));
-    const ring = $("focusRing"); ring.style.left = ev.clientX + "px"; ring.style.top = ev.clientY + "px"; ring.classList.remove("hidden"); ring.classList.remove("go"); void ring.offsetWidth; ring.classList.add("go");
-    setTimeout(() => ring.classList.add("hidden"), 1200);
-    const tries = [];
-    if (FOCUS.modes.includes("single-shot")) { tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "single-shot" }, { focusMode: "single-shot" }); }
-    if (FOCUS.modes.includes("continuous")) tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "continuous" });
-    let ok = false;
-    for (const t of tries) { try { await track.applyConstraints({ advanced: [t] }); ok = true; break; } catch {} }
-    if (!ok) { toast(FOCUS.dist ? "Use a barra de foco manual." : "Este celular não deixa o navegador controlar o foco. Tente outra lente ou afaste um pouco.", 2600); return; }
-    if (!FOCUS.manual && FOCUS.modes.includes("continuous")) setTimeout(() => track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500);
-  });
-  const ZOOM = { caps: null, levels: [1], cur: 1 };
-  async function setZoom(z) {
-    try { await track.applyConstraints({ advanced: [{ zoom: z }] }); ZOOM.cur = z; $("zoomBtn").textContent = (z % 1 ? z.toFixed(1) : z) + "×"; try { localStorage.setItem("mtgscan.zoom", z); } catch {} } catch {}
-  }
-  $("zoomBtn").onclick = () => { const i = ZOOM.levels.indexOf(ZOOM.cur); setZoom(ZOOM.levels[(i + 1) % ZOOM.levels.length]); };
+  $("cOk").onclick = () => { closeSheet(); if (tab === "col") drawCol(); };
+}
 
-  $("torchBtn").onclick = async () => {
-    const on = $("torchBtn").getAttribute("aria-pressed") !== "true";
-    try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").setAttribute("aria-pressed", on); } catch { toast("Lanterna indisponível."); }
+// ============ Importar / exportar ============
+function parseCSVLine(line) { const out = []; let cur = "", q = false; for (let i = 0; i < line.length; i++) { const ch = line[i]; if (q) { if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; } else if (ch === '"') q = false; else cur += ch; } else if (ch === '"') q = true; else if (ch === "," || ch === ";" || ch === "\t") { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out.map(x => x.trim()); }
+const LANG_NAMES = { english: "en", portuguese: "pt", spanish: "es", japanese: "ja", french: "fr", german: "de", italian: "it", korean: "ko", russian: "ru" };
+function parseList(text) {
+  const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean); if (!lines.length) return [];
+  const head = parseCSVLine(lines[0]).map(h => h.toLowerCase()); const col = (...n) => head.findIndex(h => n.includes(h));
+  const iName = col("name", "card name", "card");
+  if (iName >= 0) {
+    const iQty = col("count", "quantity", "qty"), iSet = col("edition", "set code", "set"), iNum = col("collector number", "collector_number", "card number", "number"), iFoil = col("foil", "printing", "finish"), iLang = col("language", "lang");
+    return lines.slice(1).map(l => { const r = parseCSVLine(l); const fv = String(r[iFoil] || "").toLowerCase(), lv = String(r[iLang] || "").toLowerCase();
+      return { qty: parseInt(r[iQty], 10) || 1, name: r[iName] || "", set: (r[iSet] || "").toLowerCase(), number: r[iNum] || "", foil: /^(foil|etched|true|yes|1)$/.test(fv), lang: LANG_NAMES[lv] || (lv.length <= 3 ? lv : "") || "en" }; }).filter(x => x.name);
+  }
+  let board = "main";
+  return lines.map(l => {
+    if (/^(sideboard|side|reserva)/i.test(l)) { board = "side"; return null; } if (/^(commander|comandante)/i.test(l)) { board = "cmd"; return null; } if (/^(deck|main|maindeck)/i.test(l)) { board = "main"; return null; }
+    const m = l.match(/^(\d+)\s*x?\s+(.+?)(?:\s+\(([A-Za-z0-9]{2,6})\)(?:\s+([^\s*]+))?)?(\s+\*F\*)?$/); if (!m) return null;
+    return { qty: +m[1], name: m[2].trim(), set: (m[3] || "").toLowerCase(), number: m[4] || "", foil: !!m[5], lang: "en", board };
+  }).filter(Boolean);
+}
+function resolveRow(r) {
+  if (r.set && r.number) { const pi = DB.bySetNum.get(r.set + "|" + normNum(r.number)); if (pi !== undefined && (!r.name || norm(DB.o[DB.p[pi][3]][0]).startsWith(norm(r.name).slice(0, 6)))) return pi; }
+  const m = r.name ? (DB.byName.has(norm(r.name)) ? { i: DB.byName.get(norm(r.name)) } : matchName(r.name, false)) : null; if (!m) return -1;
+  const list = DB.prints[m.i] || []; const inSet = r.set ? list.find(pi => DB.p[pi][0] === r.set) : undefined; return inSet !== undefined ? inSet : defaultPrint(m.i);
+}
+function importDialog() {
+  openSheet(`<h3 style="margin:0">Importar para a coleção</h3><p class="meta" style="margin:0">Cole um CSV (Moxfield, Archidekt, ManaBox, Biblioteca MTG) ou uma lista de texto como "4 Lightning Bolt (2XM) 117".</p>
+    <textarea id="impText" rows="9" style="font:13px/1.4 ui-monospace,monospace"></textarea><label class="btn small" style="justify-self:start">Escolher arquivo<input type="file" id="impFile" accept=".csv,.txt" style="display:none"></label><div class="meta" id="impStatus"></div>`,
+    `<button class="btn" id="impCancel">Fechar</button><button class="btn primary" id="impGo">Importar</button>`);
+  $("impFile").onchange = async (e) => { const f = e.target.files[0]; if (f) $("impText").value = await f.text(); };
+  $("impCancel").onclick = closeSheet;
+  $("impGo").onclick = async () => {
+    const rows = parseList($("impText").value); if (!rows.length) { $("impStatus").textContent = "Não reconheci nenhuma linha."; return; }
+    let n = 0; const miss = []; const added = [];
+    for (const r of rows) { const pi = resolveRow(r); if (pi < 0) { miss.push(r.name); continue; } const p = DB.p[pi]; added.push(addToCollection({ oi: p[3], set: p[0], number: p[1], lang: r.lang || p[4] || "en", foil: r.foil, qty: r.qty })); n += r.qty; }
+    S.boxes.layoutDirty = true;
+    $("impStatus").innerHTML = `<b>${n} carta(s) importada(s).</b>${miss.length ? " Não encontrei: " + esc(miss.slice(0, 20).join(", ")) : ""}`;
+    fillImages(added).then(() => { if (tab === "col") drawCol(); });
+    if (tab === "col") drawCol();
   };
+}
+function download(name, text, type = "text/plain") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 500); }
+function exportCSV() { const rows = [["Count", "Name", "Edition", "Collector Number", "Foil", "Language"], ...S.cards.map(e => [e.qty, e.name, e.set, e.number, e.foil ? "foil" : "", e.lang])]; download(`colecao-${new Date().toISOString().slice(0, 10)}.csv`, rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n"), "text/csv"); }
+function backup() { download(`biblioteca-mtg-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ v: 1, at: new Date().toISOString(), cards: S.cards, decks: S.decks, boxes: S.boxes }), "application/json"); S.settings.lastBackup = Date.now(); save(); }
+function restore() {
+  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!Array.isArray(d.cards)) throw new Error("arquivo inválido"); S.cards = d.cards; S.decks = d.decks || []; S.boxes = d.boxes || S.boxes; save(); toast("Backup restaurado."); go("col"); } catch (e) { toast("Não consegui restaurar: " + e.message); } };
+  inp.click();
+}
 
-  // Retângulo da moldura na imagem do vídeo (object-fit: cover)
-  function guideRect() {
-    const v = $("video"), g = $("guide").getBoundingClientRect(), vb = v.getBoundingClientRect();
-    const VW = v.videoWidth, VH = v.videoHeight; if (!VW) return null;
-    const s = Math.max(vb.width / VW, vb.height / VH);
-    const ox = vb.left + (vb.width - VW * s) / 2, oy = vb.top + (vb.height - VH * s) / 2;
-    return { x: (g.left - ox) / s, y: (g.top - oy) / s, w: g.width / s, h: g.height / s };
-  }
-  function crop(r, fx, fy, fw, fh, targetH) {
-    const v = $("video");
-    const sx = r.x + r.w * fx, sy = r.y + r.h * fy, sw = r.w * fw, sh = r.h * fh;
-    const k = targetH / sh;
-    const cv = document.createElement("canvas"); cv.width = Math.round(sw * k); cv.height = Math.round(targetH);
-    const ctx = cv.getContext("2d", { willReadFrequently: true });
-    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
-    // tons de cinza + contraste
-    const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
-    let mn = 255, mx = 0;
-    for (let i = 0; i < d.length; i += 4) { const g = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = g; if (g < mn) mn = g; if (g > mx) mx = g; }
-    const span = Math.max(40, mx - mn); let sum = 0;
-    for (let i = 0; i < d.length; i += 4) { const g = (d[i] - mn) * 255 / span; sum += g; }
-    const invert = sum / (d.length / 4) < 110; // texto claro em fundo escuro
-    for (let i = 0; i < d.length; i += 4) { let g = (d[i] - mn) * 255 / span; if (invert) g = 255 - g; d[i] = d[i + 1] = d[i + 2] = g < 0 ? 0 : g > 255 ? 255 : g; }
-    ctx.putImageData(im, 0, 0);
-    return cv;
-  }
-
-  // ---------- OCR ----------
-  let worker = null;
-  async function startOCR(onProgress) {
-    const base = new URL("lib/", location.href).href;
-    worker = await Tesseract.createWorker("eng", 1, {
-      workerPath: base + "worker.min.js", corePath: base, langPath: base, gzip: true,
-      logger: (m) => { if (m.status && typeof m.progress === "number") onProgress(m); }
-    });
-  }
-
-  // ---------- Loop de reconhecimento ----------
-  const S = { busy: false, paused: false, last: null, streak: 0, lastAddedKey: "", lastAddedAt: 0, clearSeen: true };
-  function setStatus(t) { $("status").textContent = t; }
-  async function tick() {
-    if (S.busy || S.paused || !worker) return;
-    const r = guideRect(); if (!r) return;
-    S.busy = true;
+// ============ DECKS ============
+// Deck: { id, name, format, source, cards: [{ oi, qty, board: 'main'|'side'|'cmd', set?, number? }], built: bool }
+const deckCount = (d, board) => d.cards.filter(c => !board || c.board === board).reduce((a, c) => a + c.qty, 0);
+function haveFor(d, oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + ((e.decks || {})[d.id] || 0), 0); }
+function libFor(oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + freeQty(e), 0); }
+function renderDecks() {
+  if (view && view.kind === "deck") return renderDeck(view.id);
+  $("title").textContent = "Decks"; $("bars").innerHTML = "";
+  setMenu([["Novo deck vazio", () => newDeck()], ["Importar deck precon", preconDialog], ["Importar deck de lista", importDeckDialog]]);
+  $("fab").classList.remove("hidden"); $("fab").onclick = () => { openSheet(`<h3 style="margin:0">Novo deck</h3><div class="rows">
+      <button class="row" id="nd1" style="grid-template-columns:1fr"><span><span class="rn">Importar deck precon</span><span class="rs">Decks prontos oficiais (Commander, Starter, Challenger…)</span></span></button>
+      <button class="row" id="nd2" style="grid-template-columns:1fr"><span><span class="rn">Colar lista</span><span class="rs">De Moxfield, Archidekt, MTG Arena…</span></span></button>
+      <button class="row" id="nd3" style="grid-template-columns:1fr"><span><span class="rn">Começar do zero</span><span class="rs">Monte carta por carta</span></span></button></div>`);
+  $("nd1").onclick = preconDialog; $("nd2").onclick = importDeckDialog; $("nd3").onclick = () => newDeck(); };
+  if (!S.decks.length) { $("main").innerHTML = `<div class="empty">Nenhum deck ainda.<br>Toque no + para importar um precon ou montar um deck.</div>`; return; }
+  $("main").innerHTML = `<div class="rows">${S.decks.map(d => {
+    const total = deckCount(d), have = d.cards.reduce((a, c) => a + Math.min(c.qty, haveFor(d, c.oi)), 0);
+    const cmd = d.cards.find(c => c.board === "cmd") || d.cards[0];
+    const pi = cmd ? (cmd.set ? DB.bySetNum.get(cmd.set + "|" + normNum(cmd.number)) : defaultPrint(cmd.oi)) : -1;
+    const fake = cmd ? { oi: cmd.oi, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" } : null;
+    const ci = [...new Set(d.cards.flatMap(c => DB.o[c.oi][4].split("")))].filter(Boolean);
+    return `<button class="deckcard" data-d="${esc(d.id)}">${fake ? cardImgHTML(fake, { bare: true }) : `<div class="cardimg"></div>`}
+      <span><b>${esc(d.name)}</b><br><span class="meta">${esc(d.format || "")} · ${total} cartas</span><br>${ci.map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ")}
+      <div class="bar ${have >= total ? "ok" : ""}" style="margin-top:6px"><i style="width:${total ? Math.round(have * 100 / total) : 0}%"></i></div><span class="meta">${have}/${total} montadas${d.built ? " · na caixa do deck" : ""}</span></span>
+      <span class="meta">›</span></button>`; }).join("")}</div>`;
+  $("main").onclick = (ev) => { const b = ev.target.closest("[data-d]"); if (b) go("decks", { kind: "deck", id: b.dataset.d }); };
+}
+function newDeck(name = "", format = "Commander", cards = [], source = "") {
+  const d = { id: uid(), name: typeof name === "string" && name ? name : "Novo deck", format, source, cards, built: false, created: Date.now() };
+  S.decks.push(d); save(); go("decks", { kind: "deck", id: d.id }); return d;
+}
+function importDeckDialog() {
+  openSheet(`<h3 style="margin:0">Importar deck de lista</h3><input type="text" id="dName" placeholder="Nome do deck"><select id="dFormat"><option>Commander</option><option>Standard</option><option>Pioneer</option><option>Modern</option><option>Pauper</option><option>Livre</option></select>
+    <textarea id="dText" rows="10" placeholder="1 Sol Ring&#10;1 Command Tower&#10;…&#10;&#10;Sideboard&#10;…" style="font:13px/1.4 ui-monospace,monospace"></textarea><div class="meta" id="dStatus"></div>`,
+    `<button class="btn" id="dCancel">Fechar</button><button class="btn primary" id="dGo">Criar deck</button>`);
+  $("dCancel").onclick = closeSheet;
+  $("dGo").onclick = () => {
+    const rows = parseList($("dText").value); if (!rows.length) { $("dStatus").textContent = "Não reconheci nenhuma linha."; return; }
+    const cards = []; const miss = [];
+    rows.forEach((r, i) => { const pi = resolveRow(r); if (pi < 0) { miss.push(r.name); return; } const p = DB.p[pi]; cards.push({ oi: p[3], qty: r.qty, board: r.board || "main", set: r.set ? p[0] : "", number: r.set ? p[1] : "" }); });
+    if (miss.length) toast("Não encontrei: " + miss.slice(0, 6).join(", "), 4000);
+    newDeck($("dName").value || "Deck importado", $("dFormat").value, cards, "lista");
+  };
+}
+// Precons via MTGJSON
+let DECKLIST = null;
+async function preconDialog() {
+  openSheet(`<h3 style="margin:0">Importar deck precon</h3><input type="search" id="pq" placeholder="Buscar por nome ou coleção (ex. Commander 2024, Bloomburrow)"><div class="meta" id="pStatus">Carregando a lista de decks oficiais…</div><div class="rows" id="pList"></div>`, `<button class="btn" id="pClose">Fechar</button>`);
+  $("pClose").onclick = closeSheet;
+  try {
+    if (!DECKLIST) { const j = await fetch("https://mtgjson.com/api/v5/DeckList.json").then(r => r.json()); DECKLIST = j.data.sort((a, b) => String(b.releaseDate).localeCompare(String(a.releaseDate))); }
+  } catch { $("pStatus").textContent = "Não consegui carregar a lista (sem internet?)."; return; }
+  const draw = () => {
+    const q = norm($("pq").value);
+    const arr = DECKLIST.filter(d => !q || norm(d.name + " " + d.code + " " + d.type + " " + (DB.sets[String(d.code).toLowerCase()] || "")).includes(q)).slice(0, 60);
+    $("pStatus").textContent = `${DECKLIST.length} decks oficiais. ${q ? "" : "Mostrando os mais recentes."}`;
+    $("pList").innerHTML = arr.map(d => `<button class="row" style="grid-template-columns:1fr auto" data-f="${esc(d.fileName)}"><span><span class="rn">${esc(d.name)}</span><span class="rs">${esc(d.type)} · ${esc(DB.sets[String(d.code).toLowerCase()] || d.code)} · ${esc(String(d.releaseDate || "").slice(0, 4))}</span></span><span class="meta">Importar</span></button>`).join("");
+  };
+  $("pq").oninput = draw; draw();
+  $("pList").onclick = async (ev) => {
+    const b = ev.target.closest("[data-f]"); if (!b) return;
+    $("pStatus").textContent = "Baixando o deck…";
     try {
-      await worker.setParameters({ tessedit_pageseg_mode: "7" });
-      const t1 = await worker.recognize(crop(r, 0.05, 0.025, 0.66, 0.085, 56));
-      const titleTxt = (t1.data.text || "").replace(/\n/g, " ").trim();
-      await worker.setParameters({ tessedit_pageseg_mode: "6" });
-      const t2 = await worker.recognize(crop(r, 0.035, 0.895, 0.56, 0.09, 84));
-      const foot = parseFoot(t2.data.text);
-      const nm = matchName(titleTxt);
-      let hit = null;
-      if (foot.prints.length) {
-        // coleção+número válido; se o nome também bate, melhor ainda
-        const both = nm && foot.prints.find(p => p[2] === nm.i);
-        const p = both || (foot.prints.length === 1 ? foot.prints[0] : (nm ? null : foot.prints[0]));
-        if (p) hit = { oi: p[2], set: p[0], num: p[1], lang: foot.lang || p[3] || "en", via: both ? "both" : "foot" };
-      }
-      if (!hit && nm) {
-        // nome + código da coleção lido (mesmo sem o número): escolhe a impressão daquela coleção
-        const ps = (IDX.prints[nm.i] || []).filter(p => foot.sets.includes(p[0]));
-        hit = ps.length === 1 ? { oi: nm.i, set: ps[0][0], num: ps[0][1], lang: foot.lang || "", via: "name-set" } : { oi: nm.i, set: "", num: "", lang: foot.lang || "", via: "name" };
-      }
-      const g = $("guide");
-      if (!hit) {
-        S.streak = 0; S.last = null; S.clearSeen = true; g.className = "guide";
-        setStatus(titleTxt.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta");
-      } else {
-        const key = hit.oi + "|" + hit.set + "|" + hit.num;
-        S.streak = S.last === key ? S.streak + 1 : 1; S.last = key;
-        g.className = "guide seen";
-        setStatus(`Lendo: ${IDX.names[hit.oi]}${hit.set ? ` (${hit.set.toUpperCase()} #${hit.num})` : ""}`);
-        const need = hit.via === "both" ? 1 : 2;
-        const sameAsAdded = hit.oi + "" === S.lastAddedKey && !S.clearSeen;
-        if (S.streak >= need && !sameAsAdded) { g.className = "guide lock"; await onLocked(hit); }
-      }
-    } catch (e) { setStatus("Erro na leitura: " + (e.message || e)); }
-    S.busy = false;
-  }
+      const j = (await fetch(`https://mtgjson.com/api/v5/decks/${encodeURIComponent(b.dataset.f)}.json`).then(r => r.json())).data;
+      const cards = []; const miss = [];
+      const add = (list, board) => (list || []).forEach(c => {
+        let pi = DB.bySetNum.get(String(c.setCode).toLowerCase() + "|" + normNum(c.number));
+        if (pi !== undefined && norm(DB.o[DB.p[pi][3]][0].split(" // ")[0]) !== norm(String(c.name).split(" // ")[0])) pi = undefined;
+        if (pi === undefined) { const m = DB.byName.has(norm(c.name)) ? DB.byName.get(norm(c.name)) : (matchName(c.name, false) || {}).i; if (m === undefined) { miss.push(c.name); return; } pi = defaultPrint(m); }
+        const p = DB.p[pi]; const ex = cards.find(x => x.oi === p[3] && x.board === board);
+        if (ex) ex.qty += c.count || 1; else cards.push({ oi: p[3], qty: c.count || 1, board, set: p[0], number: p[1], foil: !!c.isFoil });
+      });
+      add(j.commander, "cmd"); add(j.mainBoard, "main"); add(j.sideBoard, "side");
+      if (miss.length) toast("Não encontrei: " + miss.slice(0, 5).join(", "), 4000);
+      const fmt = /commander/i.test(j.type || "") ? "Commander" : "Livre";
+      const d = newDeck(j.name, fmt, cards, "precon " + (j.code || ""));
+      setTimeout(() => offerCollectionAdd(d), 400);
+    } catch (e) { $("pStatus").textContent = "Não consegui baixar esse deck."; }
+  };
+}
+function offerCollectionAdd(d) {
+  openSheet(`<h3 style="margin:0">Você tem esse precon fechado?</h3><p class="meta" style="margin:0">Se sim, adiciono as ${deckCount(d)} cartas na coleção e já marco todas como montadas neste deck (guardadas na caixa do deck).</p>`,
+    `<button class="btn" id="oNo">Não, só a lista</button><button class="btn primary" id="oYes">Sim, adicionar e montar</button>`);
+  $("oNo").onclick = closeSheet;
+  $("oYes").onclick = () => {
+    const added = [];
+    for (const c of d.cards) { const e = addToCollection({ oi: c.oi, set: c.set, number: c.number, lang: "en", foil: c.foil, qty: c.qty }); e.decks[d.id] = (e.decks[d.id] || 0) + c.qty; added.push(e); }
+    d.built = true; save(); closeSheet(); renderDeck(d.id); toast("Precon adicionado e montado."); fillImages(added);
+  };
+}
+function renderDeck(id) {
+  const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
+  $("title").textContent = d.name; $("bars").innerHTML = ""; $("backBtn").classList.remove("invisible");
+  setMenu([["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Apagar deck", () => deleteDeck(d)]]);
+  $("fab").classList.remove("hidden"); $("fab").onclick = () => addCardToDeck(d);
+  const total = deckCount(d);
+  const cards = d.cards.map(c => ({ ...c, o: oInfo(c.oi), have: haveFor(d, c.oi), lib: libFor(c.oi) }));
+  const missing = cards.reduce((a, c) => a + Math.max(0, c.qty - c.have), 0);
+  const nonland = cards.filter(c => !mainTypes(c.o.type).includes("Land") && c.board !== "side");
+  const curve = Array(8).fill(0); nonland.forEach(c => curve[Math.min(7, Math.floor(c.o.cmc))] += c.qty);
+  const cmax = Math.max(1, ...curve);
+  const pips = { W: 0, U: 0, B: 0, R: 0, G: 0 }; cards.forEach(c => (c.o.mana.match(/\{[^}]+\}/g) || []).forEach(s => "WUBRG".split("").forEach(k => { if (s.includes(k)) pips[k] += c.qty; })));
+  const ptot = Object.values(pips).reduce((a, b) => a + b, 0) || 1;
+  const rolesCount = {}; cards.filter(c => c.board !== "side").forEach(c => c.o.roles.forEach(r => rolesCount[r] = (rolesCount[r] || 0) + c.qty));
+  const lands = cards.filter(c => mainTypes(c.o.type).includes("Land") && c.board !== "side").reduce((a, c) => a + c.qty, 0);
+  const avg = nonland.length ? (nonland.reduce((a, c) => a + c.o.cmc * c.qty, 0) / nonland.reduce((a, c) => a + c.qty, 0)).toFixed(2) : "–";
+  const value = cards.reduce((a, c) => a + (c.set ? (DB.p[DB.bySetNum.get(c.set + "|" + normNum(c.number))] || [])[6] || 0 : 0) * c.qty, 0);
+  const groups = [["cmd", "Comandante"], ...TYPES.map(t => ["t:" + t[0], t[1]]), ["side", "Sideboard"]];
+  const groupOf = (c) => c.board === "cmd" ? "cmd" : c.board === "side" ? "side" : "t:" + (mainTypes(c.o.type).find(t => t !== "Land") || mainTypes(c.o.type)[0] || "Artifact");
+  const rowHTML = (c) => {
+    const st = c.have >= c.qty ? `<span class="pill ok">no deck</span>` : c.lib > 0 ? `<span class="pill warn">na caixa</span>` : `<span class="pill bad">falta ${c.qty - c.have}</span>`;
+    const fake = { oi: c.oi, set: c.set || DB.p[defaultPrint(c.oi)]?.[0] || "", number: c.number || DB.p[defaultPrint(c.oi)]?.[1] || "" };
+    return `<button class="row" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fake, { bare: true })}<span><span class="rn">${c.qty > 1 ? c.qty + "× " : ""}${esc(c.o.name)}</span><span class="rs">${manaHTML(c.o.mana)} ${st}</span></span><span class="rr">${c.have}/${c.qty}</span></button>`;
+  };
+  $("main").innerHTML = `
+    <div class="card">
+      <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi"><b>${missing}</b><span>faltam</span></div></div>
+      <div><div class="meta" style="margin-bottom:4px">Curva de mana (sem terrenos)</div><div class="curve">${curve.map((n, i) => `<div><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
+      <div><div class="meta" style="margin-bottom:4px">Símbolos de mana</div><div class="colorbar">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<span style="width:${n * 100 / ptot}%;background:${COLOR_HEX[k]}" title="${COLOR_NAME[k]}: ${n}"></span>`).join("")}</div></div>
+      ${Object.keys(rolesCount).length ? `<div class="roles">${Object.entries(rolesCount).sort((a, b) => b[1] - a[1]).map(([r, n]) => `<span class="pill">${esc(ROLES[r])} ${n}</span>`).join("")}</div>` : ""}
+      ${value ? `<div class="meta">Valor estimado: ${fmtUSD(value)}</div>` : ""}
+      <div class="actions"><button class="btn primary small" id="bBuild">Montar com a coleção</button><button class="btn small" id="bUnbuild">Desmontar</button><button class="btn small" id="bMiss">Copiar faltantes</button></div>
+    </div>
+    ${groups.map(([g, label]) => { const list = cards.filter(c => groupOf(c) === g).sort((a, b) => a.o.cmc - b.o.cmc || a.o.name.localeCompare(b.o.name)); if (!list.length) return ""; return `<h2 class="sec"><span>${label}</span><span>${list.reduce((a, c) => a + c.qty, 0)}</span></h2><div class="rows">${list.map(rowHTML).join("")}</div>`; }).join("")}`;
+  $("bBuild").onclick = () => buildDeck(d); $("bUnbuild").onclick = () => unbuildDeck(d); $("bMiss").onclick = () => copyMissing(d);
+  $("main").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (b) deckCardSheet(d, +b.dataset.oi, b.dataset.b); };
+}
+function deckCardSheet(d, oi, board) {
+  const c = d.cards.find(x => x.oi === oi && x.board === board); const o = oInfo(oi);
+  const owned = S.cards.filter(e => e.oi === oi);
+  const where = owned.flatMap(e => { const out = []; if (freeQty(e)) out.push(`📦 ${whereLib(e).text} — ${freeQty(e)}×`); for (const [did, q] of Object.entries(e.decks || {})) { const dd = S.decks.find(x => x.id === did); if (dd && q) out.push(`🃏 ${dd.name} — ${q}×`); } return out; });
+  const fake = { oi, set: c.set || DB.p[defaultPrint(oi)]?.[0], number: c.number || DB.p[defaultPrint(oi)]?.[1] };
+  openSheet(`<div class="detail">${cardImgHTML(fake, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}</div></div></div>
+    <div><h2 class="sec" style="margin-top:0">Suas cópias</h2><div class="loc">${where.map(w => `<div><span>${esc(w)}</span></div>`).join("") || `<div><span>Você não tem essa carta.</span></div>`}</div></div>
+    ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
+    <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>`,
+    `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
+  $("dcM").onclick = () => { if (c.qty > 1) { c.qty--; $("dcQ").textContent = c.qty; releaseExtra(d, oi); save(); } };
+  $("dcP").onclick = () => { c.qty++; $("dcQ").textContent = c.qty; save(); };
+  $("dcDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); save(); closeSheet(); renderDeck(d.id); };
+  $("dcPull").onclick = () => { const r = allocate(d, oi, c.qty); save(); closeSheet(); renderDeck(d.id); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas."); };
+  $("dcOk").onclick = () => { closeSheet(); renderDeck(d.id); };
+}
+function releaseExtra(d, oi) {
+  const want = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0); let have = haveFor(d, oi);
+  for (const e of S.cards.filter(e => e.oi === oi)) { while (have > want && (e.decks[d.id] || 0) > 0) { e.decks[d.id]--; have--; } if (!e.decks[d.id]) delete e.decks[d.id]; }
+}
+function allocate(d, oi, want) {
+  const taken = []; let have = haveFor(d, oi);
+  const pool = S.cards.filter(e => e.oi === oi && freeQty(e) > 0).sort((a, b) => (a.foil - b.foil) || priceOf(a) - priceOf(b));
+  for (const e of pool) { while (have < want && freeQty(e) > 0) { const w = whereLib(e).text; e.decks[d.id] = (e.decks[d.id] || 0) + 1; have++; taken.push({ name: e.name, where: w, box: whereLib(e).box, sec: SECTIONS.indexOf(sectionOf(e)), tr: typeRank(e.oi) }); } }
+  return { taken, short: Math.max(0, want - have) };
+}
+function buildDeck(d) {
+  const all = []; let short = 0;
+  for (const oi of [...new Set(d.cards.map(c => c.oi))]) { const want = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0); const r = allocate(d, oi, want); all.push(...r.taken); short += r.short; }
+  save();
+  all.sort((a, b) => a.box - b.box || a.sec - b.sec || a.tr - b.tr || a.name.localeCompare(b.name));
+  openSheet(`<h3 style="margin:0">Pegar nas caixas (${all.length})</h3><p class="meta" style="margin:0">Na ordem das caixas e seções. ${short ? `Ainda faltam ${short} carta(s) que você não tem livres.` : "Deck completo!"}</p>
+    <div class="loc">${all.map(t => `<div><span>${esc(t.name)}</span><span class="meta">${esc(t.where.replace(/^Caixa /, "Cx "))}</span></div>`).join("") || `<div><span>Nada para pegar: as cartas que você tem já estão no deck.</span></div>`}</div>`,
+    `<button class="btn primary" id="bOk">Pronto</button>`);
+  $("bOk").onclick = () => { d.built = short === 0; save(); closeSheet(); renderDeck(d.id); };
+}
+function unbuildDeck(d) {
+  const back = [];
+  for (const e of S.cards) { const q = (e.decks || {})[d.id] || 0; if (!q) continue; delete e.decks[d.id]; for (let i = 0; i < q; i++) back.push({ name: e.name, where: whereLib(e).text, box: whereLib(e).box, sec: SECTIONS.indexOf(sectionOf(e)), tr: typeRank(e.oi) }); }
+  d.built = false; save();
+  back.sort((a, b) => a.box - b.box || a.sec - b.sec || a.tr - b.tr || a.name.localeCompare(b.name));
+  openSheet(`<h3 style="margin:0">Guardar nas caixas (${back.length})</h3><div class="loc">${back.map(t => `<div><span>${esc(t.name)}</span><span class="meta">${esc(t.where.replace(/^Caixa /, "Cx "))}</span></div>`).join("") || `<div><span>Nenhuma carta da coleção estava neste deck.</span></div>`}</div>`, `<button class="btn primary" id="uOk">Pronto</button>`);
+  $("uOk").onclick = () => { closeSheet(); renderDeck(d.id); };
+}
+async function copyDeck(d) { const t = ["cmd", "main", "side"].map(b => { const l = d.cards.filter(c => c.board === b); if (!l.length) return ""; return (b === "cmd" ? "Commander\n" : b === "side" ? "\nSideboard\n" : "") + l.map(c => `${c.qty} ${DB.o[c.oi][0]}`).join("\n"); }).join("\n").trim(); try { await navigator.clipboard.writeText(t); toast("Lista copiada."); } catch { download(d.name + ".txt", t); } }
+async function copyMissing(d) { const l = d.cards.map(c => [c.qty - Math.min(c.qty, haveFor(d, c.oi) + libFor(c.oi)), DB.o[c.oi][0]]).filter(x => x[0] > 0); if (!l.length) return toast("Você já tem todas as cartas."); const t = l.map(x => `${x[0]} ${x[1]}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${l.length} cartas copiadas.`); } catch { download("faltantes.txt", t); } }
+function deleteDeck(d) {
+  openSheet(`<h3 style="margin:0">Apagar "${esc(d.name)}"?</h3><p class="meta" style="margin:0">As cartas da coleção que estão no deck voltam para as caixas.</p>`, `<button class="btn" id="xNo">Cancelar</button><button class="btn danger" id="xYes">Apagar</button>`);
+  $("xNo").onclick = closeSheet; $("xYes").onclick = () => { S.cards.forEach(e => { if (e.decks) delete e.decks[d.id]; }); S.decks = S.decks.filter(x => x !== d); save(); go("decks"); };
+}
+function addCardToDeck(d) {
+  openSheet(`<h3 style="margin:0">Adicionar ao deck</h3><input type="search" id="aq" placeholder="Nome da carta"><label class="meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="aOwned" checked> só cartas que eu tenho</label><div class="rows" id="aList"></div>`, `<button class="btn primary" id="aDone">Pronto</button>`);
+  $("aDone").onclick = () => { closeSheet(); renderDeck(d.id); };
+  const draw = () => {
+    const q = $("aq").value; const owned = $("aOwned").checked;
+    let ois = owned ? [...new Set(S.cards.filter(e => !q || norm(e.name).includes(norm(q))).map(e => e.oi))].slice(0, 40) : searchNames(q, 30);
+    const ci = new Set(d.cards.filter(c => c.board === "cmd").flatMap(c => DB.o[c.oi][4].split("")));
+    $("aList").innerHTML = ois.map(oi => { const o = DB.o[oi]; const off = ci.size && o[4].split("").some(x => x && !ci.has(x)); const inD = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
+      return `<button class="row" data-oi="${oi}" style="grid-template-columns:1fr auto"><span><span class="rn">${esc(o[0])}</span><span class="rs">${manaHTML(o[1])} ${esc(o[5])}${off ? ` <span class="pill bad">fora da identidade</span>` : ""} · livres: ${libFor(oi)}</span></span><span class="meta">${inD ? inD + " no deck · " : ""}+1</span></button>`; }).join("") || `<p class="meta">Digite um nome.</p>`;
+  };
+  $("aq").oninput = draw; $("aOwned").onchange = draw; draw();
+  $("aList").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (!b) return; const oi = +b.dataset.oi; const c = d.cards.find(x => x.oi === oi && x.board === "main"); if (c) c.qty++; else d.cards.push({ oi, qty: 1, board: "main" }); save(); draw(); toast("+1 " + DB.o[oi][0], 900); };
+}
 
-  // ---------- Foto com a câmera do celular (foco nativo) ----------
-  async function scanPhoto(file) {
-    if (!worker) return;
-    S.paused = true; setStatus("Lendo a foto…");
-    try {
-      let bmp;
-      try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { bmp = await createImageBitmap(file); }
-      // Lê três faixas: topo (nome), rodapé (coleção + número) e a foto inteira
-      const band = (y0, y1, W) => {
-        const sh = (y1 - y0) * bmp.height, k = Math.min(1, W / bmp.width);
-        const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(sh * k);
-        const ctx = cv.getContext("2d", { willReadFrequently: true }); ctx.drawImage(bmp, 0, y0 * bmp.height, bmp.width, sh, 0, 0, cv.width, cv.height);
-        const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data; let mn = 255, mx = 0, sum = 0;
-        for (let i = 0; i < d.length; i += 4) { const g = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = g; if (g < mn) mn = g; if (g > mx) mx = g; sum += g; }
-        const span = Math.max(40, mx - mn);
-        for (let i = 0; i < d.length; i += 4) { const g = Math.max(0, Math.min(255, (d[i] - mn) * 255 / span)); d[i] = d[i + 1] = d[i + 2] = g; }
-        ctx.putImageData(im, 0, 0); return cv;
-      };
-      await worker.setParameters({ tessedit_pageseg_mode: "6" });
-      const top = (await worker.recognize(band(0, 0.22, 1400))).data.text || "";
-      const bot = (await worker.recognize(band(0.78, 1, 1600))).data.text || "";
-      await worker.setParameters({ tessedit_pageseg_mode: "3" });
-      const all = (await worker.recognize(band(0, 1, 1800))).data.text || "";
-      const text = top + "\n" + bot + "\n" + all;
-      const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length >= 4);
-      let nm = null;
-      for (const l of lines.slice(0, 40)) {
-        for (const cand of [l, l.replace(/[^A-Za-z',\- ]+.*$/, "")]) { const m = matchName(cand); if (m && (!nm || m.d < nm.d)) nm = m; }
-      }
-      let foot = parseFoot(bot);
-      if (!foot.prints.length) foot = parseFoot(all);
-      let hit = null;
-      const both = nm && foot.prints.find(p => p[2] === nm.i);
-      if (both) hit = { oi: both[2], set: both[0], num: both[1], lang: foot.lang || both[3] || "en", via: "both" };
-      else if (nm) {
-        const ps = (IDX.prints[nm.i] || []).filter(p => foot.sets.includes(p[0]));
-        hit = ps.length === 1 ? { oi: nm.i, set: ps[0][0], num: ps[0][1], lang: foot.lang || "", via: "name-set" } : { oi: nm.i, set: "", num: "", lang: foot.lang || "", via: "name" };
-      } else if (foot.prints.length === 1) { const p = foot.prints[0]; hit = { oi: p[2], set: p[0], num: p[1], lang: foot.lang || p[3] || "en", via: "foot" }; }
-      if (!hit) { toast("Não reconheci a carta nessa foto. Tente mais perto, com a carta ocupando a foto.", 3000); S.paused = false; setStatus("Aponte para uma carta"); return; }
-      await onLocked(hit, true);
-    } catch (e) { toast("Erro ao ler a foto: " + (e.message || e)); S.paused = false; }
-  }
-  $("photoInput").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); });
+// ============ CAIXAS ============
+function renderBoxes() {
+  $("title").textContent = "Caixas"; $("bars").innerHTML = "";
+  setMenu([["Reorganizar caixas", () => { buildLayout(); renderBoxes(); toast("Caixas reorganizadas."); }], ["Capacidade por caixa", () => { const n = parseInt(prompt("Quantas cartas com sleeve cabem em cada caixa?", S.boxes.capacity), 10); if (n > 20) { S.boxes.capacity = n; save(); renderBoxes(); } }], ["Lista para etiquetas dos divisores", labelsSheet]]);
+  if (!S.boxes.layout) buildLayout();
+  const counts = sectionCounts(); const cap = S.boxes.capacity;
+  const inDeckTotal = S.cards.reduce((a, e) => a + inDecks(e), 0);
+  $("main").innerHTML = `
+    <div class="card"><b>Organização: cor → raridade → tipo → nome</b>
+      <span class="meta">Cada caixa tem divisores por cor e raridade (raras e míticas na frente, comuns e incomuns atrás). Dentro de cada divisor: criaturas, planeswalkers, instantâneas, feitiços, encantamentos, artefatos, batalhas e terrenos, cada grupo em ordem alfabética.</span>
+      <span class="meta">Capacidade: ${cap} cartas com sleeve por caixa. ${inDeckTotal} carta(s) estão em decks (fora das caixas).</span></div>
+    ${S.boxes.layout.map(b => { const n = b.sections.reduce((a, s) => a + counts[s], 0); const pct = Math.round(n * 100 / cap);
+      return `<div class="boxcard"><h3><span>Caixa ${b.n}</span><span class="meta">${n}/${cap}</span></h3><div class="bar ${pct > 100 ? "over" : ""}"><i style="width:${Math.min(100, pct)}%"></i></div>
+        ${b.sections.map(s => `<button class="secrow" data-s="${s}" style="border:0;background:transparent;color:inherit;text-align:left;width:100%"><span class="sw" style="background:${COLOR_HEX[s[0]]}"></span><span>${esc(sectionName(s))}</span><span class="meta">${counts[s]}</span></button>`).join("")}
+        ${pct > 100 ? `<span class="pill bad">Caixa cheia: use ⋮ → Reorganizar caixas</span>` : ""}</div>`; }).join("")}
+    <p class="meta">Modelos 3D da caixa e dos divisores para imprimir: na pasta MTG do seu PC, em "caixas-3d".</p>`;
+  $("main").onclick = (ev) => { const b = ev.target.closest("[data-s]"); if (!b) return; F.where = "box" + boxOfSection(b.dataset.s); F.q = ""; F.sort = "box"; go("col"); };
+}
+function labelsSheet() {
+  openSheet(`<h3 style="margin:0">Divisores</h3><div class="loc">${S.boxes.layout.map(b => b.sections.map(s => `<div><span>Caixa ${b.n}</span><span>${esc(sectionName(s))}</span></div>`).join("")).join("")}</div>`, `<button class="btn primary" id="lOk">OK</button>`);
+  $("lOk").onclick = closeSheet;
+}
 
-  // ---------- Diagnóstico da câmera ----------
-  $("infoBtn").onclick = () => {
-    let msg = "Câmera ainda não aberta.";
-    if (track) {
-      const st = track.getSettings ? track.getSettings() : {}, cp = track.getCapabilities ? track.getCapabilities() : {};
-      msg = [
-        `Lente: ${track.label || "?"} (${CAMS.idx + 1}/${CAMS.list.length || 1})`,
-        `Resolução: ${st.width}×${st.height}`,
-        `Modos de foco: ${(cp.focusMode || []).join(", ") || "nenhum"}`,
-        `Foco manual: ${cp.focusDistance ? cp.focusDistance.min + "–" + cp.focusDistance.max : "não"}`,
-        `Zoom: ${cp.zoom ? cp.zoom.min + "–" + cp.zoom.max : "não"}`,
-        `Lanterna: ${cp.torch ? "sim" : "não"}`,
-        `Navegador: ${navigator.userAgent.match(/(Chrome|Firefox|Samsung\w*|Edg)\/[\d.]+/)?.[0] || "?"}`
-      ].join("\n");
+// ============ SCANNER ============
+const SC = { busy: false, paused: false, last: null, streak: 0, lastOi: -1, clearSeen: true, timer: 0, session: [] };
+let stream = null, track = null, worker = null;
+const LANG_CODES = { EN: "en", PT: "pt", SP: "es", ES: "es", FR: "fr", DE: "de", IT: "it", JP: "ja", JA: "ja", KO: "ko", RU: "ru", CS: "zhs", CT: "zht" };
+function parseFoot(text) {
+  const lines = String(text || "").toUpperCase().replace(/[|\\]/g, " ").split(/\n/).map(l => l.trim()).filter(Boolean);
+  const firstNum = (l) => { const m = l.replace(/[©®™].*$/, "").match(/(?:^|[^A-Z0-9])0*(\d{1,4})(?=[^0-9]|$)/); return m ? m[1] : null; };
+  const langM = lines.join(" ").match(/\b(EN|PT|SP|ES|FR|DE|IT|JP|JA|KO|RU|CS|CT)\b/);
+  const out = [], sets = [];
+  lines.forEach((l, i) => {
+    const toks = [...l.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => m[0].toLowerCase()).filter(t => DB.setCodes.has(t)); if (!toks.length) return; sets.push(...toks);
+    const nums = []; const sl = l.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); if (sl) nums.push(sl[1]);
+    if (i > 0) { const pl = lines[i - 1]; const s2 = pl.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); nums.push(s2 ? s2[1] : firstNum(pl)); }
+    nums.push(firstNum(l));
+    for (const t of toks) for (const n of nums) { if (!n) continue; const pi = DB.bySetNum.get(t + "|" + n); if (pi !== undefined && !out.includes(pi)) out.push(pi); }
+  });
+  return { prints: out, sets, lang: langM ? LANG_CODES[langM[1]] : "" };
+}
+function decide(titleTxt, foot) {
+  const nm = matchName(titleTxt);
+  if (foot.prints.length) {
+    const both = nm && foot.prints.find(pi => DB.p[pi][3] === nm.i);
+    const pi = both !== undefined ? both : (foot.prints.length === 1 ? foot.prints[0] : (nm ? undefined : foot.prints[0]));
+    if (pi !== undefined) return { pi, oi: DB.p[pi][3], lang: foot.lang, via: both !== undefined ? "both" : "foot" };
+  }
+  if (nm) { const ps = (DB.prints[nm.i] || []).filter(pi => foot.sets.includes(DB.p[pi][0])); return ps.length === 1 ? { pi: ps[0], oi: nm.i, lang: foot.lang, via: "name-set" } : { pi: defaultPrint(nm.i), oi: nm.i, lang: foot.lang, via: "name" }; }
+  return null;
+}
+async function ensureOCR() {
+  if (worker) return;
+  const base = new URL("lib/", location.href).href;
+  $("scanStatus").textContent = "Carregando o leitor…";
+  worker = await Tesseract.createWorker("eng", 1, { workerPath: base + "worker.min.js", corePath: base, langPath: base, gzip: true });
+}
+function renderScan() {
+  $("scanDest").innerHTML = `<option value="">Destino: caixas</option>` + S.decks.map(d => `<option value="${esc(d.id)}">Deck: ${esc(d.name)}</option>`).join("");
+  $("scanDest").value = S.settings.scanDest && S.decks.some(d => d.id === S.settings.scanDest) ? S.settings.scanDest : "";
+  $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
+  startScanner();
+}
+$("scanDest").onchange = (e) => { S.settings.scanDest = e.target.value; save(); };
+async function startScanner() {
+  try { await ensureOCR(); } catch (e) { $("scanStatus").textContent = "Não consegui carregar o leitor."; return; }
+  let saved = S.settings.camId || "";
+  try { try { await startCamera(saved || undefined); } catch (e0) { if (!saved) throw e0; await startCamera(); } }
+  catch (e) { $("scanStatus").textContent = e.name === "NotAllowedError" ? "Permissão de câmera negada. Libere nas configurações do navegador." : "Não consegui abrir a câmera."; return; }
+  $("scanStatus").textContent = "Aponte para uma carta (segure a ~15–20 cm)";
+  clearInterval(SC.timer); SC.timer = setInterval(tick, 250); SC.paused = false;
+}
+function stopCamera() { clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; }
+const ZOOM = { levels: [1], cur: 1 }, FOCUS = { modes: [], dist: null, manual: false }, CAMS = { list: [], idx: 0, auto: false };
+async function startCamera(deviceId) {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error("sem câmera");
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  const video = { width: { ideal: 3840 }, height: { ideal: 2160 } };
+  if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: "environment" };
+  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video }); track = stream.getVideoTracks()[0];
+  const v = $("video"); v.srcObject = stream; await v.play().catch(() => {});
+  const caps = track.getCapabilities ? track.getCapabilities() : {};
+  $("torchBtn").classList.toggle("hidden", !caps.torch);
+  if (caps.zoom && caps.zoom.max > 1) { ZOOM.levels = [1, 1.5, 2, 2.5, 3].filter(z => z >= caps.zoom.min && z <= caps.zoom.max); await setZoom(S.settings.zoom && ZOOM.levels.includes(S.settings.zoom) ? S.settings.zoom : ZOOM.levels[Math.min(2, ZOOM.levels.length - 1)]); $("zoomBtn").classList.remove("hidden"); } else $("zoomBtn").classList.add("hidden");
+  FOCUS.modes = caps.focusMode || []; FOCUS.dist = caps.focusDistance && caps.focusDistance.max > caps.focusDistance.min ? caps.focusDistance : null;
+  $("mfWrap").classList.toggle("hidden", !FOCUS.dist);
+  if (FOCUS.dist) { const r = $("mfRange"); r.min = FOCUS.dist.min; r.max = FOCUS.dist.max; r.step = FOCUS.dist.step || .01; r.value = FOCUS.dist.min + (FOCUS.dist.max - FOCUS.dist.min) * .15; }
+  if (FOCUS.modes.includes("continuous")) { try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} }
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+    const back = devs.filter(d => !/front|user|frontal/i.test(d.label)); CAMS.list = back.length ? back : devs;
+    const cur = track.getSettings ? track.getSettings().deviceId : ""; CAMS.idx = Math.max(0, CAMS.list.findIndex(d => d.deviceId === cur));
+    $("camSwitch").classList.toggle("hidden", CAMS.list.length < 2); $("camSwitch").textContent = `Lente ${CAMS.idx + 1}/${CAMS.list.length}`;
+    if (!deviceId && !CAMS.auto) { CAMS.auto = true; const main = CAMS.list.find(d => /camera2 0\b/.test(d.label)); if (main && main.deviceId !== cur) return startCamera(main.deviceId); }
+  } catch {}
+}
+async function setZoom(z) { try { await track.applyConstraints({ advanced: [{ zoom: z }] }); ZOOM.cur = z; $("zoomBtn").textContent = (z % 1 ? z.toFixed(1) : z) + "×"; S.settings.zoom = z; save(); } catch {} }
+$("zoomBtn").onclick = () => setZoom(ZOOM.levels[(ZOOM.levels.indexOf(ZOOM.cur) + 1) % ZOOM.levels.length]);
+$("torchBtn").onclick = async () => { const on = $("torchBtn").getAttribute("aria-pressed") !== "true"; try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").setAttribute("aria-pressed", on); } catch {} };
+$("camSwitch").onclick = async () => { if (CAMS.list.length < 2) return; CAMS.idx = (CAMS.idx + 1) % CAMS.list.length; try { await startCamera(CAMS.list[CAMS.idx].deviceId); S.settings.camId = CAMS.list[CAMS.idx].deviceId; save(); } catch { toast("Não consegui abrir essa lente."); } };
+$("afBtn").onclick = async () => { FOCUS.manual = false; $("afBtn").setAttribute("aria-pressed", "true"); try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} };
+$("mfRange").oninput = async (e) => { FOCUS.manual = true; $("afBtn").setAttribute("aria-pressed", "false"); try { await track.applyConstraints({ advanced: [{ focusMode: "manual", focusDistance: +e.target.value }] }); } catch {} };
+$("scanView").addEventListener("pointerup", async (ev) => {
+  if (!track || ev.target.closest("button, select, input, label, .scantop, .scanbottom, .mf")) return;
+  const v = $("video"), vb = v.getBoundingClientRect(), VW = v.videoWidth, VH = v.videoHeight; if (!VW) return;
+  const sc = Math.max(vb.width / VW, vb.height / VH), ox = vb.left + (vb.width - VW * sc) / 2, oy = vb.top + (vb.height - VH * sc) / 2;
+  const px = Math.min(1, Math.max(0, (ev.clientX - ox) / sc / VW)), py = Math.min(1, Math.max(0, (ev.clientY - oy) / sc / VH));
+  const ring = document.createElement("div"); ring.className = "focusring"; ring.style.left = (ev.clientX - vb.left) + "px"; ring.style.top = (ev.clientY - vb.top) + "px"; $("scanView").appendChild(ring); setTimeout(() => ring.remove(), 1100);
+  const tries = []; if (FOCUS.modes.includes("single-shot")) tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "single-shot" }, { focusMode: "single-shot" }); if (FOCUS.modes.includes("continuous")) tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "continuous" });
+  let ok = false; for (const t of tries) { try { await track.applyConstraints({ advanced: [t] }); ok = true; break; } catch {} }
+  if (!ok) toast(FOCUS.dist ? "Use a barra de foco." : "Sem controle de foco: troque a lente ou use o botão de foto.", 2500);
+  else if (!FOCUS.manual && FOCUS.modes.includes("continuous")) setTimeout(() => track && track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500);
+});
+$("infoBtn").onclick = () => {
+  SC.paused = true; const st = track?.getSettings?.() || {}, cp = track?.getCapabilities?.() || {};
+  openSheet(`<h3 style="margin:0">Câmera</h3><pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;margin:0">${esc([`Lente: ${track?.label || "?"} (${CAMS.idx + 1}/${CAMS.list.length || 1})`, `Resolução: ${st.width}×${st.height}`, `Foco: ${(cp.focusMode || []).join(", ") || "nenhum"}`, `Foco manual: ${cp.focusDistance ? cp.focusDistance.min + "–" + cp.focusDistance.max : "não"}`, `Zoom: ${cp.zoom ? cp.zoom.min + "–" + cp.zoom.max : "não"}`].join("\n"))}</pre>`, `<button class="btn primary" id="iOk">OK</button>`);
+  $("iOk").onclick = closeSheet;
+};
+function guideRect() { const v = $("video"), g = $("guide").getBoundingClientRect(), vb = v.getBoundingClientRect(), VW = v.videoWidth, VH = v.videoHeight; if (!VW) return null; const s = Math.max(vb.width / VW, vb.height / VH); const ox = vb.left + (vb.width - VW * s) / 2, oy = vb.top + (vb.height - VH * s) / 2; return { x: (g.left - ox) / s, y: (g.top - oy) / s, w: g.width / s, h: g.height / s }; }
+function crop(src, r, fx, fy, fw, fh, H) {
+  const sx = r.x + r.w * fx, sy = r.y + r.h * fy, sw = r.w * fw, sh = r.h * fh, k = H / sh;
+  const cv = document.createElement("canvas"); cv.width = Math.max(8, Math.round(sw * k)); cv.height = Math.round(H);
+  const ctx = cv.getContext("2d", { willReadFrequently: true }); ctx.drawImage(src, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+  const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data; let mn = 255, mx = 0, sum = 0;
+  for (let i = 0; i < d.length; i += 4) { const g = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = g; if (g < mn) mn = g; if (g > mx) mx = g; }
+  const span = Math.max(40, mx - mn); for (let i = 0; i < d.length; i += 4) sum += (d[i] - mn) * 255 / span;
+  const inv = sum / (d.length / 4) < 110;
+  for (let i = 0; i < d.length; i += 4) { let g = (d[i] - mn) * 255 / span; if (inv) g = 255 - g; d[i] = d[i + 1] = d[i + 2] = g < 0 ? 0 : g > 255 ? 255 : g; }
+  ctx.putImageData(im, 0, 0); return cv;
+}
+async function tick() {
+  if (SC.busy || SC.paused || !worker || tab !== "scan") return;
+  const r = guideRect(); if (!r) return; SC.busy = true;
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: "7" });
+    const t1 = (await worker.recognize(crop($("video"), r, .05, .025, .66, .085, 56))).data.text.replace(/\n/g, " ").trim();
+    await worker.setParameters({ tessedit_pageseg_mode: "6" });
+    const t2 = (await worker.recognize(crop($("video"), r, .035, .895, .56, .09, 84))).data.text;
+    const hit = decide(t1, parseFoot(t2)); const g = $("guide");
+    if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide"; $("scanStatus").textContent = t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; }
+    else {
+      const key = hit.pi; SC.streak = SC.last === key ? SC.streak + 1 : 1; SC.last = key; g.className = "guide seen";
+      $("scanStatus").textContent = "Lendo: " + DB.o[hit.oi][0];
+      const need = hit.via === "both" ? 1 : 2;
+      if (SC.streak >= need && !(hit.oi === SC.lastOi && !SC.clearSeen)) { g.className = "guide lock"; await onLocked(hit, false); }
     }
-    $("resBody").innerHTML = `<h2 style="margin:0 0 8px;font-size:18px">Câmera</h2><pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;margin:0">${esc(msg)}</pre><p class="meta">Mande um print desta tela para o Claude.</p>`;
-    $("addBtn").classList.add("hidden"); $("skipBtn").textContent = "Fechar";
-    S.paused = true; $("resSheet").classList.remove("hidden");
-  };
+  } catch (e) { $("scanStatus").textContent = "Erro: " + (e.message || e); }
+  SC.busy = false;
+}
+async function scanPhoto(file) {
+  await ensureOCR(); SC.paused = true; $("scanStatus").textContent = "Lendo a foto…";
+  try {
+    let bmp; try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { bmp = await createImageBitmap(file); }
+    const full = { x: 0, y: 0, w: bmp.width, h: bmp.height };
+    await worker.setParameters({ tessedit_pageseg_mode: "6" });
+    const top = (await worker.recognize(crop(bmp, full, 0, 0, 1, .22, Math.min(420, bmp.height * .22)))).data.text;
+    const bot = (await worker.recognize(crop(bmp, full, 0, .78, 1, .22, Math.min(480, bmp.height * .22)))).data.text;
+    let foot = parseFoot(bot);
+    let hit = null;
+    for (const l of top.split("\n").filter(x => x.trim().length > 3)) { const h = decide(l, foot); if (h && (!hit || h.via !== "name")) { hit = h; if (h.via !== "name") break; } }
+    if (!hit) { await worker.setParameters({ tessedit_pageseg_mode: "3" }); const all = (await worker.recognize(crop(bmp, full, 0, 0, 1, 1, Math.min(1800, bmp.height)))).data.text; if (!foot.prints.length) foot = parseFoot(all); for (const l of all.split("\n").filter(x => x.trim().length > 3).slice(0, 30)) { const h = decide(l, foot); if (h) { hit = h; break; } } if (!hit && foot.prints.length === 1) hit = { pi: foot.prints[0], oi: DB.p[foot.prints[0]][3], lang: foot.lang, via: "foot" }; }
+    if (!hit) { toast("Não reconheci a carta. Tente com a carta ocupando a foto.", 3000); SC.paused = false; return; }
+    await onLocked(hit, true);
+  } catch (e) { toast("Erro ao ler a foto."); SC.paused = false; }
+}
+$("photoInput").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); };
+for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(); };
+async function onLocked(hit, fromPhoto) {
+  SC.paused = true; if (navigator.vibrate) navigator.vibrate(40);
+  const p = DB.p[hit.pi];
+  const cur = { oi: hit.oi, set: p[0], number: p[1], lang: $("langSel").value || hit.lang || p[4] || "en", foil: $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1, via: hit.via, img: "" };
+  if (!fromPhoto && $("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") return commitScan(cur, true);
+  resultSheet(cur);
+}
+function resultSheet(c) {
+  const o = oInfo(c.oi);
+  const via = c.via === "name" ? ["warn", "Reconhecida pelo nome — confira a edição"] : ["ok", { both: "Nome + coleção + número conferem", foot: "Coleção + número conferem", "name-set": "Nome + coleção conferem" }[c.via] || "Conferida"];
+  const prints = (DB.prints[c.oi] || []).slice().reverse();
+  const e = { oi: c.oi, set: c.set, number: c.number, foil: c.foil, lang: c.lang };
+  const lib = whereLib(e);
+  openSheet(`<div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(DB.sets[c.set] || c.set)} · ${esc(c.set.toUpperCase())} #${esc(c.number)}</div><div style="font-weight:600;margin:4px 0">${fmtUSD(priceOf(e))}</div><span class="via ${via[0]}">${esc(via[1])}</span></div></div>
+    <div class="two"><select id="rPrint">${prints.map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}</option>`).join("")}</select>
+      <select id="rLang">${["en", "pt", "es", "ja", "fr", "de", "it", "ko", "ru", "zhs", "zht"].map(l => `<option${l === c.lang ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+    <div class="actions" style="align-items:center;justify-content:space-between"><span class="stepper"><button id="rM">−</button><span id="rQ">1</span><button id="rP">+</button></span><label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rFoil" ${c.foil ? "checked" : ""}> Foil</label></div>
+    <div class="meta">${S.settings.scanDest ? "Vai direto para o deck selecionado." : "Guardar em: " + esc(lib.text)}</div>`,
+    `<button class="btn" id="rSkip">Pular</button><button class="btn primary" id="rAdd">Adicionar</button>`);
+  $("rM").onclick = () => { c.qty = Math.max(1, c.qty - 1); $("rQ").textContent = c.qty; };
+  $("rP").onclick = () => { c.qty++; $("rQ").textContent = c.qty; };
+  $("rFoil").onchange = (ev) => c.foil = ev.target.checked; $("rLang").onchange = (ev) => c.lang = ev.target.value;
+  $("rPrint").onchange = (ev) => { const p = DB.p[+ev.target.value]; c.set = p[0]; c.number = p[1]; c.via = "both"; resultSheet(c); };
+  $("rSkip").onclick = () => { SC.lastOi = c.oi; SC.clearSeen = false; resume(); };
+  $("rAdd").onclick = () => commitScan(c, false);
+}
+function commitScan(c, auto) {
+  const e = addToCollection(c);
+  const dest = S.settings.scanDest && S.decks.find(d => d.id === S.settings.scanDest);
+  if (dest) { e.decks[dest.id] = (e.decks[dest.id] || 0) + c.qty; if (!dest.cards.some(x => x.oi === c.oi)) dest.cards.push({ oi: c.oi, qty: c.qty, board: "main", set: c.set, number: c.number }); save(); }
+  SC.session.unshift({ key: e.key, qty: c.qty, name: e.name, where: dest ? "Deck: " + dest.name : whereLib(e).text, dest: dest ? dest.id : "" });
+  $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
+  toast(`${e.name} → ${dest ? dest.name : whereLib(e).text.replace(/^Caixa /, "Cx ")}`, 1600);
+  fillImages([e]);
+  SC.lastOi = c.oi; SC.clearSeen = false; resume();
+}
+function resume() { closeSheet(); SC.streak = 0; SC.last = null; SC.paused = false; $("guide").className = "guide"; $("scanStatus").textContent = "Aponte para a próxima carta"; }
+$("lastScan").onclick = () => {
+  SC.paused = true;
+  openSheet(`<h3 style="margin:0">Escaneadas nesta sessão</h3><div class="loc">${SC.session.map((x, i) => `<div><span>${x.qty}× ${esc(x.name)}<br><span class="meta">${esc(x.where)}</span></span><button class="btn small danger" data-u="${i}">Desfazer</button></div>`).join("") || `<div><span>Nada ainda.</span></div>`}</div>`, `<button class="btn primary" id="sOk">Voltar à câmera</button>`);
+  $("sOk").onclick = closeSheet;
+  $("sheetBody").onclick = (ev) => { const b = ev.target.closest("[data-u]"); if (!b) return; const x = SC.session[+b.dataset.u]; const e = S.cards.find(y => y.key === x.key);
+    if (e) { e.qty -= x.qty; if (x.dest && e.decks[x.dest]) { e.decks[x.dest] = Math.max(0, e.decks[x.dest] - x.qty); if (!e.decks[x.dest]) delete e.decks[x.dest]; } if (e.qty <= 0) S.cards = S.cards.filter(y => y !== e); save(); }
+    SC.session.splice(+b.dataset.u, 1); $("sessCount").textContent = SC.session.reduce((a, y) => a + y.qty, 0); $("lastScan").click(); };
+};
 
-  // ---------- Resultado ----------
-  let current = null;
-  async function fetchCard(hit) {
-    const name = IDX.names[hit.oi];
-    let card = null;
-    try {
-      if (hit.set && hit.num) {
-        const lang = hit.lang && hit.lang !== "en" ? "/" + hit.lang : "";
-        let r = await fetch(`https://api.scryfall.com/cards/${hit.set}/${encodeURIComponent(hit.num)}${lang}`);
-        if (!r.ok && lang) r = await fetch(`https://api.scryfall.com/cards/${hit.set}/${encodeURIComponent(hit.num)}`);
-        if (r.ok) card = await r.json();
-      }
-      if (!card) { const r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name.split(" // ")[0])}`); if (r.ok) card = await r.json(); }
-    } catch {}
-    return card;
-  }
-  const imgOf = (c, size = "normal") => c ? ((c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {})[size] || "") : "";
-  async function onLocked(hit, fromPhoto) {
-    S.paused = true;
-    const card = await fetchCard(hit);
-    const name = IDX.names[hit.oi];
-    const lang = $("langSel").value || hit.lang || (card && card.lang) || "en";
-    current = {
-      name, set: card ? card.set : hit.set, number: card ? card.collector_number : hit.num, set_name: card ? card.set_name : "",
-      lang, foil: $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1,
-      img: imgOf(card, "normal"), small: imgOf(card, "small"), printed_name: card && card.printed_name || "",
-      prices: card ? card.prices : {}, via: hit.via, prints_uri: card ? card.prints_search_uri : ""
-    };
-    if (navigator.vibrate) navigator.vibrate(40);
-    if (!fromPhoto && $("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") { addCurrent(true); return; }
-    renderResult(); $("resSheet").classList.remove("hidden");
-  }
-  function priceTxt(c) { const p = c.prices || {}; const v = c.foil ? (p.usd_foil || p.usd_etched || p.usd) : (p.usd || p.usd_foil); return v ? fmtUSD(v) : ""; }
-  function renderResult() {
-    const c = current;
-    const via = c.via === "name" ? ["warn", "Reconhecida pelo nome. Confira a edição."] : ["ok", { both: "Nome + coleção + número conferem", foot: "Coleção + número conferem", "name-set": "Nome + coleção conferem" }[c.via] || "Conferida"];
-    $("resBody").innerHTML = `
-      <div class="result">
-        ${c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : `<div class="ph"></div>`}
-        <div>
-          <h2>${esc(c.name)}</h2>
-          ${c.printed_name && c.printed_name !== c.name ? `<div class="meta">${esc(c.printed_name)}</div>` : ""}
-          <div class="meta">${esc(c.set_name)} · ${esc(String(c.set).toUpperCase())} #${esc(c.number)}</div>
-          <div class="price" id="resPrice">${priceTxt(c)}</div>
-          <span class="via ${via[0]}">${esc(via[1])}</span>
-        </div>
-      </div>
-      <div class="opts">
-        <label>Edição<select id="printSel"><option value="">${esc(String(c.set).toUpperCase())} #${esc(c.number)} · trocar</option></select></label>
-        <label>Idioma<select id="resLang">${["en","pt","es","ja","fr","de","it","ko","ru","zhs","zht"].map(l => `<option value="${l}"${l === c.lang ? " selected" : ""}>${l.toUpperCase()}</option>`).join("")}</select></label>
-      </div>
-      <div class="row3">
-        <span class="stepper"><button type="button" id="qMinus" aria-label="Menos">−</button><span id="qVal">${c.qty}</span><button type="button" id="qPlus" aria-label="Mais">+</button></span>
-        <label class="toggle"><input type="checkbox" id="resFoil"${c.foil ? " checked" : ""}> Foil</label>
-      </div>`;
-    $("qMinus").onclick = () => { c.qty = Math.max(1, c.qty - 1); $("qVal").textContent = c.qty; };
-    $("qPlus").onclick = () => { c.qty++; $("qVal").textContent = c.qty; };
-    $("resFoil").onchange = (e) => { c.foil = e.target.checked; $("resPrice").textContent = priceTxt(c); };
-    $("resLang").onchange = (e) => { c.lang = e.target.value; };
-    let loaded = false;
-    $("printSel").addEventListener("focus", async () => {
-      if (loaded || !c.prints_uri) return; loaded = true;
-      try {
-        const all = []; let url = c.prints_uri;
-        while (url && all.length < 300) { const j = await fetch(url).then(r => r.json()); all.push(...(j.data || [])); url = j.has_more ? j.next_page : null; }
-        c._prints = all;
-        $("printSel").innerHTML = all.map((p, i) => `<option value="${i}"${p.set === c.set && p.collector_number === c.number ? " selected" : ""}>${esc(p.set.toUpperCase())} #${esc(p.collector_number)} · ${esc(p.set_name)}${p.prices && p.prices.usd ? " · US$ " + p.prices.usd : ""}</option>`).join("");
-      } catch { toast("Não consegui carregar as edições."); }
-    });
-    $("printSel").onchange = (e) => {
-      const p = c._prints && c._prints[+e.target.value]; if (!p) return;
-      Object.assign(c, { set: p.set, number: p.collector_number, set_name: p.set_name, img: imgOf(p, "normal"), small: imgOf(p, "small"), prices: p.prices, via: "both" });
-      const keep = $("printSel").innerHTML, sel = e.target.value; renderResult(); $("printSel").innerHTML = keep; $("printSel").value = sel; loaded = true;
-    };
-  }
-  function resume() { $("addBtn").classList.remove("hidden"); $("skipBtn").textContent = "Pular"; $("resSheet").classList.add("hidden"); current = null; S.streak = 0; S.last = null; S.paused = false; $("guide").className = "guide"; setStatus("Aponte para a próxima carta"); }
-  $("skipBtn").onclick = () => { if (current && current.name) { S.lastAddedKey = String(IDX.names.indexOf(current.name)); S.clearSeen = false; } resume(); };
-  $("addBtn").onclick = () => addCurrent(false);
-
-  // ---------- Lista da sessão ----------
-  let LIST = [];
-  try { LIST = JSON.parse(localStorage.getItem("mtgscan.list") || "[]"); } catch {}
-  const saveList = () => { try { localStorage.setItem("mtgscan.list", JSON.stringify(LIST)); } catch {} $("count").textContent = LIST.reduce((n, x) => n + x.qty, 0); };
-  function addCurrent(auto) {
-    const c = current; if (!c) return;
-    const key = [c.set, c.number, c.foil ? "f" : "n", c.lang].join("|");
-    const ex = LIST.find(x => x.key === key);
-    if (ex) ex.qty += c.qty; else LIST.unshift({ key, name: c.name, set: c.set, number: c.number, set_name: c.set_name, lang: c.lang, foil: c.foil, qty: c.qty, small: c.small, usd: c.foil ? (c.prices?.usd_foil || c.prices?.usd || "") : (c.prices?.usd || c.prices?.usd_foil || ""), at: Date.now() });
-    saveList();
-    S.lastAddedKey = String(IDX.names.indexOf(c.name)); S.clearSeen = false;
-    toast(`${auto ? "Adicionada" : "Adicionada"}: ${c.name}${c.foil ? " (foil)" : ""}`, 1400);
-    resume();
-  }
-  function renderList() {
-    const total = LIST.reduce((n, x) => n + x.qty, 0), value = LIST.reduce((n, x) => n + (parseFloat(x.usd) || 0) * x.qty, 0);
-    $("listBody").innerHTML = `<div class="sum"><span>${total} carta${total === 1 ? "" : "s"}</span><span>${value ? "≈ " + fmtUSD(value) : ""}</span></div>` +
-      (LIST.length ? `<div class="items">` + LIST.map((x, i) => `<div class="item">
-        ${x.small ? `<img src="${esc(x.small)}" alt="">` : `<span class="ph"></span>`}
-        <div><div class="nm">${esc(x.name)}</div><div class="meta">${esc(x.set.toUpperCase())} #${esc(x.number)} · ${esc(x.lang.toUpperCase())}${x.foil ? " · foil" : ""}${x.usd ? " · US$ " + esc(x.usd) : ""}</div></div>
-        <div class="act"><button data-i="${i}" data-d="-1" aria-label="Menos">−</button><b style="min-width:20px;text-align:center">${x.qty}</b><button data-i="${i}" data-d="1" aria-label="Mais">+</button></div>
-      </div>`).join("") + `</div>` : `<div class="empty">Nenhuma carta ainda. Aponte a câmera para uma carta.</div>`);
-  }
-  $("listBody").addEventListener("click", (e) => {
-    const b = e.target.closest("button[data-i]"); if (!b) return;
-    const x = LIST[+b.dataset.i]; x.qty += +b.dataset.d; if (x.qty <= 0) LIST.splice(+b.dataset.i, 1);
-    saveList(); renderList();
-  });
-  function csv() {
-    const rows = [["Count", "Name", "Edition", "Collector Number", "Foil", "Language"]];
-    LIST.slice().reverse().forEach(x => rows.push([x.qty, x.name, x.set, x.number, x.foil ? "foil" : "", x.lang]));
-    return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n");
-  }
-  $("listBtn").onclick = () => { S.paused = true; renderList(); $("listSheet").classList.remove("hidden"); };
-  $("closeList").onclick = () => { $("listSheet").classList.add("hidden"); S.paused = false; };
-  $("copyBtn").onclick = async () => {
-    if (!LIST.length) return toast("A lista está vazia.");
-    try { await navigator.clipboard.writeText(csv()); toast("Copiado! Na Biblioteca MTG: menu ⋮ → Importar lista → colar."); }
-    catch { toast("O navegador bloqueou a cópia. Use Baixar CSV."); }
-  };
-  $("dlBtn").onclick = () => {
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv()], { type: "text/csv" }));
-    a.download = `mtg-scan-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
-  };
-  let clearArmed = false;
-  $("clearBtn").onclick = (e) => {
-    if (!clearArmed) { clearArmed = true; e.currentTarget.textContent = "Toque de novo para limpar"; setTimeout(() => { clearArmed = false; $("clearBtn").textContent = "Limpar lista"; }, 3000); return; }
-    LIST = []; saveList(); renderList(); clearArmed = false; $("clearBtn").textContent = "Limpar lista";
-  };
-
-  // ---------- Opções ----------
-  for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); try { localStorage.setItem("mtgscan." + id, b.getAttribute("aria-pressed")); } catch {} };
-  try { for (const id of ["autoBtn", "foilBtn"]) { const v = localStorage.getItem("mtgscan." + id); if (v) $(id).setAttribute("aria-pressed", v); } } catch {}
-
-  // ---------- Início ----------
-  async function boot() {
-    saveList();
-    const bar = $("splashBar"), msg = $("splashMsg");
-    try {
-      bar.style.width = "10%";
-      await loadIndex(); bar.style.width = "30%";
-      await startOCR((m) => { bar.style.width = (30 + Math.round(m.progress * 60)) + "%"; });
-      bar.style.width = "100%";
-    } catch (e) { msg.textContent = "Não consegui carregar o leitor: " + (e.message || e); return; }
-    msg.textContent = `Pronto. ${IDX.names.length.toLocaleString("pt-BR")} cartas na lista. Toque para abrir a câmera.`;
-    $("startBtn").classList.remove("hidden");
-  }
-  $("startBtn").onclick = async () => {
-    let savedCam = ""; try { savedCam = localStorage.getItem("mtgscan.cam") || ""; } catch {}
-    try { try { await startCamera(savedCam || undefined); } catch (e0) { if (!savedCam) throw e0; await startCamera(); } } catch (e) { $("splashMsg").textContent = (e.name === "NotAllowedError" ? "Permissão de câmera negada. Libere a câmera para este site nas configurações do navegador." : (e.message || String(e))); return; }
+// ============ Início ============
+(async () => {
+  try {
+    await store.open();
+    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {};
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    // Migra a lista do scanner antigo, se houver
+    const old = localStorage.getItem("mtgscan.list");
+    await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%");
+    if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
+    $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
-    setStatus("Segure a uns 20 cm e use o zoom; toque para focar");
-    setInterval(tick, 250);
-  };
-  boot();
+    go("col");
+    if (S.cards.length > 20 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * 864e5)) setTimeout(() => toast("Dica: faça um backup da coleção (menu ⋮ → Fazer backup).", 3500), 1500);
+  } catch (e) { $("splashMsg").textContent = "Erro ao iniciar: " + (e.message || e); }
+})();
 })();
 </script>
 </body>

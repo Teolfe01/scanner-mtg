@@ -1,14 +1,12 @@
-# Scanner MTG
+# Biblioteca MTG
 
-Leitor de cartas de Magic ao vivo pela câmera do celular. Lê o nome e o rodapé (coleção + número) da carta no próprio aparelho e monta uma lista para importar na Biblioteca MTG.
+App para celular para catalogar a coleção de Magic: escanear cartas pela câmera, ver a coleção, montar decks, importar decks precon e saber em qual caixa (ou deck) cada carta está.
 
-## Usar
-- Aponte a câmera para a carta, encaixando-a na moldura.
-- Verde = reconhecida. Confira e toque em **Adicionar**. Com **Auto** ligado, cartas confirmadas pela coleção + número entram sozinhas.
-- **Foil** e **Idioma** no topo valem para as próximas cartas.
-- **Lista** → **Copiar para a Biblioteca**; na Biblioteca MTG: menu ⋮ → **Importar lista** → colar.
-- No Chrome do celular: menu → "Adicionar à tela inicial" para abrir como app.
+- **Coleção**: grade com imagem, preço, idioma, foil e onde a carta está.
+- **Escanear**: aponte a câmera (nome + rodapé lidos no próprio celular) ou use o botão de foto.
+- **Decks**: importar precon (lista oficial do MTGJSON), colar lista, montar com cartas da coleção (lista do que pegar em cada caixa), desmontar (lista do que guardar).
+- **Caixas**: organização cor → raridade → tipo → nome, com capacidade por caixa.
 
-A lista de cartas escaneadas fica só no navegador do aparelho.
+Os dados ficam só no navegador do aparelho (menu ⋮ → Fazer backup para guardar uma cópia).
 
-Dados e imagens das cartas: Scryfall. Leitor de texto: Tesseract (Apache 2.0, em `lib/`).
+Dados das cartas e preços: Scryfall. Listas de precons: MTGJSON. Leitor de texto: Tesseract (Apache 2.0). Símbolos: Mana e Keyrune (Andrew Gioia, MIT/OFL).

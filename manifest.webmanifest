@@ -1,6 +1,6 @@
 {
-  "name": "Scanner MTG",
-  "short_name": "Scanner MTG",
+  "name": "Biblioteca MTG",
+  "short_name": "Biblioteca MTG",
   "start_url": "./",
   "display": "standalone",
   "orientation": "portrait",
