@@ -35,6 +35,7 @@ button { cursor: pointer; }
 .appbar { position: sticky; top: 0; z-index: 10; background: var(--bar); box-shadow: 0 1px 0 rgba(0,0,0,.35); padding-top: env(safe-area-inset-top); }
 .titlebar { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; padding: 8px 10px 4px; max-width: 900px; margin: 0 auto; }
 .titlebar h1 { margin: 0; text-align: center; font-size: 20px; font-weight: 600; }
+.titlebar h1[data-cloud="on"]::after { content: " ☁"; font-size: 14px; color: var(--ok); vertical-align: middle; }
 .iconbtn { width: 44px; height: 44px; border-radius: 50%; border: 0; background: transparent; display: grid; place-items: center; color: var(--ink); position: relative; }
 .iconbtn:hover { background: rgba(255,255,255,.06); }
 .iconbtn svg { width: 24px; height: 24px; }
@@ -238,6 +239,12 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 <div class="scrim hidden" id="scrim"></div>
 <div class="sheet hidden" id="sheet" role="dialog"><div class="grab"></div><div class="body" id="sheetBody"></div><div class="foot" id="sheetFoot"></div></div>
 
+<div class="splash hidden" id="login" style="z-index:65"><div class="box">
+  <h2 style="margin:0">Biblioteca MTG</h2>
+  <p class="meta" id="loginMsg">Entre com sua conta Google para usar a biblioteca compartilhada. As cartas ficam salvas na nuvem e aparecem em todos os celulares liberados.</p>
+  <button class="btn primary" id="loginBtn">Entrar com Google</button>
+  <button class="btn" id="localBtn">Usar só neste celular</button>
+</div></div>
 <div class="splash" id="splash"><div class="box">
   <h2 style="margin:0">Biblioteca MTG</h2>
   <p class="meta" id="splashMsg">Carregando a base de cartas… (só na primeira vez, uns 4 MB)</p>
@@ -245,6 +252,9 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 </div></div>
 
 <script src="lib/tesseract.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 (() => {
 "use strict";
@@ -327,7 +337,7 @@ const store = {
 };
 const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {} };
 let saveT = 0;
-function save(silent) { if (!silent && S.settings) { S.settings.changes = (S.settings.changes || 0) + 1; setTimeout(updateBackupBanner); } clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+function save(silent) { setTimeout(pushCloud, 300); if (!silent && S.settings) { S.settings.changes = (S.settings.changes || 0) + 1; setTimeout(updateBackupBanner); } clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
 // Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
 const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
@@ -477,7 +487,7 @@ function colFiltered() {
 }
 function renderCol() {
   $("title").textContent = "Coleção";
-  setMenu([["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Salvar backup no Drive", backup], ["Restaurar backup do Drive", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
+  setMenu([...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Salvar backup no Drive", backup], ["Restaurar backup do Drive", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
   if (!$("colBars")) {
     $("bars").innerHTML = `<div id="colBars">
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
@@ -1047,6 +1057,102 @@ $("lastScan").onclick = () => {
     SC.session.splice(+b.dataset.u, 1); $("sessCount").textContent = SC.session.reduce((a, y) => a + y.qty, 0); $("lastScan").click(); };
 };
 
+// ============ Nuvem (Firebase) — biblioteca compartilhada ============
+const FB_CONFIG = { apiKey: "AIzaSyADR0knFdWx8P2X6zip8pWaKIK_BNr19F8", authDomain: "mtg-biblioteca.firebaseapp.com", projectId: "mtg-biblioteca", storageBucket: "mtg-biblioteca.firebasestorage.app", messagingSenderId: "329365500470", appId: "1:329365500470:web:8cc1fa52bdcc1e30115e97" };
+const CLOUD = { db: null, auth: null, user: null, synced: { cards: false, decks: false, boxes: false }, last: new Map(), unsub: [], pushing: false, again: false, error: "" };
+const docId = (k) => String(k).replace(/\//g, "_");
+const base = () => CLOUD.db.collection("libs").doc("principal");
+function cloudReady() { return CLOUD.user && CLOUD.synced.cards && CLOUD.synced.decks && CLOUD.synced.boxes; }
+async function cloudInit() {
+  if (!window.firebase) return null;
+  firebase.initializeApp(FB_CONFIG);
+  CLOUD.auth = firebase.auth(); CLOUD.db = firebase.firestore();
+  try { await CLOUD.db.enablePersistence({ synchronizeTabs: true }); } catch {}
+  try { await CLOUD.auth.getRedirectResult(); } catch (e) { CLOUD.error = e.message; }
+  return new Promise(res => { const off = CLOUD.auth.onAuthStateChanged(u => { off(); CLOUD.user = u; res(u); }); });
+}
+async function signIn() {
+  const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" });
+  try { const r = await CLOUD.auth.signInWithPopup(p); CLOUD.user = r.user; return r.user; }
+  catch (e) { if (/popup|operation-not-supported/i.test(e.code || "")) { await CLOUD.auth.signInWithRedirect(p); return null; } throw e; }
+}
+function rerenderSoon() { clearTimeout(rerenderSoon.t); rerenderSoon.t = setTimeout(() => { if ($("sheet").classList.contains("hidden") && tab !== "scan") views[tab](); }, 250); }
+function applyDoc(list, id, data, idField) {
+  const i = list.findIndex(x => docId(x[idField]) === id);
+  if (data === null) { if (i >= 0) list.splice(i, 1); return; }
+  if (i >= 0) { const o = list[i]; Object.keys(o).forEach(k => { if (!(k in data)) delete o[k]; }); Object.assign(o, data); } else list.push(data);
+}
+function startSync() {
+  const localCards = S.cards.slice(), localDecks = S.decks.slice(), localBoxes = S.boxes;
+  CLOUD.unsub.forEach(f => f()); CLOUD.unsub = [];
+  const watch = (name, list, idField, local) => base().collection(name).onSnapshot({ includeMetadataChanges: false }, snap => {
+    const first = !CLOUD.synced[name];
+    if (first && snap.metadata.fromCache && !navigator.onLine === false) { /* espera o servidor */ }
+    snap.docChanges().forEach(ch => { const d = ch.doc.data(); CLOUD.last.set(name + "/" + ch.doc.id, ch.type === "removed" ? undefined : JSON.stringify(d)); if (ch.type === "removed") CLOUD.last.delete(name + "/" + ch.doc.id); });
+    if (first) {
+      const remote = snap.docs.map(d => d.data());
+      const ids = new Set(remote.map(x => docId(x[idField])));
+      const onlyLocal = local.filter(x => !ids.has(docId(x[idField])));
+      list.splice(0, list.length, ...remote, ...onlyLocal);
+      CLOUD.synced[name] = true;
+      if (onlyLocal.length) { toast(`Enviando ${onlyLocal.length} ${name === "cards" ? "carta(s)" : "deck(s)"} deste celular para a nuvem…`); pushCloud(); }
+    } else {
+      snap.docChanges().forEach(ch => applyDoc(list, ch.doc.id, ch.type === "removed" ? null : ch.doc.data(), idField));
+    }
+    store.set(name, list).catch(() => {}); rerenderSoon(); updateCloudBadge();
+  }, err => cloudError(err));
+  CLOUD.unsub.push(watch("cards", S.cards, "key", localCards));
+  CLOUD.unsub.push(watch("decks", S.decks, "id", localDecks));
+  CLOUD.unsub.push(base().collection("meta").doc("boxes").onSnapshot(doc => {
+    if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/boxes", JSON.stringify(d)); S.boxes.capacity = d.capacity || S.boxes.capacity; S.boxes.layout = d.layout || S.boxes.layout; }
+    else if (!CLOUD.synced.boxes) setTimeout(pushCloud, 500);
+    CLOUD.synced.boxes = true; store.set("boxes", S.boxes).catch(() => {}); rerenderSoon();
+  }, err => cloudError(err)));
+}
+function cloudError(err) {
+  CLOUD.error = err.code || err.message;
+  if (err.code === "permission-denied") { toast("Esta conta Google não tem acesso à biblioteca. Usando só este celular.", 5000); CLOUD.unsub.forEach(f => f()); CLOUD.unsub = []; CLOUD.user = null; }
+  updateCloudBadge();
+}
+async function pushCloud() {
+  if (!cloudReady()) return;
+  if (CLOUD.pushing) { CLOUD.again = true; return; }
+  CLOUD.pushing = true;
+  try {
+    const ops = [];
+    const want = new Map();
+    S.cards.forEach(e => want.set("cards/" + docId(e.key), e));
+    S.decks.forEach(d => want.set("decks/" + docId(d.id), d));
+    want.set("meta/boxes", { capacity: S.boxes.capacity, layout: S.boxes.layout || null });
+    for (const [path, obj] of want) { const j = JSON.stringify(obj); if (CLOUD.last.get(path) !== j) { ops.push(["set", path, JSON.parse(j)]); CLOUD.last.set(path, j); } }
+    for (const path of [...CLOUD.last.keys()]) if ((path.startsWith("cards/") || path.startsWith("decks/")) && !want.has(path)) { ops.push(["del", path]); CLOUD.last.delete(path); }
+    for (let i = 0; i < ops.length; i += 400) {
+      const b = CLOUD.db.batch();
+      ops.slice(i, i + 400).forEach(([op, path, data]) => { const [col, id] = path.split("/"); const ref = col === "meta" ? base().collection("meta").doc(id) : base().collection(col).doc(id); op === "set" ? b.set(ref, data) : b.delete(ref); });
+      await b.commit();
+    }
+  } catch (e) { cloudError(e); }
+  CLOUD.pushing = false; if (CLOUD.again) { CLOUD.again = false; pushCloud(); }
+}
+function updateCloudBadge() {
+  const t = $("title"); if (!t) return;
+  t.dataset.cloud = cloudReady() ? "on" : "";
+}
+async function afterLogin(u) {
+  if (!u) return;
+  $("login").classList.add("hidden");
+  S.settings.mode = "cloud"; save(true);
+  startSync();
+}
+$("loginBtn").onclick = async () => { $("loginMsg").textContent = "Abrindo o login do Google…"; try { const u = await signIn(); await afterLogin(u); } catch (e) { $("loginMsg").textContent = "Não consegui entrar: " + (e.message || e.code); } };
+$("localBtn").onclick = () => { S.settings.mode = "local"; save(true); $("login").classList.add("hidden"); };
+function accountMenu() {
+  const items = [];
+  if (CLOUD.user) items.push([`Sair (${CLOUD.user.email})`, async () => { CLOUD.unsub.forEach(f => f()); CLOUD.unsub = []; await CLOUD.auth.signOut(); CLOUD.user = null; CLOUD.synced = { cards: false, decks: false, boxes: false }; S.settings.mode = ""; save(true); toast("Você saiu. As cartas continuam neste celular."); }]);
+  else if (CLOUD.auth) items.push(["Entrar com Google (biblioteca compartilhada)", () => $("login").classList.remove("hidden")]);
+  return items;
+}
+
 // ============ Início ============
 (async () => {
   try {
@@ -1062,6 +1168,11 @@ $("lastScan").onclick = () => {
     $("splash").classList.add("hidden");
     $("backupNow").onclick = backup; updateBackupBanner();
     go("col");
+    try {
+      const u = await cloudInit();
+      if (u) afterLogin(u);
+      else if (CLOUD.auth && S.settings.mode !== "local") { $("login").classList.remove("hidden"); if (CLOUD.error) $("loginMsg").textContent = "Não consegui entrar: " + CLOUD.error; }
+    } catch (e) { console.warn("nuvem indisponível", e); }
     if (S.cards.length > 20 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * 864e5)) setTimeout(() => toast("Dica: faça um backup da coleção (menu ⋮ → Fazer backup).", 3500), 1500);
   } catch (e) { $("splashMsg").textContent = "Erro ao iniciar: " + (e.message || e); }
 })();
