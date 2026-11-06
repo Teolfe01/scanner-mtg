@@ -257,6 +257,19 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
   .ed-results { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 1000px) and (max-width: 1300px) { .editor { grid-template-columns: 260px 1fr 260px; } }
+/* Molde cinza com brilho diagonal enquanto a imagem carrega */
+.drawn.sk { padding: 0; display: block; background: #25272d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); overflow: hidden; }
+.drawn.sk i { position: absolute; background: #2f3239; border-radius: 3px; }
+.drawn.sk .t { left: 7%; right: 7%; top: 5%; height: 6.5%; }
+.drawn.sk .a { left: 7%; right: 7%; top: 14%; height: 40%; border-radius: 4px; }
+.drawn.sk .y { left: 7%; right: 7%; top: 57%; height: 5.5%; }
+.drawn.sk .x { left: 7%; right: 7%; top: 65%; bottom: 6%; border-radius: 4px; }
+.drawn.sk::after { content: ""; position: absolute; inset: -50%; background: linear-gradient(115deg, transparent 40%, rgba(255,255,255,.09) 48%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.09) 52%, transparent 60%); animation: skShine 1.6s ease-in-out infinite; will-change: transform; }
+@keyframes skShine { from { transform: translate(-35%, -35%); } to { transform: translate(35%, 35%); } }
+.cardimg.ok .drawn.sk::after, .cardimg.noimg .drawn.sk::after { animation: none; display: none; }
+.drawn.sk .skn { display: none; position: absolute; left: 9%; right: 9%; top: 5.8%; color: #c9ccd3; font-size: 11px; font-weight: 600; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cardimg.noimg .drawn.sk .skn { display: block; }
+.row .drawn.sk i, .deckcard .drawn.sk i, .row .drawn.sk .skn, .deckcard .drawn.sk .skn { display: none; }
 /* Barras de rolagem discretas; nunca duas lado a lado */
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
@@ -651,7 +664,7 @@ async function fetchImgs() {
       await sleep(150);
     }
     store.set("imgs", IMGS).catch(() => {});
-    document.querySelectorAll("img[data-ik]").forEach(im => { const u = IMGS[im.dataset.ik]; if (u && !im.getAttribute("src")) im.src = u; });
+    document.querySelectorAll("img[data-ik]").forEach(im => { const u = IMGS[im.dataset.ik]; if (u && !im.getAttribute("src")) im.src = u; else if (u === "" || (u === undefined && !imgQueue.has(im.dataset.ik))) im.parentNode.classList.add("noimg"); });
   } finally { imgBusy = false; }
 }
 async function fillImages(entries) { entries.forEach(e => imgSrc(e.set, e.number)); }
@@ -667,12 +680,13 @@ function setHTML(set, rar) { const r = RAR[rar] || "common"; return `<i class="s
 function cardImgHTML(e, opts = {}) {
   const o = DB.o[e.oi]; const fc = "f-" + colorBucket(e.oi);
   const src = e.set ? imgSrc(e.set, e.number) : "";
-  const inner = e.set ? `<img ${src ? `src="${esc(src)}"` : ""} data-ik="${esc(imgKey(e.set, e.number))}" alt="${esc(o[0])}" loading="lazy" onload="this.style.opacity=1" onerror="this.removeAttribute('src')" style="position:absolute;inset:0;opacity:${src ? 1 : 0};transition:opacity .2s">` : "";
-  const drawn = `<div class="drawn ${fc}"><div class="dn">${esc(o[0])}</div><div></div><div class="dt">${esc(o[5])}</div></div>`;
-  if (opts.bare) return `<div class="cardimg">${drawn}${inner}</div>`;
+  const inner = e.set ? `<img ${src ? `src="${esc(src)}"` : ""} data-ik="${esc(imgKey(e.set, e.number))}" alt="${esc(o[0])}" loading="lazy" onload="this.style.opacity=1;this.parentNode.classList.add('ok')" onerror="this.removeAttribute('src');if(this.dataset.fail)this.parentNode.classList.add('noimg');this.dataset.fail=1" style="position:absolute;inset:0;opacity:0;transition:opacity .45s ease">` : "";
+  const drawn = `<div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i><span class="skn">${esc(o[0])}</span></div>`;
+  const cls = e.set && IMGS[imgKey(e.set, e.number)] !== "" ? "cardimg" : "cardimg noimg";
+  if (opts.bare) return `<div class="${cls}">${drawn}${inner}</div>`;
   const price = priceOf(e); const dq = inDecks(e);
   const deckName = dq ? (S.decks.find(d => e.decks[d.id]) || {}).name : "";
-  return `<div class="cardimg">${drawn}${inner}
+  return `<div class="${cls}">${drawn}${inner}
     ${e.qty > 1 ? `<span class="qtyb">${e.qty}</span>` : ""}
     ${dq ? `<span class="deckb" title="Em deck">${esc(deckName)}${dq < e.qty ? ` ${dq}/${e.qty}` : ""}</span>` : ""}
     ${price ? `<span class="price">${fmtUSD(price)}</span>` : ""}
