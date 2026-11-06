@@ -105,6 +105,7 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
   <div class="guide" id="guide"><div class="band title"><span class="lbl">nome</span></div><div class="band foot"><span class="lbl" style="top:auto;bottom:-20px">coleção · número</span></div></div>
   <div class="top">
     <h1>Scanner</h1>
+    <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ</button>
     <button class="chipbtn" id="autoBtn" aria-pressed="false" title="Adiciona sozinho quando reconhecer">Auto</button>
     <button class="chipbtn" id="foilBtn" aria-pressed="false" title="Marcar as próximas como foil">Foil</button>
     <select id="langSel" class="chipbtn" aria-label="Idioma das próximas cartas" style="width:auto;min-height:0;padding:7px 10px">
@@ -121,6 +122,7 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
   <div class="bottom">
     <button class="listbtn" id="listBtn">Lista <b id="count">0</b></button>
     <button class="chipbtn hidden" id="camSwitch" aria-label="Trocar lente">Lente</button>
+    <label class="roundbtn" id="photoBtn" aria-label="Tirar foto com a câmera do celular" title="Foto com foco da câmera do celular"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none"></label>
     <button class="roundbtn hidden" id="zoomBtn" aria-label="Zoom" style="font-weight:700;font-size:16px">2×</button>
     <button class="roundbtn" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
   </div>
@@ -204,13 +206,22 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
     return best;
   }
   function parseFoot(text) {
-    const up = String(text || "").toUpperCase().replace(/[|\\]/g, " ");
-    const nums = [...up.matchAll(/(?:^|[^A-Z0-9])0*(\d{1,4})(?=[^0-9]|$)/g)].map(m => m[1]);
-    const toks = [...up.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => m[0].toLowerCase()).filter(t => IDX.sets.has(t));
-    const langM = up.match(/\b(EN|PT|SP|ES|FR|DE|IT|JP|JA|KO|RU|CS|CT)\b/);
-    const out = [];
-    for (const s of toks) for (const n of nums) { const p = IDX.bySetNum.get(s + "|" + n); if (p) out.push(p); }
-    return { prints: out, sets: toks, lang: langM ? LANG_CODES[langM[1]] : "" };
+    // Rodapé: linha 1 = número (ex. "199/274 C" ou "C 0150"); linha 2 = coleção + idioma (ex. "M21 • PT")
+    const lines = String(text || "").toUpperCase().replace(/[|\\]/g, " ").split(/\n/).map(l => l.trim()).filter(Boolean);
+    const firstNum = (l) => { const m = l.replace(/[©®™].*$/, "").match(/(?:^|[^A-Z0-9])0*(\d{1,4})(?=[^0-9]|$)/); return m ? m[1] : null; };
+    const langM = lines.join(" ").match(/\b(EN|PT|SP|ES|FR|DE|IT|JP|JA|KO|RU|CS|CT)\b/);
+    const out = [], sets = [];
+    lines.forEach((l, i) => {
+      const toks = [...l.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => m[0].toLowerCase()).filter(t => IDX.sets.has(t));
+      if (!toks.length) return;
+      sets.push(...toks);
+      const nums = [];
+      const slash = l.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); if (slash) nums.push(slash[1]);
+      if (i > 0) { const pl = lines[i - 1]; const s2 = pl.match(/0*(\d{1,4})\s*\/\s*\d{1,4}/); nums.push(s2 ? s2[1] : firstNum(pl)); }
+      nums.push(firstNum(l));
+      for (const t of toks) for (const n of nums) { if (!n) continue; const p = IDX.bySetNum.get(t + "|" + n); if (p && !out.includes(p)) out.push(p); }
+    });
+    return { prints: out, sets, lang: langM ? LANG_CODES[langM[1]] : "" };
   }
 
   // ---------- Câmera ----------
@@ -272,7 +283,7 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
   };
   // Toque para focar no ponto tocado
   $("stage").addEventListener("pointerup", async (ev) => {
-    if (!track || ev.target.closest("button, select, input, .top, .bottom, #mfWrap")) return;
+    if (!track || ev.target.closest("button, select, input, label, .top, .bottom, #mfWrap")) return;
     const v = $("video"), vb = v.getBoundingClientRect(), VW = v.videoWidth, VH = v.videoHeight;
     const sc = Math.max(vb.width / VW, vb.height / VH), ox = vb.left + (vb.width - VW * sc) / 2, oy = vb.top + (vb.height - VH * sc) / 2;
     const px = Math.min(1, Math.max(0, (ev.clientX - ox) / sc / VW)), py = Math.min(1, Math.max(0, (ev.clientY - oy) / sc / VH));
@@ -378,6 +389,70 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
     S.busy = false;
   }
 
+  // ---------- Foto com a câmera do celular (foco nativo) ----------
+  async function scanPhoto(file) {
+    if (!worker) return;
+    S.paused = true; setStatus("Lendo a foto…");
+    try {
+      let bmp;
+      try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { bmp = await createImageBitmap(file); }
+      // Lê três faixas: topo (nome), rodapé (coleção + número) e a foto inteira
+      const band = (y0, y1, W) => {
+        const sh = (y1 - y0) * bmp.height, k = Math.min(1, W / bmp.width);
+        const cv = document.createElement("canvas"); cv.width = Math.round(bmp.width * k); cv.height = Math.round(sh * k);
+        const ctx = cv.getContext("2d", { willReadFrequently: true }); ctx.drawImage(bmp, 0, y0 * bmp.height, bmp.width, sh, 0, 0, cv.width, cv.height);
+        const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data; let mn = 255, mx = 0, sum = 0;
+        for (let i = 0; i < d.length; i += 4) { const g = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = g; if (g < mn) mn = g; if (g > mx) mx = g; sum += g; }
+        const span = Math.max(40, mx - mn);
+        for (let i = 0; i < d.length; i += 4) { const g = Math.max(0, Math.min(255, (d[i] - mn) * 255 / span)); d[i] = d[i + 1] = d[i + 2] = g; }
+        ctx.putImageData(im, 0, 0); return cv;
+      };
+      await worker.setParameters({ tessedit_pageseg_mode: "6" });
+      const top = (await worker.recognize(band(0, 0.22, 1400))).data.text || "";
+      const bot = (await worker.recognize(band(0.78, 1, 1600))).data.text || "";
+      await worker.setParameters({ tessedit_pageseg_mode: "3" });
+      const all = (await worker.recognize(band(0, 1, 1800))).data.text || "";
+      const text = top + "\n" + bot + "\n" + all;
+      const lines = text.split(/\n/).map(l => l.trim()).filter(l => l.length >= 4);
+      let nm = null;
+      for (const l of lines.slice(0, 40)) {
+        for (const cand of [l, l.replace(/[^A-Za-z',\- ]+.*$/, "")]) { const m = matchName(cand); if (m && (!nm || m.d < nm.d)) nm = m; }
+      }
+      let foot = parseFoot(bot);
+      if (!foot.prints.length) foot = parseFoot(all);
+      let hit = null;
+      const both = nm && foot.prints.find(p => p[2] === nm.i);
+      if (both) hit = { oi: both[2], set: both[0], num: both[1], lang: foot.lang || both[3] || "en", via: "both" };
+      else if (nm) {
+        const ps = (IDX.prints[nm.i] || []).filter(p => foot.sets.includes(p[0]));
+        hit = ps.length === 1 ? { oi: nm.i, set: ps[0][0], num: ps[0][1], lang: foot.lang || "", via: "name-set" } : { oi: nm.i, set: "", num: "", lang: foot.lang || "", via: "name" };
+      } else if (foot.prints.length === 1) { const p = foot.prints[0]; hit = { oi: p[2], set: p[0], num: p[1], lang: foot.lang || p[3] || "en", via: "foot" }; }
+      if (!hit) { toast("Não reconheci a carta nessa foto. Tente mais perto, com a carta ocupando a foto.", 3000); S.paused = false; setStatus("Aponte para uma carta"); return; }
+      await onLocked(hit, true);
+    } catch (e) { toast("Erro ao ler a foto: " + (e.message || e)); S.paused = false; }
+  }
+  $("photoInput").addEventListener("change", (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); });
+
+  // ---------- Diagnóstico da câmera ----------
+  $("infoBtn").onclick = () => {
+    let msg = "Câmera ainda não aberta.";
+    if (track) {
+      const st = track.getSettings ? track.getSettings() : {}, cp = track.getCapabilities ? track.getCapabilities() : {};
+      msg = [
+        `Lente: ${track.label || "?"} (${CAMS.idx + 1}/${CAMS.list.length || 1})`,
+        `Resolução: ${st.width}×${st.height}`,
+        `Modos de foco: ${(cp.focusMode || []).join(", ") || "nenhum"}`,
+        `Foco manual: ${cp.focusDistance ? cp.focusDistance.min + "–" + cp.focusDistance.max : "não"}`,
+        `Zoom: ${cp.zoom ? cp.zoom.min + "–" + cp.zoom.max : "não"}`,
+        `Lanterna: ${cp.torch ? "sim" : "não"}`,
+        `Navegador: ${navigator.userAgent.match(/(Chrome|Firefox|Samsung\w*|Edg)\/[\d.]+/)?.[0] || "?"}`
+      ].join("\n");
+    }
+    $("resBody").innerHTML = `<h2 style="margin:0 0 8px;font-size:18px">Câmera</h2><pre style="white-space:pre-wrap;font:13px/1.5 ui-monospace,monospace;margin:0">${esc(msg)}</pre><p class="meta">Mande um print desta tela para o Claude.</p>`;
+    $("addBtn").classList.add("hidden"); $("skipBtn").textContent = "Fechar";
+    S.paused = true; $("resSheet").classList.remove("hidden");
+  };
+
   // ---------- Resultado ----------
   let current = null;
   async function fetchCard(hit) {
@@ -395,7 +470,7 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
     return card;
   }
   const imgOf = (c, size = "normal") => c ? ((c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {})[size] || "") : "";
-  async function onLocked(hit) {
+  async function onLocked(hit, fromPhoto) {
     S.paused = true;
     const card = await fetchCard(hit);
     const name = IDX.names[hit.oi];
@@ -407,7 +482,7 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
       prices: card ? card.prices : {}, via: hit.via, prints_uri: card ? card.prints_search_uri : ""
     };
     if (navigator.vibrate) navigator.vibrate(40);
-    if ($("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") { addCurrent(true); return; }
+    if (!fromPhoto && $("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") { addCurrent(true); return; }
     renderResult(); $("resSheet").classList.remove("hidden");
   }
   function priceTxt(c) { const p = c.prices || {}; const v = c.foil ? (p.usd_foil || p.usd_etched || p.usd) : (p.usd || p.usd_foil); return v ? fmtUSD(v) : ""; }
@@ -453,8 +528,8 @@ select { border: 1px solid var(--line); background: var(--surface); border-radiu
       const keep = $("printSel").innerHTML, sel = e.target.value; renderResult(); $("printSel").innerHTML = keep; $("printSel").value = sel; loaded = true;
     };
   }
-  function resume() { $("resSheet").classList.add("hidden"); current = null; S.streak = 0; S.last = null; S.paused = false; $("guide").className = "guide"; setStatus("Aponte para a próxima carta"); }
-  $("skipBtn").onclick = () => { if (current) { S.lastAddedKey = String(IDX.names.indexOf(current.name)); S.clearSeen = false; } resume(); };
+  function resume() { $("addBtn").classList.remove("hidden"); $("skipBtn").textContent = "Pular"; $("resSheet").classList.add("hidden"); current = null; S.streak = 0; S.last = null; S.paused = false; $("guide").className = "guide"; setStatus("Aponte para a próxima carta"); }
+  $("skipBtn").onclick = () => { if (current && current.name) { S.lastAddedKey = String(IDX.names.indexOf(current.name)); S.clearSeen = false; } resume(); };
   $("addBtn").onclick = () => addCurrent(false);
 
   // ---------- Lista da sessão ----------
