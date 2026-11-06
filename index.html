@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d2129">
+<title>Scanner MTG</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+/* Layout: câmera em tela cheia com moldura-guia da carta; barra de status embaixo; folha de resultado que sobe com a carta reconhecida; lista da sessão em outra folha. Tema escuro único. */
+:root {
+  --bg: #1d2129; --bar: #262b34; --surface: #2b3039; --surface-2: #343a45;
+  --ink: #eef1f6; --muted: #9aa3b3; --line: #3a404c;
+  --accent: #f2a35e; --accent-ink: #1d1a16; --link: #7ea8de; --ok: #55d08d; --warn: #f0b04a; --bad: #f08a7a;
+  --font: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; color: var(--ink); font: 15px/1.4 var(--font); overflow: hidden; -webkit-text-size-adjust: 100%; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.hidden { display: none !important; }
+
+#stage { position: fixed; inset: 0; }
+#video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+.shade { position: absolute; inset: 0; pointer-events: none; }
+.guide { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); aspect-ratio: 63 / 88; width: min(76vw, 58vh * 63 / 88); border-radius: 4.5% / 3.2%;
+  box-shadow: 0 0 0 200vmax rgba(0,0,0,.45); border: 3px solid rgba(255,255,255,.85); transition: border-color .15s; }
+.guide.seen { border-color: var(--warn); }
+.guide.lock { border-color: var(--ok); }
+.guide .band { position: absolute; left: 5%; right: 5%; border: 1.5px dashed rgba(255,255,255,.55); border-radius: 4px; }
+.guide .band.title { top: 2.5%; height: 8%; }
+.guide .band.foot { bottom: 1.8%; height: 8.5%; right: 45%; }
+.guide .lbl { position: absolute; left: 0; top: -22px; font-size: 11px; color: rgba(255,255,255,.8); white-space: nowrap; }
+
+.top { position: absolute; left: 0; right: 0; top: 0; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; display: flex; gap: 8px; align-items: center; background: linear-gradient(rgba(0,0,0,.7), transparent); }
+.top h1 { margin: 0 auto 0 4px; font-size: 18px; font-weight: 600; }
+.chipbtn { border: 1px solid rgba(255,255,255,.25); background: rgba(30,33,40,.75); color: #fff; border-radius: 999px; padding: 7px 12px; font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+.chipbtn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.status { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(118px + env(safe-area-inset-bottom)); background: rgba(20,22,26,.85); padding: 8px 14px; border-radius: 999px; font-size: 14px; white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; }
+.bottom { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(transparent, rgba(0,0,0,.75)); }
+.listbtn { display: inline-flex; align-items: center; gap: 10px; border: 0; background: rgba(30,33,40,.85); color: #fff; padding: 10px 16px; border-radius: 16px; font-weight: 600; }
+.listbtn b { background: var(--accent); color: var(--accent-ink); min-width: 28px; height: 28px; border-radius: 999px; display: inline-grid; place-items: center; padding: 0 7px; }
+.roundbtn { width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); background: rgba(30,33,40,.85); color: #fff; display: grid; place-items: center; }
+.roundbtn svg { width: 26px; height: 26px; }
+.roundbtn[aria-pressed="true"] { background: #fff3c4; color: #222; }
+
+/* Folhas */
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; max-height: 88vh; background: var(--bar); border-radius: 20px 20px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,.6); z-index: 20; display: grid; grid-template-rows: auto 1fr auto; padding-bottom: env(safe-area-inset-bottom); }
+.sheet .grab { width: 44px; height: 5px; border-radius: 3px; background: #4a515e; margin: 8px auto 0; }
+.sheet .body { overflow: auto; padding: 12px 16px; }
+.sheet .foot { padding: 10px 16px 14px; display: flex; gap: 10px; border-top: 1px solid var(--line); }
+.btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 14px; padding: 12px 14px; font-weight: 600; min-height: 50px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { flex: none; min-height: 36px; padding: 6px 12px; font-size: 13px; border-radius: 10px; }
+.btn.danger { color: var(--bad); }
+
+.result { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; }
+.result img, .result .ph { width: 112px; aspect-ratio: 488/680; border-radius: 6px; background: #111; object-fit: cover; }
+.result h2 { margin: 0 0 4px; font-size: 20px; line-height: 1.2; }
+.meta { color: var(--muted); font-size: 13px; }
+.price { font-size: 16px; font-weight: 600; margin: 6px 0; font-variant-numeric: tabular-nums; }
+.via { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; margin-top: 4px; }
+.via.ok { color: var(--ok); background: rgba(85,208,141,.1); }
+.via.warn { color: var(--warn); background: rgba(240,176,74,.1); }
+.opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.opts label { display: grid; gap: 4px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+select { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 10px; min-height: 42px; width: 100%; color: var(--ink); text-transform: none; letter-spacing: 0; font-size: 14px; }
+.row3 { display: flex; gap: 10px; align-items: center; justify-content: space-between; margin-top: 12px; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; height: 44px; background: var(--surface); }
+.stepper button { border: 0; background: transparent; width: 44px; height: 100%; font-size: 22px; color: var(--accent); }
+.stepper span { min-width: 30px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
+.toggle { display: inline-flex; gap: 8px; align-items: center; font-size: 15px; }
+.toggle input { width: 22px; height: 22px; accent-color: var(--accent); }
+
+.items { display: grid; gap: 8px; }
+.item { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; background: var(--surface); border-radius: 12px; padding: 6px 10px 6px 6px; }
+.item img, .item .ph { width: 44px; aspect-ratio: 488/680; border-radius: 3px; object-fit: cover; background: #111; }
+.item .nm { font-weight: 600; overflow-wrap: anywhere; }
+.item .act { display: flex; gap: 4px; align-items: center; }
+.item .act button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 18px; }
+.sum { display: flex; justify-content: space-between; color: var(--link); font-style: italic; margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+.empty { text-align: center; color: var(--muted); padding: 24px 8px; }
+.toast { position: fixed; left: 50%; top: calc(70px + env(safe-area-inset-top)); transform: translateX(-50%); background: #eef1f6; color: #1d2129; padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 50; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
+.splash { position: fixed; inset: 0; z-index: 30; background: var(--bg); display: grid; place-items: center; padding: 24px; text-align: center; }
+.splash .box { display: grid; gap: 14px; max-width: 360px; }
+.splash h2 { margin: 0; font-size: 22px; }
+.bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <video id="video" playsinline autoplay muted></video>
+  <div class="guide" id="guide"><div class="band title"><span class="lbl">nome</span></div><div class="band foot"><span class="lbl" style="top:auto;bottom:-20px">coleção · número</span></div></div>
+  <div class="top">
+    <h1>Scanner</h1>
+    <button class="chipbtn" id="autoBtn" aria-pressed="false" title="Adiciona sozinho quando reconhecer">Auto</button>
+    <button class="chipbtn" id="foilBtn" aria-pressed="false" title="Marcar as próximas como foil">Foil</button>
+    <select id="langSel" class="chipbtn" aria-label="Idioma das próximas cartas" style="width:auto;min-height:0;padding:7px 10px">
+      <option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option>
+    </select>
+  </div>
+  <div class="status" id="status">Iniciando…</div>
+  <div class="bottom">
+    <button class="listbtn" id="listBtn">Lista <b id="count">0</b></button>
+    <button class="roundbtn" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
+  </div>
+</div>
+
+<!-- Resultado -->
+<div class="sheet hidden" id="resSheet" role="dialog" aria-label="Carta reconhecida">
+  <div class="grab"></div>
+  <div class="body" id="resBody"></div>
+  <div class="foot">
+    <button class="btn" id="skipBtn">Pular</button>
+    <button class="btn primary" id="addBtn">Adicionar</button>
+  </div>
+</div>
+
+<!-- Lista -->
+<div class="sheet hidden" id="listSheet" role="dialog" aria-label="Cartas escaneadas">
+  <div class="grab"></div>
+  <div class="body" id="listBody"></div>
+  <div class="foot" style="flex-wrap:wrap">
+    <button class="btn" id="closeList">Voltar à câmera</button>
+    <button class="btn primary" id="copyBtn">Copiar para a Biblioteca</button>
+    <button class="btn small" id="dlBtn">Baixar CSV</button>
+    <button class="btn small danger" id="clearBtn">Limpar lista</button>
+  </div>
+</div>
+
+<div class="splash" id="splash">
+  <div class="box">
+    <h2>Scanner MTG</h2>
+    <p class="meta" id="splashMsg">Carregando o leitor e a lista de cartas (só na primeira vez, cerca de 10 MB)…</p>
+    <div class="bar"><i id="splashBar"></i></div>
+    <button class="btn primary hidden" id="startBtn">Abrir a câmera</button>
+  </div>
+</div>
+
+<script src="lib/tesseract.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const norm = (s) => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+  const normNum = (n) => String(n || "").toLowerCase().split("/")[0].replace(/[^0-9a-z★†\-]/g, "").replace(/^0+(?=\d)/, "");
+  function toast(msg, ms = 2200) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
+  const fmtUSD = (v) => v ? "US$ " + Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+  const LANG_CODES = { EN: "en", PT: "pt", SP: "es", ES: "es", FR: "fr", DE: "de", IT: "it", JP: "ja", JA: "ja", KO: "ko", RU: "ru", CS: "zhs", CT: "zht", ZHS: "zhs", ZHT: "zht" };
+
+  // ---------- Índice local (nomes + coleção/número) ----------
+  const IDX = { names: [], normNames: [], byLen: new Map(), bySetNum: new Map(), sets: new Set(), prints: [] };
+  async function loadIndex() {
+    const r = await fetch("data/index.json"); const d = await r.json();
+    IDX.names = d.names; IDX.built = d.built;
+    d.names.forEach((n, i) => {
+      const parts = n.includes(" // ") ? [n, ...n.split(" // ")] : [n];
+      parts.forEach(pn => { const k = norm(pn); if (!IDX.byLen.has(k.length)) IDX.byLen.set(k.length, []); IDX.byLen.get(k.length).push([k, i]); });
+      IDX.prints[i] = [];
+    });
+    d.p.forEach((p, i) => { IDX.bySetNum.set(p[0] + "|" + normNum(p[1]), p); IDX.sets.add(p[0]); IDX.prints[p[2]].push(p); });
+  }
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+    for (let i = 1; i <= a.length; i++) {
+      const cur = [i]; let best = i;
+      for (let j = 1; j <= b.length; j++) { cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)); if (cur[j] < best) best = cur[j]; }
+      if (best > max) return max + 1; prev = cur;
+    }
+    return prev[b.length];
+  }
+  function matchName(text) {
+    const k = norm(text); if (k.length < 4) return null;
+    const max = k.length < 6 ? 0 : Math.max(1, Math.floor(k.length * 0.2));
+    let best = null;
+    for (let L = k.length - max; L <= k.length + max; L++) {
+      for (const [n, i] of (IDX.byLen.get(L) || [])) {
+        const d = lev(k, n, best ? Math.min(max, best.d) : max);
+        if (d <= max && (!best || d < best.d)) { best = { i, d }; if (d === 0) return best; }
+      }
+    }
+    return best;
+  }
+  function parseFoot(text) {
+    const up = String(text || "").toUpperCase().replace(/[|\\]/g, " ");
+    const nums = [...up.matchAll(/(?:^|[^A-Z0-9])0*(\d{1,4})(?=[^0-9]|$)/g)].map(m => m[1]);
+    const toks = [...up.matchAll(/\b[A-Z0-9]{3,5}\b/g)].map(m => m[0].toLowerCase()).filter(t => IDX.sets.has(t));
+    const langM = up.match(/\b(EN|PT|SP|ES|FR|DE|IT|JP|JA|KO|RU|CS|CT)\b/);
+    const out = [];
+    for (const s of toks) for (const n of nums) { const p = IDX.bySetNum.get(s + "|" + n); if (p) out.push(p); }
+    return { prints: out, sets: toks, lang: langM ? LANG_CODES[langM[1]] : "" };
+  }
+
+  // ---------- Câmera ----------
+  let stream = null, track = null;
+  async function startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Este navegador não dá acesso à câmera. Abra a página no Chrome, por https.");
+    stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+    track = stream.getVideoTracks()[0];
+    try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {}
+    const v = $("video"); v.srcObject = stream; await v.play();
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    $("torchBtn").classList.toggle("hidden", !caps.torch);
+  }
+  $("torchBtn").onclick = async () => {
+    const on = $("torchBtn").getAttribute("aria-pressed") !== "true";
+    try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").setAttribute("aria-pressed", on); } catch { toast("Lanterna indisponível."); }
+  };
+
+  // Retângulo da moldura na imagem do vídeo (object-fit: cover)
+  function guideRect() {
+    const v = $("video"), g = $("guide").getBoundingClientRect(), vb = v.getBoundingClientRect();
+    const VW = v.videoWidth, VH = v.videoHeight; if (!VW) return null;
+    const s = Math.max(vb.width / VW, vb.height / VH);
+    const ox = vb.left + (vb.width - VW * s) / 2, oy = vb.top + (vb.height - VH * s) / 2;
+    return { x: (g.left - ox) / s, y: (g.top - oy) / s, w: g.width / s, h: g.height / s };
+  }
+  function crop(r, fx, fy, fw, fh, targetH) {
+    const v = $("video");
+    const sx = r.x + r.w * fx, sy = r.y + r.h * fy, sw = r.w * fw, sh = r.h * fh;
+    const k = targetH / sh;
+    const cv = document.createElement("canvas"); cv.width = Math.round(sw * k); cv.height = Math.round(targetH);
+    const ctx = cv.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, cv.width, cv.height);
+    // tons de cinza + contraste
+    const im = ctx.getImageData(0, 0, cv.width, cv.height), d = im.data;
+    let mn = 255, mx = 0;
+    for (let i = 0; i < d.length; i += 4) { const g = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = g; if (g < mn) mn = g; if (g > mx) mx = g; }
+    const span = Math.max(40, mx - mn); let sum = 0;
+    for (let i = 0; i < d.length; i += 4) { const g = (d[i] - mn) * 255 / span; sum += g; }
+    const invert = sum / (d.length / 4) < 110; // texto claro em fundo escuro
+    for (let i = 0; i < d.length; i += 4) { let g = (d[i] - mn) * 255 / span; if (invert) g = 255 - g; d[i] = d[i + 1] = d[i + 2] = g < 0 ? 0 : g > 255 ? 255 : g; }
+    ctx.putImageData(im, 0, 0);
+    return cv;
+  }
+
+  // ---------- OCR ----------
+  let worker = null;
+  async function startOCR(onProgress) {
+    const base = new URL("lib/", location.href).href;
+    worker = await Tesseract.createWorker("eng", 1, {
+      workerPath: base + "worker.min.js", corePath: base, langPath: base, gzip: true,
+      logger: (m) => { if (m.status && typeof m.progress === "number") onProgress(m); }
+    });
+  }
+
+  // ---------- Loop de reconhecimento ----------
+  const S = { busy: false, paused: false, last: null, streak: 0, lastAddedKey: "", lastAddedAt: 0, clearSeen: true };
+  function setStatus(t) { $("status").textContent = t; }
+  async function tick() {
+    if (S.busy || S.paused || !worker) return;
+    const r = guideRect(); if (!r) return;
+    S.busy = true;
+    try {
+      await worker.setParameters({ tessedit_pageseg_mode: "7" });
+      const t1 = await worker.recognize(crop(r, 0.05, 0.025, 0.66, 0.085, 56));
+      const titleTxt = (t1.data.text || "").replace(/\n/g, " ").trim();
+      await worker.setParameters({ tessedit_pageseg_mode: "6" });
+      const t2 = await worker.recognize(crop(r, 0.035, 0.895, 0.56, 0.09, 84));
+      const foot = parseFoot(t2.data.text);
+      const nm = matchName(titleTxt);
+      let hit = null;
+      if (foot.prints.length) {
+        // coleção+número válido; se o nome também bate, melhor ainda
+        const both = nm && foot.prints.find(p => p[2] === nm.i);
+        const p = both || (foot.prints.length === 1 ? foot.prints[0] : (nm ? null : foot.prints[0]));
+        if (p) hit = { oi: p[2], set: p[0], num: p[1], lang: foot.lang || p[3] || "en", via: both ? "both" : "foot" };
+      }
+      if (!hit && nm) {
+        // nome + código da coleção lido (mesmo sem o número): escolhe a impressão daquela coleção
+        const ps = (IDX.prints[nm.i] || []).filter(p => foot.sets.includes(p[0]));
+        hit = ps.length === 1 ? { oi: nm.i, set: ps[0][0], num: ps[0][1], lang: foot.lang || "", via: "name-set" } : { oi: nm.i, set: "", num: "", lang: foot.lang || "", via: "name" };
+      }
+      const g = $("guide");
+      if (!hit) {
+        S.streak = 0; S.last = null; S.clearSeen = true; g.className = "guide";
+        setStatus(titleTxt.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta");
+      } else {
+        const key = hit.oi + "|" + hit.set + "|" + hit.num;
+        S.streak = S.last === key ? S.streak + 1 : 1; S.last = key;
+        g.className = "guide seen";
+        setStatus(`Lendo: ${IDX.names[hit.oi]}${hit.set ? ` (${hit.set.toUpperCase()} #${hit.num})` : ""}`);
+        const need = hit.via === "both" ? 1 : 2;
+        const sameAsAdded = hit.oi + "" === S.lastAddedKey && !S.clearSeen;
+        if (S.streak >= need && !sameAsAdded) { g.className = "guide lock"; await onLocked(hit); }
+      }
+    } catch (e) { setStatus("Erro na leitura: " + (e.message || e)); }
+    S.busy = false;
+  }
+
+  // ---------- Resultado ----------
+  let current = null;
+  async function fetchCard(hit) {
+    const name = IDX.names[hit.oi];
+    let card = null;
+    try {
+      if (hit.set && hit.num) {
+        const lang = hit.lang && hit.lang !== "en" ? "/" + hit.lang : "";
+        let r = await fetch(`https://api.scryfall.com/cards/${hit.set}/${encodeURIComponent(hit.num)}${lang}`);
+        if (!r.ok && lang) r = await fetch(`https://api.scryfall.com/cards/${hit.set}/${encodeURIComponent(hit.num)}`);
+        if (r.ok) card = await r.json();
+      }
+      if (!card) { const r = await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name.split(" // ")[0])}`); if (r.ok) card = await r.json(); }
+    } catch {}
+    return card;
+  }
+  const imgOf = (c, size = "normal") => c ? ((c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {})[size] || "") : "";
+  async function onLocked(hit) {
+    S.paused = true;
+    const card = await fetchCard(hit);
+    const name = IDX.names[hit.oi];
+    const lang = $("langSel").value || hit.lang || (card && card.lang) || "en";
+    current = {
+      name, set: card ? card.set : hit.set, number: card ? card.collector_number : hit.num, set_name: card ? card.set_name : "",
+      lang, foil: $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1,
+      img: imgOf(card, "normal"), small: imgOf(card, "small"), printed_name: card && card.printed_name || "",
+      prices: card ? card.prices : {}, via: hit.via, prints_uri: card ? card.prints_search_uri : ""
+    };
+    if (navigator.vibrate) navigator.vibrate(40);
+    if ($("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") { addCurrent(true); return; }
+    renderResult(); $("resSheet").classList.remove("hidden");
+  }
+  function priceTxt(c) { const p = c.prices || {}; const v = c.foil ? (p.usd_foil || p.usd_etched || p.usd) : (p.usd || p.usd_foil); return v ? fmtUSD(v) : ""; }
+  function renderResult() {
+    const c = current;
+    const via = c.via === "name" ? ["warn", "Reconhecida pelo nome. Confira a edição."] : ["ok", { both: "Nome + coleção + número conferem", foot: "Coleção + número conferem", "name-set": "Nome + coleção conferem" }[c.via] || "Conferida"];
+    $("resBody").innerHTML = `
+      <div class="result">
+        ${c.img ? `<img src="${esc(c.img)}" alt="${esc(c.name)}">` : `<div class="ph"></div>`}
+        <div>
+          <h2>${esc(c.name)}</h2>
+          ${c.printed_name && c.printed_name !== c.name ? `<div class="meta">${esc(c.printed_name)}</div>` : ""}
+          <div class="meta">${esc(c.set_name)} · ${esc(String(c.set).toUpperCase())} #${esc(c.number)}</div>
+          <div class="price" id="resPrice">${priceTxt(c)}</div>
+          <span class="via ${via[0]}">${esc(via[1])}</span>
+        </div>
+      </div>
+      <div class="opts">
+        <label>Edição<select id="printSel"><option value="">${esc(String(c.set).toUpperCase())} #${esc(c.number)} · trocar</option></select></label>
+        <label>Idioma<select id="resLang">${["en","pt","es","ja","fr","de","it","ko","ru","zhs","zht"].map(l => `<option value="${l}"${l === c.lang ? " selected" : ""}>${l.toUpperCase()}</option>`).join("")}</select></label>
+      </div>
+      <div class="row3">
+        <span class="stepper"><button type="button" id="qMinus" aria-label="Menos">−</button><span id="qVal">${c.qty}</span><button type="button" id="qPlus" aria-label="Mais">+</button></span>
+        <label class="toggle"><input type="checkbox" id="resFoil"${c.foil ? " checked" : ""}> Foil</label>
+      </div>`;
+    $("qMinus").onclick = () => { c.qty = Math.max(1, c.qty - 1); $("qVal").textContent = c.qty; };
+    $("qPlus").onclick = () => { c.qty++; $("qVal").textContent = c.qty; };
+    $("resFoil").onchange = (e) => { c.foil = e.target.checked; $("resPrice").textContent = priceTxt(c); };
+    $("resLang").onchange = (e) => { c.lang = e.target.value; };
+    let loaded = false;
+    $("printSel").addEventListener("focus", async () => {
+      if (loaded || !c.prints_uri) return; loaded = true;
+      try {
+        const all = []; let url = c.prints_uri;
+        while (url && all.length < 300) { const j = await fetch(url).then(r => r.json()); all.push(...(j.data || [])); url = j.has_more ? j.next_page : null; }
+        c._prints = all;
+        $("printSel").innerHTML = all.map((p, i) => `<option value="${i}"${p.set === c.set && p.collector_number === c.number ? " selected" : ""}>${esc(p.set.toUpperCase())} #${esc(p.collector_number)} · ${esc(p.set_name)}${p.prices && p.prices.usd ? " · US$ " + p.prices.usd : ""}</option>`).join("");
+      } catch { toast("Não consegui carregar as edições."); }
+    });
+    $("printSel").onchange = (e) => {
+      const p = c._prints && c._prints[+e.target.value]; if (!p) return;
+      Object.assign(c, { set: p.set, number: p.collector_number, set_name: p.set_name, img: imgOf(p, "normal"), small: imgOf(p, "small"), prices: p.prices, via: "both" });
+      const keep = $("printSel").innerHTML, sel = e.target.value; renderResult(); $("printSel").innerHTML = keep; $("printSel").value = sel; loaded = true;
+    };
+  }
+  function resume() { $("resSheet").classList.add("hidden"); current = null; S.streak = 0; S.last = null; S.paused = false; $("guide").className = "guide"; setStatus("Aponte para a próxima carta"); }
+  $("skipBtn").onclick = () => { if (current) { S.lastAddedKey = String(IDX.names.indexOf(current.name)); S.clearSeen = false; } resume(); };
+  $("addBtn").onclick = () => addCurrent(false);
+
+  // ---------- Lista da sessão ----------
+  let LIST = [];
+  try { LIST = JSON.parse(localStorage.getItem("mtgscan.list") || "[]"); } catch {}
+  const saveList = () => { try { localStorage.setItem("mtgscan.list", JSON.stringify(LIST)); } catch {} $("count").textContent = LIST.reduce((n, x) => n + x.qty, 0); };
+  function addCurrent(auto) {
+    const c = current; if (!c) return;
+    const key = [c.set, c.number, c.foil ? "f" : "n", c.lang].join("|");
+    const ex = LIST.find(x => x.key === key);
+    if (ex) ex.qty += c.qty; else LIST.unshift({ key, name: c.name, set: c.set, number: c.number, set_name: c.set_name, lang: c.lang, foil: c.foil, qty: c.qty, small: c.small, usd: c.foil ? (c.prices?.usd_foil || c.prices?.usd || "") : (c.prices?.usd || c.prices?.usd_foil || ""), at: Date.now() });
+    saveList();
+    S.lastAddedKey = String(IDX.names.indexOf(c.name)); S.clearSeen = false;
+    toast(`${auto ? "Adicionada" : "Adicionada"}: ${c.name}${c.foil ? " (foil)" : ""}`, 1400);
+    resume();
+  }
+  function renderList() {
+    const total = LIST.reduce((n, x) => n + x.qty, 0), value = LIST.reduce((n, x) => n + (parseFloat(x.usd) || 0) * x.qty, 0);
+    $("listBody").innerHTML = `<div class="sum"><span>${total} carta${total === 1 ? "" : "s"}</span><span>${value ? "≈ " + fmtUSD(value) : ""}</span></div>` +
+      (LIST.length ? `<div class="items">` + LIST.map((x, i) => `<div class="item">
+        ${x.small ? `<img src="${esc(x.small)}" alt="">` : `<span class="ph"></span>`}
+        <div><div class="nm">${esc(x.name)}</div><div class="meta">${esc(x.set.toUpperCase())} #${esc(x.number)} · ${esc(x.lang.toUpperCase())}${x.foil ? " · foil" : ""}${x.usd ? " · US$ " + esc(x.usd) : ""}</div></div>
+        <div class="act"><button data-i="${i}" data-d="-1" aria-label="Menos">−</button><b style="min-width:20px;text-align:center">${x.qty}</b><button data-i="${i}" data-d="1" aria-label="Mais">+</button></div>
+      </div>`).join("") + `</div>` : `<div class="empty">Nenhuma carta ainda. Aponte a câmera para uma carta.</div>`);
+  }
+  $("listBody").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-i]"); if (!b) return;
+    const x = LIST[+b.dataset.i]; x.qty += +b.dataset.d; if (x.qty <= 0) LIST.splice(+b.dataset.i, 1);
+    saveList(); renderList();
+  });
+  function csv() {
+    const rows = [["Count", "Name", "Edition", "Collector Number", "Foil", "Language"]];
+    LIST.slice().reverse().forEach(x => rows.push([x.qty, x.name, x.set, x.number, x.foil ? "foil" : "", x.lang]));
+    return rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n");
+  }
+  $("listBtn").onclick = () => { S.paused = true; renderList(); $("listSheet").classList.remove("hidden"); };
+  $("closeList").onclick = () => { $("listSheet").classList.add("hidden"); S.paused = false; };
+  $("copyBtn").onclick = async () => {
+    if (!LIST.length) return toast("A lista está vazia.");
+    try { await navigator.clipboard.writeText(csv()); toast("Copiado! Na Biblioteca MTG: menu ⋮ → Importar lista → colar."); }
+    catch { toast("O navegador bloqueou a cópia. Use Baixar CSV."); }
+  };
+  $("dlBtn").onclick = () => {
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv()], { type: "text/csv" }));
+    a.download = `mtg-scan-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  };
+  let clearArmed = false;
+  $("clearBtn").onclick = (e) => {
+    if (!clearArmed) { clearArmed = true; e.currentTarget.textContent = "Toque de novo para limpar"; setTimeout(() => { clearArmed = false; $("clearBtn").textContent = "Limpar lista"; }, 3000); return; }
+    LIST = []; saveList(); renderList(); clearArmed = false; $("clearBtn").textContent = "Limpar lista";
+  };
+
+  // ---------- Opções ----------
+  for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") !== "true"); try { localStorage.setItem("mtgscan." + id, b.getAttribute("aria-pressed")); } catch {} };
+  try { for (const id of ["autoBtn", "foilBtn"]) { const v = localStorage.getItem("mtgscan." + id); if (v) $(id).setAttribute("aria-pressed", v); } } catch {}
+
+  // ---------- Início ----------
+  async function boot() {
+    saveList();
+    const bar = $("splashBar"), msg = $("splashMsg");
+    try {
+      bar.style.width = "10%";
+      await loadIndex(); bar.style.width = "30%";
+      await startOCR((m) => { bar.style.width = (30 + Math.round(m.progress * 60)) + "%"; });
+      bar.style.width = "100%";
+    } catch (e) { msg.textContent = "Não consegui carregar o leitor: " + (e.message || e); return; }
+    msg.textContent = `Pronto. ${IDX.names.length.toLocaleString("pt-BR")} cartas na lista. Toque para abrir a câmera.`;
+    $("startBtn").classList.remove("hidden");
+  }
+  $("startBtn").onclick = async () => {
+    try { await startCamera(); } catch (e) { $("splashMsg").textContent = (e.name === "NotAllowedError" ? "Permissão de câmera negada. Libere a câmera para este site nas configurações do navegador." : (e.message || String(e))); return; }
+    $("splash").classList.add("hidden");
+    setStatus("Aponte para uma carta");
+    setInterval(tick, 250);
+  };
+  boot();
+})();
+</script>
+</body>
+</html>
