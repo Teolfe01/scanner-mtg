@@ -58,7 +58,7 @@ button { cursor: pointer; }
 select, input[type="text"], input[type="search"], input[type="number"], textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 8px 11px; min-height: 42px; width: 100%; color: var(--ink); }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-main { max-width: 900px; margin: 0 auto; padding: 12px 12px calc(var(--nav-h) + 90px + env(safe-area-inset-bottom)); }
+main { max-width: 900px; margin: 0 auto; padding: 12px 12px calc(var(--nav-h) + 130px + env(safe-area-inset-bottom)); }
 .empty { padding: 36px 16px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; }
 h2.sec { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 18px 4px 8px; font-weight: 600; display: flex; justify-content: space-between; }
 
@@ -314,6 +314,17 @@ a.btn { text-decoration: none; }
 .dkdel { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; opacity: .55; font-size: 18px; transition: opacity .2s, background .2s; }
 .dkdel:hover { opacity: 1; background: rgba(255,90,70,.15); }
 .danger-row .rn { color: var(--bad); }
+/* Filtros no resumo do deck */
+.fbtn { cursor: pointer; transition: transform .15s, opacity .2s, box-shadow .2s; }
+button.pill.fbtn { font: inherit; font-size: 11px; color: #cfd5df; }
+.fbtn.on { box-shadow: 0 0 0 2px var(--accent) inset, var(--glow); color: #fff !important; }
+.kpi.fbtn.on { background: rgba(255,122,69,.16); }
+.card[data-fk="cmc"] .curve .fbtn:not(.on), .card[data-fk="color"] .colorbar .fbtn:not(.on) { opacity: .35; }
+.curve .fbtn.on i { box-shadow: 0 0 14px rgba(255,122,69,.6); }
+.colorbar.tall { height: 14px; } .colorbar .fbtn.on { box-shadow: 0 0 0 2px #fff inset; }
+.fchip { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(255,122,69,.12); border-radius: 999px; padding: 6px 6px 6px 14px; margin: 12px 0 0; font-size: 13px; scroll-margin-top: 80px; }
+.fchip button { border: 0; background: var(--surface-2); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: 600 12px var(--font); }
+#dlist { scroll-margin-top: 70px; }
 /* Comandante + template */
 .cmdban { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, rgba(232,65,58,.12), rgba(255,194,75,.06)); border-radius: 26px; padding: 12px; margin-bottom: 14px; box-shadow: 0 0 0 1px rgba(255,122,69,.18) inset; }
 .cmdban .cbimg { border: 0; background: none; padding: 0; width: 110px; flex: none; }
@@ -1089,7 +1100,9 @@ function offerCollectionAdd(d) {
     d.built = true; save(); closeSheet(); renderDeck(d.id); toast("Precon adicionado e montado."); fillImages(added);
   };
 }
+const DF = { id: null, f: null };
 function renderDeck(id) {
+  if (DF.id !== id) { DF.id = id; DF.f = null; }
   const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
   $("title").textContent = d.name; $("bars").innerHTML = ""; $("backBtn").classList.remove("invisible");
   setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
@@ -1119,14 +1132,30 @@ function renderDeck(id) {
       const mounted = oiS.reduce((a, oi) => a + haveFor(d, oi), 0);
       return pull ? `<button class="btn" id="rebuildDeck" style="width:100%;margin-bottom:10px">↺ ${mounted || /precon/.test(d.source || "") ? "Remontar deck" : "Montar com a coleção"} — pegar ${pull} carta(s) das caixas</button>` : ""; })()}
     <div class="card">
-      <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi"><b>${missing}</b><span>faltam</span></div></div>
-      <div><div class="meta" style="margin-bottom:4px">Curva de mana (sem terrenos)</div><div class="curve">${curve.map((n, i) => `<div><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
-      <div><div class="meta" style="margin-bottom:4px">Símbolos de mana</div><div class="colorbar">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<span style="width:${n * 100 / ptot}%;background:${COLOR_HEX[k]}" title="${COLOR_NAME[k]}: ${n}"></span>`).join("")}</div></div>
-      ${Object.keys(rolesCount).length ? `<div class="roles">${Object.entries(rolesCount).sort((a, b) => b[1] - a[1]).map(([r, n]) => `<span class="pill">${esc(ROLES[r])} ${n}</span>`).join("")}</div>` : ""}
+      <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi fbtn" data-f="land"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi fbtn" data-f="miss"><b>${missing}</b><span>faltam</span></div></div>
+      <div><div class="meta" style="margin-bottom:4px">Curva de mana (sem terrenos) · toque para filtrar</div><div class="curve">${curve.map((n, i) => `<div class="fbtn" data-f="cmc:${i}"><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
+      <div><div class="meta" style="margin-bottom:4px">Símbolos de mana</div><div class="colorbar tall">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<span class="fbtn" data-f="color:${k}" style="width:${n * 100 / ptot}%;background:${COLOR_HEX[k]}" title="${COLOR_NAME[k]}: ${n}"></span>`).join("")}</div></div>
+      ${Object.keys(rolesCount).length ? `<div class="roles">${Object.entries(rolesCount).sort((a, b) => b[1] - a[1]).map(([r, n]) => `<button class="pill fbtn" data-f="role:${r}">${esc(ROLES[r])} ${n}</button>`).join("")}</div>` : ""}
       ${value ? `<div class="meta">Valor estimado: ${fmtUSD(value)}</div>` : ""}
       <div class="actions"><button class="btn primary small" id="bBuild">Montar com a coleção</button><button class="btn small" id="bUnbuild">Desmontar</button><button class="btn small" id="bMiss">Copiar faltantes</button></div>
     </div>
-    ${groups.map(([g, label]) => { const list = cards.filter(c => groupOf(c) === g).sort((a, b) => a.o.cmc - b.o.cmc || a.o.name.localeCompare(b.o.name)); if (!list.length) return ""; return `<h2 class="sec"><span>${label}</span><span>${list.reduce((a, c) => a + c.qty, 0)}</span></h2><div class="rows">${list.map(rowHTML).join("")}</div>`; }).join("")}`;
+    <div id="dlist"></div>`;
+  const fLabel = (f) => { const [k, v] = f.split(":"); return k === "role" ? ROLES[v] : k === "cmc" ? "CMC " + (v === "7" ? "7+" : v) : k === "color" ? COLOR_NAME[v] : k === "land" ? "Terrenos" : "Faltando"; };
+  const fTest = (f, c) => { const [k, v] = (f || "").split(":"); if (!k) return true;
+    if (k === "role") return c.o.roles.includes(v); if (k === "land") return mainTypes(c.o.type).includes("Land");
+    if (k === "miss") return c.have < c.qty; if (k === "color") return (c.o.mana || "").includes(v);
+    if (k === "cmc") return !mainTypes(c.o.type).includes("Land") && Math.min(7, Math.floor(c.o.cmc)) === +v; return true; };
+  const drawList = () => {
+    const shown = cards.filter(c => fTest(DF.f, c));
+    document.querySelectorAll("#main .fbtn").forEach(b => b.classList.toggle("on", b.dataset.f === DF.f));
+    document.querySelector("#main .card").dataset.fk = DF.f ? DF.f.split(":")[0] : "";
+    $("dlist").innerHTML = (DF.f ? `<div class="fchip"><span>Mostrando: <b>${esc(fLabel(DF.f))}</b> · ${shown.reduce((a, c) => a + c.qty, 0)} carta(s)</span><button id="fClear">✕ Limpar</button></div>` : "") +
+      groups.map(([g, label]) => { const list = shown.filter(c => groupOf(c) === g).sort((a, b) => a.o.cmc - b.o.cmc || a.o.name.localeCompare(b.o.name)); if (!list.length) return ""; return `<h2 class="sec"><span>${label}</span><span>${list.reduce((a, c) => a + c.qty, 0)}</span></h2><div class="rows">${list.map(rowHTML).join("")}</div>`; }).join("");
+  };
+  drawList();
+  if (window.__dfH) $("main").removeEventListener("click", window.__dfH, true);
+  window.__dfH = (ev) => { if (!$("dlist")) return; const fb = ev.target.closest(".fbtn, #fClear"); if (!fb) return; ev.stopPropagation(); DF.f = fb.id === "fClear" || DF.f === fb.dataset.f ? null : fb.dataset.f; drawList(); if (DF.f) $("dlist").scrollIntoView({ behavior: "smooth", block: "start" }); };
+  $("main").addEventListener("click", window.__dfH, true);
   $("bBuild").onclick = () => buildDeck(d); $("bUnbuild").onclick = () => unbuildDeck(d); $("bMiss").onclick = () => copyMissing(d);
   $("main").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (b) deckCardSheet(d, +b.dataset.oi, b.dataset.b); };
 }
