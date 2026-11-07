@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e8413a"/><stop offset=".5" stop-color="#ff7a45"/><stop offset="1" stop-color="#ffc24b"/></linearGradient></defs><rect width="512" height="512" fill="#141518"/><g transform="translate(256 256) scale(1.5305) translate(-241.22 -246.22)"><g transform="translate(256 300)">
+<rect x="-80" y="-170" width="160" height="224" rx="16" fill="#2c2f36" transform="rotate(-22)"/>
+<rect x="-80" y="-170" width="160" height="224" rx="16" fill="#3a3d45" transform="rotate(-8)"/>
+<rect x="-80" y="-170" width="160" height="224" rx="16" fill="url(#g)" transform="rotate(10)"/>
+<g transform="rotate(10)"><rect x="-62" y="-150" width="124" height="96" rx="8" fill="#2a0d05" opacity=".28"/>
+<path d="M-42 -66 L-42 -136 L0 -96 L42 -136 L42 -66 L26 -66 L26 -104 L0 -78 L-26 -104 L-26 -66 Z" fill="#fff4e6"/>
+<rect x="-62" y="-36" width="124" height="10" rx="5" fill="#2a0d05" opacity=".3"/><rect x="-62" y="-16" width="90" height="10" rx="5" fill="#2a0d05" opacity=".3"/></g></g></g></svg>
