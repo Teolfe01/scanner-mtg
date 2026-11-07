@@ -711,7 +711,10 @@ function cardImgHTML(e, opts = {}) {
 // ============ Navegação ============
 let tab = "col", view = null; // view: {kind:'deck', id}
 const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes };
-function go(t, v = null) {
+// Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
+const NAV = { sheet: false, zoom: false, guardAt: 0 };
+const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
+function go(t, v = null, o = {}) {
   if (t !== "scan" && tab === "scan") stopCamera();
   tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide");
   document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
@@ -722,7 +725,23 @@ function go(t, v = null) {
   window.scrollTo(0, 0);
   views[t]();
   animateView();
+  const st = { bm: 1, t, v };
+  if (o.init) { history.replaceState({ bm: 1, guard: 1 }, ""); history.pushState(st, ""); }
+  else if (!o.pop) { if (history.state && history.state.bm && !history.state.guard && sameView(history.state, st)) history.replaceState(st, ""); else history.pushState(st, ""); }
+  S.settings.lastView = { t, v }; store.set("settings", S.settings).catch(() => {});
 }
+window.addEventListener("popstate", (e) => {
+  const s = e.state; if (!s || !s.bm) return;
+  if (NAV.zoom) { closeZoom({ pop: true }); return; }
+  if (NAV.sheet) { closeSheet({ pop: true }); return; }
+  if (!$("menu").classList.contains("hidden")) $("menu").classList.add("hidden");
+  if (s.guard) {
+    if (Date.now() - NAV.guardAt < 2000) { history.back(); return; }
+    NAV.guardAt = Date.now(); toast("Toque em voltar de novo para sair", 2000); history.pushState({ bm: 1, t: tab, v: view }, ""); return;
+  }
+  if (sameView(s, { t: tab, v: view })) { history.back(); return; }
+  go(s.t, s.v || null, { pop: true });
+});
 $("nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) go(b.dataset.tab); });
 $("backBtn").onclick = () => go(tab);
 function setMenu(items) {
@@ -734,9 +753,9 @@ $("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle(
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
 
 // Folha (sheet)
-function openSheet(body, foot = "") { document.documentElement.classList.add("lock"); $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
-function closeSheet() { document.documentElement.classList.remove("lock"); $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
-$("scrim").onclick = closeSheet;
+function openSheet(body, foot = "") { document.documentElement.classList.add("lock"); if (!NAV.sheet) { NAV.sheet = true; history.pushState({ bm: 1, t: tab, v: view, sheet: 1 }, ""); } $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
+function closeSheet(o = {}) { if (NAV.sheet) { NAV.sheet = false; if (!o.pop && history.state && history.state.sheet) history.replaceState({ bm: 1, t: tab, v: view }, ""); } document.documentElement.classList.remove("lock"); $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
+$("scrim").onclick = () => closeSheet();
 
 // ============ COLEÇÃO ============
 const F = { q: "", colors: new Set(), type: "", role: "", where: "", sort: "name", view: "grid", open: false };
@@ -1211,10 +1230,10 @@ function zoomImg(el) {
   const big = src ? src.replace("/normal/", "/large/") : `https://api.scryfall.com/cards/${encodeURIComponent(set)}/${encodeURIComponent(num)}?format=image&version=large`;
   $("zoomImg").onerror = () => { $("zoomImg").onerror = null; if (src) $("zoomImg").src = src; else $("zoomTxt").textContent = "Não consegui carregar a imagem (sem internet?)"; };
   $("zoomImg").style.transform = ""; $("zoomImg").src = big;
-  $("zoomTxt").textContent = (img.alt || "") + " · toque para fechar"; $("zoom").classList.remove("hidden"); document.documentElement.classList.add("lock");
+  $("zoomTxt").textContent = (img.alt || "") + " · toque para fechar"; $("zoom").classList.remove("hidden"); document.documentElement.classList.add("lock"); if (!NAV.zoom) { NAV.zoom = true; history.pushState({ bm: 1, t: tab, v: view, zoom: 1 }, ""); }
 }
-const closeZoom = () => { $("zoom").classList.add("hidden"); if ($("sheet").classList.contains("hidden")) document.documentElement.classList.remove("lock"); };
-$("zoom").onclick = closeZoom;
+const closeZoom = (o = {}) => { if (NAV.zoom) { NAV.zoom = false; if (!o.pop && history.state && history.state.zoom) history.replaceState({ bm: 1, t: tab, v: view }, ""); } $("zoom").classList.add("hidden"); if ($("sheet").classList.contains("hidden")) document.documentElement.classList.remove("lock"); };
+$("zoom").onclick = () => closeZoom();
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeZoom(); });
 document.addEventListener("click", (e) => { const c = e.target.closest(".detail .cardimg, .ed-preview .cardimg"); if (c) { e.stopPropagation(); zoomImg(c); } }, true);
 // ============ EDITOR DE DECKS (estilo Archidekt) ============
@@ -2107,7 +2126,10 @@ function accountMenu() {
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
     $("backupNow").onclick = backup; updateBackupBanner();
-    const startTab = new URLSearchParams(location.search).get("tab"); go(views[startTab] ? startTab : "col"); updateRate().then(() => { if (tab === "col") renderCol(); });
+    const startTab = new URLSearchParams(location.search).get("tab"); const lv = S.settings.lastView;
+    if (views[startTab]) go(startTab, null, { init: true });
+    else if (lv && views[lv.t] && (!lv.v || !lv.v.id || S.decks.some(d => d.id === lv.v.id))) { if (lv.v && lv.v.kind === "edit") ED.id = lv.v.id; go(lv.t, lv.v || null, { init: true }); }
+    else go("col", null, { init: true }); updateRate().then(() => { if (tab === "col") renderCol(); });
     try {
       const u = await cloudInit();
       if (u) afterLogin(u);
