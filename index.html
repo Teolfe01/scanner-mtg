@@ -1165,6 +1165,7 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
   const where = owned.flatMap(e => { const out = []; if (freeQty(e)) out.push(`📦 ${whereLib(e).text} — ${freeQty(e)}×`); for (const [did, q] of Object.entries(e.decks || {})) { const dd = S.decks.find(x => x.id === did); if (dd && q) out.push(`🃏 ${dd.name} — ${q}×`); } return out; });
   const fake = { oi, set: c.set || DB.p[defaultPrint(oi)]?.[0], number: c.number || DB.p[defaultPrint(oi)]?.[1] };
   openSheet(`<div class="detail">${cardImgHTML(fake, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}</div></div></div>
+    ${fake.set ? priceBlock(oi, fake.set, fake.number, c.foil) : ""}
     <div><h2 class="sec" style="margin-top:0">Suas cópias</h2><div class="loc">${where.map(w => `<div><span>${esc(w)}</span></div>`).join("") || `<div><span>Você não tem essa carta.</span></div>`}</div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
     <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>`,
@@ -1278,7 +1279,15 @@ function saveResume() {
 }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveResume(); });
 window.addEventListener("pagehide", saveResume);
-document.addEventListener("click", (e) => { if (e.target.closest('a[target="_blank"]')) saveResume(); }, true);
+// No app instalado (APK/tela inicial), links externos abrem na mesma janela: o "voltar" do celular retorna ao app
+const IS_APP = () => /android-app:\/\//.test(document.referrer) || matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches || S.settings.isApp;
+if (/android-app:\/\//.test(document.referrer)) { S.settings.isApp = true; }
+document.addEventListener("click", (e) => {
+  const a = e.target.closest('a[target="_blank"]'); if (!a) return;
+  saveResume();
+  if (IS_APP()) { e.preventDefault(); e.stopPropagation(); S.settings.resume.fromLink = true; store.set("settings", S.settings).finally(() => { location.href = a.href; }); }
+}, true);
+window.addEventListener("pageshow", (e) => { if (e.persisted && S.settings.resume) { S.settings.resume.fromLink = false; } });
 function restoreResume() {
   const r = S.settings.resume; if (!r || Date.now() - r.at > 12 * 3600e3 || !views[r.t]) return false;
   if (r.v && r.v.id && !S.decks.some(d => d.id === r.v.id)) return false;
