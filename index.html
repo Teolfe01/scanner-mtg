@@ -192,6 +192,10 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 .zoom { position: fixed; inset: 0; z-index: 80; background: rgba(0,0,0,.88); display: grid; place-items: center; align-content: center; gap: 10px; padding: 16px; cursor: zoom-out; }
 .zoom img { max-width: min(94vw, 680px); max-height: 86vh; border-radius: 4.5%; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
 .zoom .meta { text-align: center; }
+.zoomact { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.zoomact:empty { display: none; }
+.zoom.withact { cursor: default; }
+.zoom.withact img { max-height: 72vh; }
 .detail .cardimg, .ed-preview .cardimg, .zoomable { cursor: zoom-in; }
 /* ===== Editor de decks ===== */
 body.wide main, body.wide .titlebar { max-width: none; }
@@ -484,7 +488,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <button class="btn primary" id="loginBtn">Entrar com Google</button>
 </div></div>
 <div class="hov hidden" id="hov"><img alt=""></div>
-<div class="zoom hidden" id="zoom" role="dialog" aria-label="Carta ampliada"><img id="zoomImg" alt=""><div class="meta" id="zoomTxt"></div></div>
+<div class="zoom hidden" id="zoom" role="dialog" aria-label="Carta ampliada"><img id="zoomImg" alt=""><div class="meta" id="zoomTxt"></div><div class="zoomact" id="zoomAct"></div></div>
 <div class="splash" id="splash"><div class="box">
   <h2 style="margin:0">Biblioteca MTG</h2>
   <p class="meta" id="splashMsg">Carregando a base de cartas… (só na primeira vez, uns 4 MB)</p>
@@ -1263,14 +1267,16 @@ document.addEventListener("pointerdown", (e) => {
   ["scroll", "mousedown", "keydown", "dragstart"].forEach(ev => document.addEventListener(ev, hide, true));
 })();
 // ============ ZOOM ============
-function zoomImg(el) {
+function zoomImg(el, opts = {}) {
   const img = el.querySelector("img"); if (!img) return;
   const src = img.currentSrc || img.getAttribute("src") || "";
   const [set, num] = (img.dataset.ik || "|").split("|");
   const big = src ? src.replace("/normal/", "/large/") : `https://api.scryfall.com/cards/${encodeURIComponent(set)}/${encodeURIComponent(num)}?format=image&version=large`;
   $("zoomImg").onerror = () => { $("zoomImg").onerror = null; if (src) $("zoomImg").src = src; else $("zoomTxt").textContent = "Não consegui carregar a imagem (sem internet?)"; };
   $("zoomImg").style.transform = ""; $("zoomImg").src = big;
-  $("zoomTxt").textContent = (img.alt || "") + " · toque para fechar"; $("zoom").classList.remove("hidden"); document.documentElement.classList.add("lock"); if (!NAV.zoom) { NAV.zoom = true; history.pushState({ bm: 1, t: tab, v: view, zoom: 1 }, ""); }
+  $("zoomTxt").textContent = (img.alt || "") + (opts.actions ? "" : " · toque para fechar");
+  $("zoomAct").innerHTML = ""; (opts.actions || []).forEach(([label, fn, cls]) => { const b = document.createElement("button"); b.className = "btn " + (cls || ""); b.textContent = label; b.onclick = (ev) => { ev.stopPropagation(); fn(); }; $("zoomAct").appendChild(b); });
+  $("zoom").classList.toggle("withact", !!opts.actions); $("zoom").classList.remove("hidden"); document.documentElement.classList.add("lock"); if (!NAV.zoom) { NAV.zoom = true; history.pushState({ bm: 1, t: tab, v: view, zoom: 1 }, ""); }
 }
 const closeZoom = (o = {}) => { if (NAV.zoom) { NAV.zoom = false; if (!o.pop && history.state && history.state.zoom) history.replaceState({ bm: 1, t: tab, v: view }, ""); } $("zoom").classList.add("hidden"); if ($("sheet").classList.contains("hidden")) document.documentElement.classList.remove("lock"); };
 $("zoom").onclick = () => closeZoom();
@@ -1514,7 +1520,10 @@ function pickCommander(d, partnerOf = null) {
   $("pcC").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; P.colors.has(c) ? P.colors.delete(c) : P.colors.add(c); b.setAttribute("aria-pressed", P.colors.has(c)); draw(); };
   $("pcOwn").onchange = (e) => { P.owned = e.target.checked; draw(); };
   $("pcX").onclick = closeSheet;
-  $("pcR").onclick = (e) => { const b = e.target.closest("[data-pick]"); if (!b) return; setCommander(d, +b.dataset.pick, partnerOf !== null); };
+  $("pcR").onclick = (e) => {
+    const b = e.target.closest("[data-pick]"); if (!b) return; const oi = +b.dataset.pick;
+    zoomImg(b.querySelector(".cardimg"), { actions: [["Voltar", () => closeZoom()], [partnerOf !== null ? "Escolher como parceiro" : "Escolher como comandante", () => { closeZoom(); setCommander(d, oi, partnerOf !== null); }, "primary"]] });
+  };
   draw(); setTimeout(() => $("pcQ") && isWide() && $("pcQ").focus(), 50);
 }
 function setCommander(d, oi, asPartner) {
