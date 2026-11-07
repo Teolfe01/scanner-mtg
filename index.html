@@ -257,6 +257,17 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
   .ed-results { grid-template-columns: repeat(3, 1fr); }
 }
 @media (min-width: 1000px) and (max-width: 1300px) { .editor { grid-template-columns: 260px 1fr 260px; } }
+/* Scanner: zoom, quantidade rápida, voz */
+.zoomwrap { bottom: 150px; left: 50%; right: auto; transform: translateX(-50%); width: min(420px, calc(100% - 24px)); border-radius: 999px; padding: 6px 16px; font-size: 12px; backdrop-filter: blur(10px); }
+.zoomwrap input { accent-color: var(--accent); }
+.zoomwrap b { min-width: 40px; text-align: right; font-size: 13px; }
+.qq { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; } .qq .stepper { flex: none; }
+.qq button { flex: 1; min-width: 44px; height: 44px; border-radius: 14px; border: 0; background: var(--surface-2); font: 600 17px var(--font); color: var(--ink); transition: transform .15s; }
+.qq button[aria-pressed="true"] { background: var(--grad); color: var(--accent-ink); box-shadow: var(--glow); }
+.voicehint { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+.voicehint i { width: 8px; height: 8px; border-radius: 50%; background: #ff5a4a; animation: vpulse 1.2s ease-in-out infinite; }
+@keyframes vpulse { 50% { opacity: .3; transform: scale(.7); } }
+.destchip { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--grad); color: var(--accent-ink); font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 999px; box-shadow: var(--glow); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; z-index: 2; }
 /* Molde cinza com brilho diagonal enquanto a imagem carrega */
 .drawn.sk { padding: 0; display: block; background: #25272d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); overflow: hidden; }
 .drawn.sk i { position: absolute; background: #2f3239; border-radius: 3px; }
@@ -440,15 +451,16 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
     <select id="langSel" class="chipbtn" aria-label="Idioma" style="width:auto;min-height:0;padding:7px 10px"><option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option></select>
     <select id="scanDest" class="chipbtn" aria-label="Destino" style="width:auto;min-height:0;padding:7px 10px"></select>
     <button class="chipbtn hidden" id="camSwitch">Lente</button>
+    <button class="chipbtn hidden" id="voiceBtn" aria-pressed="false">🎤 Voz</button>
     <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ</button>
     <button class="chipbtn" id="dbgBtn" aria-pressed="false">🔍 Leitura</button>
   </div>
-  <div class="mf hidden" id="mfWrap"><button class="chipbtn" id="afBtn" aria-pressed="true">AF</button><input type="range" id="mfRange" aria-label="Foco manual"><span>perto ↔ longe</span></div>
+  <div class="mf zoomwrap hidden" id="zoomWrap"><span>1×</span><input type="range" id="zoomRange" aria-label="Zoom da câmera" step="0.05"><b id="zoomVal">1.0×</b></div>
+  <div class="destchip hidden" id="destChip"></div>
   <div class="scanstatus" id="scanStatus">Abrindo a câmera…</div>
   <div id="dbg" class="hidden" style="position:absolute;left:8px;right:8px;top:110px;background:rgba(0,0,0,.8);padding:6px;border-radius:10px;display:grid;gap:4px;z-index:3"></div>
   <div class="scanbottom">
     <button class="lastscan" id="lastScan">Escaneadas <b id="sessCount">0</b></button>
-    <button class="roundbtn hidden" id="zoomBtn" aria-label="Zoom">2×</button>
     <label class="roundbtn" aria-label="Foto com a câmera do celular"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none"></label>
     <button class="roundbtn hidden" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
   </div>
@@ -984,7 +996,7 @@ function offerCollectionAdd(d) {
 function renderDeck(id) {
   const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
   $("title").textContent = d.name; $("bars").innerHTML = ""; $("backBtn").classList.remove("invisible");
-  setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
+  setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.remove("hidden"); $("fab").onclick = () => addCardToDeck(d);
   const total = deckCount(d);
   const cards = d.cards.map(c => ({ ...c, o: oInfo(c.oi), have: haveFor(d, c.oi), lib: libFor(c.oi) }));
@@ -1210,7 +1222,7 @@ function renderEditor() {
   const d = deckOf(); if (!d) return go("decks");
   document.body.classList.add("wide");
   $("title").textContent = d.name; $("backBtn").classList.remove("invisible"); $("bars").innerHTML = "";
-  setMenu([["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
+  setMenu([["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.add("hidden"); $("main").onclick = null;
   $("main").innerHTML = `
     <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}</div>
@@ -1662,12 +1674,26 @@ async function ensureOCR() {
   worker = await Tesseract.createWorker("eng", 1, { workerPath: base + "worker.min.js", corePath: base, langPath: base, gzip: true });
 }
 function renderScan() {
-  $("scanDest").innerHTML = `<option value="">Destino: caixas</option>` + S.decks.map(d => `<option value="${esc(d.id)}">Deck: ${esc(d.name)}</option>`).join("");
+  $("scanDest").innerHTML = `<option value="">Destino: caixas</option>` + S.decks.map(d => `<option value="${esc(d.id)}">Deck: ${esc(d.name)}</option>`).join("") + `<option value="__new">+ Escanear um deck novo…</option>`;
   $("scanDest").value = S.settings.scanDest && S.decks.some(d => d.id === S.settings.scanDest) ? S.settings.scanDest : "";
+  updateDestChip(); voiceSync();
   $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
   startScanner();
 }
-$("scanDest").onchange = (e) => { S.settings.scanDest = e.target.value; save(true); };
+$("scanDest").onchange = (e) => {
+  if (e.target.value === "__new") {
+    const n = prompt("Nome do deck que você vai escanear", "Novo deck"); if (!n) { e.target.value = S.settings.scanDest || ""; return; }
+    const d = { id: uid(), name: n, format: "Commander", source: "scan", cards: [], built: true, created: Date.now() }; S.decks.push(d);
+    S.settings.scanDest = d.id; save(); renderScan(); toast("Escaneando para " + n + ". A 1ª lendária pode virar o comandante.", 3000); return;
+  }
+  S.settings.scanDest = e.target.value; save(true); updateDestChip();
+};
+function updateDestChip() {
+  const d = S.settings.scanDest && S.decks.find(x => x.id === S.settings.scanDest);
+  $("destChip").classList.toggle("hidden", !d);
+  if (d) $("destChip").textContent = `Escaneando para: ${d.name} · ${d.cards.filter(c => c.board !== "side" && c.board !== "maybe").reduce((a, c) => a + c.qty, 0)} cartas`;
+}
+function scanForDeck(d) { S.settings.scanDest = d.id; save(true); go("scan"); }
 async function startScanner() {
   try { await ensureOCR(); } catch (e) { $("scanStatus").textContent = "Não consegui carregar o leitor."; return; }
   let saved = S.settings.camId || "";
@@ -1676,7 +1702,7 @@ async function startScanner() {
   $("scanStatus").textContent = "Aponte para uma carta (segure a ~15–20 cm)";
   clearInterval(SC.timer); SC.timer = setInterval(tick, 250); SC.paused = false;
 }
-function stopCamera() { clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; }
+function stopCamera() { if (VOICE.running) { try { VOICE.rec.stop(); } catch {} VOICE.running = false; } clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; }
 const ZOOM = { levels: [1], cur: 1 }, FOCUS = { modes: [], dist: null, manual: false }, CAMS = { list: [], idx: 0, auto: false };
 async function startCamera(deviceId) {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("sem câmera");
@@ -1687,10 +1713,13 @@ async function startCamera(deviceId) {
   const v = $("video"); v.srcObject = stream; await v.play().catch(() => {});
   const caps = track.getCapabilities ? track.getCapabilities() : {};
   $("torchBtn").classList.toggle("hidden", !caps.torch);
-  if (caps.zoom && caps.zoom.max > 1) { ZOOM.levels = [1, 1.5, 2, 2.5, 3].filter(z => z >= caps.zoom.min && z <= caps.zoom.max); await setZoom(S.settings.zoom && ZOOM.levels.includes(S.settings.zoom) ? S.settings.zoom : ZOOM.levels[Math.min(2, ZOOM.levels.length - 1)]); $("zoomBtn").classList.remove("hidden"); } else $("zoomBtn").classList.add("hidden");
+  if (caps.zoom && caps.zoom.max > 1) {
+    ZOOM.min = caps.zoom.min || 1; ZOOM.max = Math.min(caps.zoom.max, 6); const r = $("zoomRange"); r.min = ZOOM.min; r.max = ZOOM.max;
+    r.parentNode.querySelector("span").textContent = (+ZOOM.min).toFixed(0) + "×";
+    const z0 = S.settings.zoom >= ZOOM.min && S.settings.zoom <= ZOOM.max ? S.settings.zoom : Math.min(2, ZOOM.max); r.value = z0; await setZoom(z0); $("zoomWrap").classList.remove("hidden");
+  } else $("zoomWrap").classList.add("hidden");
   FOCUS.modes = caps.focusMode || []; FOCUS.dist = caps.focusDistance && caps.focusDistance.max > caps.focusDistance.min ? caps.focusDistance : null;
-  $("mfWrap").classList.toggle("hidden", !FOCUS.dist);
-  if (FOCUS.dist) { const r = $("mfRange"); r.min = FOCUS.dist.min; r.max = FOCUS.dist.max; r.step = FOCUS.dist.step || .01; r.value = FOCUS.dist.min + (FOCUS.dist.max - FOCUS.dist.min) * .15; }
+
   if (FOCUS.modes.includes("continuous")) { try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} }
   try {
     const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
@@ -1700,22 +1729,32 @@ async function startCamera(deviceId) {
     if (!deviceId && !CAMS.auto) { CAMS.auto = true; const main = CAMS.list.find(d => /camera2 0\b/.test(d.label)); if (main && main.deviceId !== cur) return startCamera(main.deviceId); }
   } catch {}
 }
-async function setZoom(z) { try { await track.applyConstraints({ advanced: [{ zoom: z }] }); ZOOM.cur = z; $("zoomBtn").textContent = (z % 1 ? z.toFixed(1) : z) + "×"; S.settings.zoom = z; save(true); } catch {} }
-$("zoomBtn").onclick = () => setZoom(ZOOM.levels[(ZOOM.levels.indexOf(ZOOM.cur) + 1) % ZOOM.levels.length]);
+async function setZoom(z) {
+  z = Math.min(ZOOM.max || z, Math.max(ZOOM.min || 1, z)); ZOOM.want = z; $("zoomVal").textContent = z.toFixed(1) + "×";
+  if (ZOOM.applying) return; ZOOM.applying = true;
+  try { while (track && ZOOM.want !== ZOOM.cur) { const w = ZOOM.want; await track.applyConstraints({ advanced: [{ zoom: w }] }); ZOOM.cur = w; } } catch {}
+  ZOOM.applying = false; clearTimeout(ZOOM.t); ZOOM.t = setTimeout(() => { S.settings.zoom = ZOOM.cur; save(true); }, 600);
+}
+$("zoomRange").oninput = (e) => setZoom(+e.target.value);
+// Pinça com dois dedos também muda o zoom
+(() => { const P = new Map(); let d0 = 0, z0 = 1;
+  const dist = () => { const [a, b] = [...P.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+  $("scanView").addEventListener("pointerdown", (e) => { P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size === 2) { d0 = dist(); z0 = ZOOM.cur || 1; SC.pinching = true; } });
+  $("scanView").addEventListener("pointermove", (e) => { if (!P.has(e.pointerId)) return; P.set(e.pointerId, { x: e.clientX, y: e.clientY }); if (P.size === 2 && d0 && ZOOM.max) { const z = z0 * dist() / d0; $("zoomRange").value = z; setZoom(z); } });
+  const up = (e) => { P.delete(e.pointerId); if (P.size < 2) { d0 = 0; setTimeout(() => SC.pinching = false, 50); } };
+  $("scanView").addEventListener("pointerup", up); $("scanView").addEventListener("pointercancel", up);
+})();
 $("torchBtn").onclick = async () => { const on = $("torchBtn").getAttribute("aria-pressed") !== "true"; try { await track.applyConstraints({ advanced: [{ torch: on }] }); $("torchBtn").setAttribute("aria-pressed", on); } catch {} };
 $("camSwitch").onclick = async () => { if (CAMS.list.length < 2) return; CAMS.idx = (CAMS.idx + 1) % CAMS.list.length; try { await startCamera(CAMS.list[CAMS.idx].deviceId); S.settings.camId = CAMS.list[CAMS.idx].deviceId; save(true); } catch { toast("Não consegui abrir essa lente."); } };
-$("afBtn").onclick = async () => { FOCUS.manual = false; $("afBtn").setAttribute("aria-pressed", "true"); try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); } catch {} };
-$("mfRange").oninput = async (e) => { FOCUS.manual = true; $("afBtn").setAttribute("aria-pressed", "false"); try { await track.applyConstraints({ advanced: [{ focusMode: "manual", focusDistance: +e.target.value }] }); } catch {} };
 $("scanView").addEventListener("pointerup", async (ev) => {
-  if (!track || ev.target.closest("button, select, input, label, .scantop, .scanbottom, .mf")) return;
+  if (!track || SC.pinching || ev.target.closest("button, select, input, label, .scantop, .scanbottom, .mf")) return;
   const v = $("video"), vb = v.getBoundingClientRect(), VW = v.videoWidth, VH = v.videoHeight; if (!VW) return;
   const sc = Math.max(vb.width / VW, vb.height / VH), ox = vb.left + (vb.width - VW * sc) / 2, oy = vb.top + (vb.height - VH * sc) / 2;
   const px = Math.min(1, Math.max(0, (ev.clientX - ox) / sc / VW)), py = Math.min(1, Math.max(0, (ev.clientY - oy) / sc / VH));
   const ring = document.createElement("div"); ring.className = "focusring"; ring.style.left = (ev.clientX - vb.left) + "px"; ring.style.top = (ev.clientY - vb.top) + "px"; $("scanView").appendChild(ring); setTimeout(() => ring.remove(), 1100);
   const tries = []; if (FOCUS.modes.includes("single-shot")) tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "single-shot" }, { focusMode: "single-shot" }); if (FOCUS.modes.includes("continuous")) tries.push({ pointsOfInterest: [{ x: px, y: py }], focusMode: "continuous" });
   let ok = false; for (const t of tries) { try { await track.applyConstraints({ advanced: [t] }); ok = true; break; } catch {} }
-  if (!ok) toast(FOCUS.dist ? "Use a barra de foco." : "Sem controle de foco: troque a lente ou use o botão de foto.", 2500);
-  else if (!FOCUS.manual && FOCUS.modes.includes("continuous")) setTimeout(() => track && track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500);
+  if (ok) if (!FOCUS.manual && FOCUS.modes.includes("continuous")) setTimeout(() => track && track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(() => {}), 2500);
 });
 $("infoBtn").onclick = () => {
   SC.paused = true; const st = track?.getSettings?.() || {}, cp = track?.getCapabilities?.() || {};
@@ -1789,28 +1828,75 @@ function resultSheet(c) {
   const prints = (DB.prints[c.oi] || []).slice().reverse();
   const e = { oi: c.oi, set: c.set, number: c.number, foil: c.foil, lang: c.lang };
   const lib = whereLib(e);
+  const dest = S.settings.scanDest && S.decks.find(d => d.id === S.settings.scanDest);
+  const canCmd = dest && isCmdFormat(dest) && !dest.cards.some(x => x.board === "cmd") && cmdCandidates().includes(c.oi) && !/Background/.test(o.type);
+  if (c.asCmd === undefined) c.asCmd = !!canCmd && dest.cards.length === 0;
+  SC.cur = c;
   openSheet(`<div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(DB.sets[c.set] || c.set)} · ${esc(c.set.toUpperCase())} #${esc(c.number)}</div><div style="font-weight:600;margin:4px 0">${fmtUSD(priceOf(e))}</div><span class="via ${via[0]}">${esc(via[1])}</span></div></div>
     <div class="two"><select id="rPrint">${prints.map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}</option>`).join("")}</select>
       <select id="rLang">${["en", "pt", "es", "ja", "fr", "de", "it", "ko", "ru", "zhs", "zht"].map(l => `<option${l === c.lang ? " selected" : ""}>${l}</option>`).join("")}</select></div>
-    <div class="actions" style="align-items:center;justify-content:space-between"><span class="stepper"><button id="rM">−</button><span id="rQ">1</span><button id="rP">+</button></span><label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rFoil" ${c.foil ? "checked" : ""}> Foil</label></div>
-    <div class="meta">${S.settings.scanDest ? "Vai direto para o deck selecionado." : "Guardar em: " + esc(lib.text)}</div>`,
+    <div class="qq" id="rQQ">${[1, 2, 3, 4].map(n => `<button data-q="${n}" aria-pressed="${c.qty === n}">${n}</button>`).join("")}<span class="stepper"><button id="rM">−</button><span id="rQ">${c.qty}</span><button id="rP">+</button></span></div>
+    <div class="actions" style="align-items:center;justify-content:space-between"><label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rFoil" ${c.foil ? "checked" : ""}> Foil</label>${canCmd ? `<label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rCmd" ${c.asCmd ? "checked" : ""}> É o comandante</label>` : ""}</div>
+    <div class="meta">${dest ? "Vai para o deck " + esc(dest.name) + " (e entra na coleção como montada nele)." : "Guardar em: " + esc(lib.text)}</div>
+    ${VOICE.on ? `<div class="voicehint"><i></i> Diga “adicionar”, “pular”, um número (“três”) ou “foil”</div>` : ""}`,
     `<button class="btn" id="rSkip">Pular</button><button class="btn primary" id="rAdd">Adicionar</button>`);
-  $("rM").onclick = () => { c.qty = Math.max(1, c.qty - 1); $("rQ").textContent = c.qty; };
-  $("rP").onclick = () => { c.qty++; $("rQ").textContent = c.qty; };
+  const setQ = (n) => { c.qty = Math.max(1, n); $("rQ").textContent = c.qty; $("rQQ").querySelectorAll("[data-q]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.q === c.qty)); };
+  SC.setQ = setQ;
+  $("rQQ").onclick = (ev) => { const b = ev.target.closest("[data-q]"); if (b) setQ(+b.dataset.q); };
+  $("rM").onclick = () => setQ(c.qty - 1);
+  $("rP").onclick = () => setQ(c.qty + 1);
+  if ($("rCmd")) $("rCmd").onchange = (ev) => c.asCmd = ev.target.checked;
   $("rFoil").onchange = (ev) => c.foil = ev.target.checked; $("rLang").onchange = (ev) => c.lang = ev.target.value;
   $("rPrint").onchange = (ev) => { const p = DB.p[+ev.target.value]; c.set = p[0]; c.number = p[1]; c.via = "both"; resultSheet(c); };
-  $("rSkip").onclick = () => { SC.lastOi = c.oi; SC.clearSeen = false; resume(); };
+  $("rSkip").onclick = () => { SC.cur = null; SC.lastOi = c.oi; SC.clearSeen = false; resume(); };
   $("rAdd").onclick = () => commitScan(c, false);
 }
 function commitScan(c, auto) {
   const e = addToCollection(c);
   const dest = S.settings.scanDest && S.decks.find(d => d.id === S.settings.scanDest);
-  if (dest) { e.decks[dest.id] = (e.decks[dest.id] || 0) + c.qty; if (!dest.cards.some(x => x.oi === c.oi)) dest.cards.push({ oi: c.oi, qty: c.qty, board: "main", set: c.set, number: c.number }); save(); }
+  SC.cur = null;
+  if (dest) {
+    e.decks[dest.id] = (e.decks[dest.id] || 0) + c.qty;
+    const board = c.asCmd ? "cmd" : "main";
+    let ex = dest.cards.find(x => x.oi === c.oi && x.board === board) || (!c.asCmd && dest.cards.find(x => x.oi === c.oi));
+    if (c.asCmd) { dest.cards = dest.cards.filter(x => !(x.oi === c.oi && x.board !== "cmd")); if (!ex) { ex = { oi: c.oi, qty: 1, board: "cmd", set: c.set, number: c.number }; dest.cards.unshift(ex); } if (!dest.name || dest.name === "Novo deck") dest.name = DB.o[c.oi][0].split(" // ")[0]; }
+    else if (!ex) dest.cards.push({ oi: c.oi, qty: c.qty, board: "main", set: c.set, number: c.number });
+    else { const have = haveFor(dest, c.oi); const listed = dest.cards.filter(x => x.oi === c.oi).reduce((a, x) => a + x.qty, 0); if (have > listed) ex.qty += have - listed; }
+    save(); updateDestChip();
+  }
   SC.session.unshift({ key: e.key, qty: c.qty, name: e.name, where: dest ? "Deck: " + dest.name : whereLib(e).text, dest: dest ? dest.id : "" });
   $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
   toast(`${e.name} → ${dest ? dest.name : whereLib(e).text.replace(/^Caixa /, "Cx ")}`, 1600);
   fillImages([e]);
   SC.lastOi = c.oi; SC.clearSeen = false; resume();
+}
+// ---- Comandos de voz no scanner (Web Speech API, pt-BR) ----
+const VOICE = { on: false, rec: null, running: false };
+const NUM_PT = { um: 1, uma: 1, dois: 2, duas: 2, "três": 3, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, doze: 12, vinte: 20 };
+(() => { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return; $("voiceBtn").classList.remove("hidden");
+  $("voiceBtn").onclick = () => { VOICE.on = !VOICE.on; $("voiceBtn").setAttribute("aria-pressed", VOICE.on); S.settings.voice = VOICE.on; save(true); voiceSync(); if (VOICE.on) toast("Voz ligada: depois que a carta for lida, diga “adicionar”, “pular” ou a quantidade.", 3500); if (SC.cur) resultSheet(SC.cur); };
+  const r = new SR(); r.lang = "pt-BR"; r.continuous = true; r.interimResults = false; VOICE.rec = r;
+  r.onresult = (ev) => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) voiceCommand(ev.results[i][0].transcript); };
+  r.onend = () => { VOICE.running = false; if (VOICE.on && tab === "scan") setTimeout(voiceSync, 300); };
+  r.onerror = (e) => { if (e.error === "not-allowed" || e.error === "service-not-allowed") { VOICE.on = false; $("voiceBtn").setAttribute("aria-pressed", "false"); toast("Permissão de microfone negada."); } };
+})();
+function voiceSync() {
+  if (!VOICE.rec) return;
+  if (S.settings.voice && !VOICE.on && tab === "scan") { VOICE.on = true; $("voiceBtn").setAttribute("aria-pressed", "true"); }
+  const want = VOICE.on && tab === "scan";
+  if (want && !VOICE.running) { try { VOICE.rec.start(); VOICE.running = true; } catch {} }
+  if (!want && VOICE.running) { try { VOICE.rec.stop(); } catch {} VOICE.running = false; }
+}
+function voiceCommand(raw) {
+  const t = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); if (!t) return;
+  const c = SC.cur; if (!c || $("sheet").classList.contains("hidden")) return;
+  const nm = t.match(/\b(\d{1,2})\b/) || t.match(/\b(um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|doze|vinte)\b/);
+  if (nm) { const n = /\d/.test(nm[1]) ? +nm[1] : NUM_PT[nm[1]]; if (n && SC.setQ) SC.setQ(n); }
+  if (/\bfoil\b|\bfoiu\b|\bfoi o\b/.test(t) && $("rFoil")) { $("rFoil").checked = !$("rFoil").checked; c.foil = $("rFoil").checked; }
+  if (/\b(comandante)\b/.test(t) && $("rCmd")) { $("rCmd").checked = true; c.asCmd = true; }
+  if (/\b(pula|pular|pule|proxima|proximo|nao|errado|errada|cancela)\b/.test(t)) { toast("🎤 pular"); $("rSkip").click(); return; }
+  if (/\b(adiciona|adicionar|adicione|sim|ok|okay|confirma|confirmar|salva|salvar|isso|pode|beleza)\b/.test(t)) { toast(`🎤 adicionar ${c.qty}×`); $("rAdd").click(); return; }
+  if (nm) toast(`🎤 quantidade ${c.qty}`, 1200);
 }
 function resume() { closeSheet(); SC.streak = 0; SC.last = null; SC.paused = false; $("guide").className = "guide"; $("scanStatus").textContent = "Aponte para a próxima carta"; }
 $("lastScan").onclick = () => {
