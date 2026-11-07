@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121316">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
 <title>Biblioteca MTG</title>
@@ -758,7 +759,7 @@ function colFiltered() {
 }
 function renderCol() {
   $("title").textContent = "Coleção";
-  setMenu([...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Salvar backup no Drive", backup], ["Restaurar backup do Drive", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
+  setMenu([...(isInstalled() ? [] : [["📲 Instalar o app", installApp]]), ...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Salvar backup no Drive", backup], ["Restaurar backup do Drive", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
   if (!$("colBars")) {
     $("bars").innerHTML = `<div id="colBars">
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
@@ -1148,6 +1149,20 @@ function addCardToDeck(d) {
   $("aList").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (!b) return; const oi = +b.dataset.oi; const c = d.cards.find(x => x.oi === oi && x.board === "main"); if (c) c.qty++; else d.cards.push({ oi, qty: 1, board: "main" }); save(); draw(); toast("+1 " + DB.o[oi][0], 900); };
 }
 
+// ============ APP INSTALÁVEL (PWA) ============
+let INSTALL = null;
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); INSTALL = e; if (tab === "col") renderCol(); });
+window.addEventListener("appinstalled", () => { INSTALL = null; toast("App instalado! Procure “Biblioteca MTG” nos seus apps."); });
+const isInstalled = () => matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: window-controls-overlay)").matches;
+async function installApp() {
+  if (INSTALL) { INSTALL.prompt(); const r = await INSTALL.userChoice; if (r.outcome === "accepted") INSTALL = null; return; }
+  openSheet(`<h3 style="margin:0">Instalar o app</h3><div class="meta" style="display:grid;gap:8px">
+    <div><b>Android (Chrome):</b> menu ⋮ do navegador → <b>Instalar app</b> (ou "Adicionar à tela inicial").</div>
+    <div><b>PC (Chrome ou Edge):</b> ícone de instalar na barra de endereço, ou menu → <b>Instalar Biblioteca MTG</b>.</div>
+    <div><b>iPhone (Safari):</b> Compartilhar → <b>Adicionar à Tela de Início</b>.</div></div>`, `<button class="btn primary" id="insOk">OK</button>`);
+  $("insOk").onclick = closeSheet;
+}
 // ============ ANIMAÇÕES ============
 function animateView() {
   const m = $("main"); m.classList.remove("view-in"); void m.offsetWidth; m.classList.add("view-in");
@@ -2092,7 +2107,7 @@ function accountMenu() {
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
     $("backupNow").onclick = backup; updateBackupBanner();
-    go("col"); updateRate().then(() => { if (tab === "col") renderCol(); });
+    const startTab = new URLSearchParams(location.search).get("tab"); go(views[startTab] ? startTab : "col"); updateRate().then(() => { if (tab === "col") renderCol(); });
     try {
       const u = await cloudInit();
       if (u) afterLogin(u);
