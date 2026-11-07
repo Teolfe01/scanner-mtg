@@ -267,7 +267,8 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
 .voicehint { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
 .voicehint i { width: 8px; height: 8px; border-radius: 50%; background: #ff5a4a; animation: vpulse 1.2s ease-in-out infinite; }
 @keyframes vpulse { 50% { opacity: .3; transform: scale(.7); } }
-.destchip { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--grad); color: var(--accent-ink); font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 999px; box-shadow: var(--glow); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; z-index: 2; }
+.destchip button { margin-left: 10px; border: 0; background: rgba(20,22,26,.9); color: #fff; font: 600 12px var(--font); padding: 5px 12px; border-radius: 999px; }
+.destchip { display: flex; align-items: center; padding: 4px 4px 4px 14px !important; position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translateX(-50%); background: var(--grad); color: var(--accent-ink); font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 999px; box-shadow: var(--glow); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; z-index: 2; }
 /* Molde cinza com brilho diagonal enquanto a imagem carrega */
 .drawn.sk { padding: 0; display: block; background: #25272d; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); overflow: hidden; }
 .drawn.sk i { position: absolute; background: #2f3239; border-radius: 3px; }
@@ -975,9 +976,8 @@ function importDeckDialog() {
     const cards = []; const miss = [];
     rows.forEach((r, i) => { const pi = resolveRow(r); if (pi < 0) { miss.push(r.name); return; } const p = DB.p[pi]; cards.push({ oi: p[3], qty: r.qty, board: r.board || "main", set: r.set ? p[0] : "", number: r.set ? p[1] : "" }); });
     const name = $("dName").value || "Deck importado", fmt = $("dFormat").value; const n = cards.reduce((a, c) => a + c.qty, 0);
-    confirm2({ title: "Conferir deck", body: `<p style="margin:0"><b>${esc(name)}</b> · ${esc(fmt)} · ${n} cartas</p>${miss.length ? `<div class="meta">Não encontrei (vão ficar de fora): ${esc(miss.slice(0, 15).join(", "))}</div>` : ""}<p class="meta" style="margin:0">Só cria a lista do deck — não mexe na coleção.</p>`,
-      second: () => `Criar o deck <b>${esc(name)}</b> com ${n} cartas?`, okLabel: "Sim, criar deck",
-      onOk: () => { closeSheet(); newDeck(name, fmt, cards, "lista"); } });
+    if (miss.length) toast("Não encontrei: " + miss.slice(0, 6).join(", "), 4000);
+    closeSheet(); newDeck(name, fmt, cards, "lista");
   };
 }
 // Precons via MTGJSON
@@ -1010,9 +1010,8 @@ async function preconDialog() {
       });
       add(j.commander, "cmd"); add(j.mainBoard, "main"); add(j.sideBoard, "side");
       const fmt = /commander/i.test(j.type || "") ? "Commander" : "Livre"; const n = cards.reduce((a, c) => a + c.qty, 0);
-      confirm2({ title: "Importar precon", body: `<p style="margin:0"><b>${esc(j.name)}</b> · ${esc(j.type || "")} · ${n} cartas</p>${miss.length ? `<div class="meta">Não encontrei: ${esc(miss.slice(0, 10).join(", "))}</div>` : ""}`,
-        backLabel: "Escolher outro", onBack: preconDialog, second: () => `Importar o precon <b>${esc(j.name)}</b> (${n} cartas)?`,
-        onOk: () => { closeSheet(); const d = newDeck(j.name, fmt, cards, "precon " + (j.code || "")); setTimeout(() => offerCollectionAdd(d), 400); } });
+      if (miss.length) toast("Não encontrei: " + miss.slice(0, 5).join(", "), 4000);
+      const d = newDeck(j.name, fmt, cards, "precon " + (j.code || "")); setTimeout(() => offerCollectionAdd(d), 400);
     } catch (e) { $("pStatus").textContent = "Não consegui baixar esse deck."; }
   };
 }
@@ -1021,11 +1020,6 @@ function offerCollectionAdd(d) {
     `<button class="btn" id="oNo">Não, só a lista</button><button class="btn primary" id="oYes">Sim, adicionar e montar</button>`);
   $("oNo").onclick = closeSheet;
   $("oYes").onclick = () => {
-    const dupN = d.cards.filter(c => S.cards.some(e => e.oi === c.oi && !/Basic Land/.test(DB.o[c.oi][5]))).length;
-    openSheet(`<h3 style="margin:0">Tem certeza?</h3><p style="margin:0">Vou adicionar <b>${deckCount(d)} cartas</b> à coleção e marcar como montadas em <b>${esc(d.name)}</b>.${dupN ? ` ${dupN} delas vocês já têm em outra cópia — vão ficar com uma cópia a mais.` : ""}</p><p class="meta" style="margin:0">Confirmação 2 de 2.</p>`, `<button class="btn" id="oNo2">Cancelar</button><button class="btn primary" id="oYes2">Sim, adicionar</button>`);
-    $("oNo2").onclick = closeSheet; $("oYes2").onclick = () => doAdd();
-  };
-  const doAdd = () => {
     const added = [];
     for (const c of d.cards) { const e = addToCollection({ oi: c.oi, set: c.set, number: c.number, lang: "en", foil: c.foil, qty: c.qty }); e.decks[d.id] = (e.decks[d.id] || 0) + c.qty; added.push(e); }
     d.built = true; save(); closeSheet(); renderDeck(d.id); toast("Precon adicionado e montado."); fillImages(added);
@@ -1720,16 +1714,35 @@ function renderScan() {
 }
 $("scanDest").onchange = (e) => {
   if (e.target.value === "__new") {
-    const n = prompt("Nome do deck que você vai escanear", "Novo deck"); if (!n) { e.target.value = S.settings.scanDest || ""; return; }
-    const d = { id: uid(), name: n, format: "Commander", source: "scan", cards: [], built: true, created: Date.now() }; S.decks.push(d);
-    S.settings.scanDest = d.id; save(); renderScan(); toast("Escaneando para " + n + ". A 1ª lendária pode virar o comandante.", 3000); return;
+    const n = prompt("Nome do deck (pode deixar em branco e dar o nome no final)", ""); if (n === null) { e.target.value = S.settings.scanDest || ""; return; }
+    const d = { id: uid(), name: n.trim() || "Deck escaneado " + new Date().toLocaleDateString("pt-BR"), unnamed: !n.trim(), format: "Commander", source: "scan", cards: [], built: true, created: Date.now() }; S.decks.push(d);
+    S.settings.scanDest = d.id; save(); renderScan(); toast("Escaneando o deck. A 1ª lendária pode virar o comandante. Toque em “Finalizar” quando acabar.", 3500); return;
   }
   S.settings.scanDest = e.target.value; save(true); updateDestChip();
 };
 function updateDestChip() {
   const d = S.settings.scanDest && S.decks.find(x => x.id === S.settings.scanDest);
   $("destChip").classList.toggle("hidden", !d);
-  if (d) $("destChip").textContent = `Escaneando para: ${d.name} · ${d.cards.filter(c => c.board !== "side" && c.board !== "maybe").reduce((a, c) => a + c.qty, 0)} cartas`;
+  if (!d) return;
+  const n = d.cards.filter(c => c.board !== "side" && c.board !== "maybe").reduce((a, c) => a + c.qty, 0); const cmdF = isCmdFormat(d);
+  $("destChip").innerHTML = `<span>${esc(d.unnamed ? "Deck novo" : d.name)} · <b>${n}${cmdF ? "/100" : ""}</b></span><button id="finishDeck">Finalizar</button>`;
+  $("finishDeck").onclick = (ev) => { ev.stopPropagation(); finishScanDeck(d); };
+  if (cmdF && n === 100 && d.lastN !== 100) toast("100 cartas! Toque em Finalizar para nomear e salvar o deck.", 3500);
+  d.lastN = n;
+}
+function finishScanDeck(d) {
+  SC.paused = true;
+  const n = d.cards.filter(c => c.board !== "side" && c.board !== "maybe").reduce((a, c) => a + c.qty, 0);
+  const cmd = d.cards.filter(c => c.board === "cmd").map(c => DB.o[c.oi][0].split(" // ")[0]).join(" + ");
+  const sugg = d.unnamed ? (cmd || "") : d.name;
+  openSheet(`<h3 style="margin:0">Finalizar deck escaneado</h3><p class="meta" style="margin:0">${n} carta(s)${cmd ? " · comandante: " + esc(cmd) : ""}${isCmdFormat(d) && n !== 100 ? ` · Commander tem 100 — faltam ${100 - n > 0 ? 100 - n : 0}${n > 100 ? ` (passou ${n - 100})` : ""}` : ""}</p>
+    <input type="text" id="fnName" placeholder="Nome do deck" value="${esc(sugg)}"><select id="fnFmt">${["Commander", "Standard", "Pioneer", "Modern", "Pauper", "Livre"].map(f => `<option${f === (d.format || "Commander") ? " selected" : ""}>${f}</option>`).join("")}</select>`,
+    `<button class="btn" id="fnBack">Continuar escaneando</button><button class="btn primary" id="fnSave">Salvar deck</button>`);
+  $("fnBack").onclick = () => { closeSheet(); SC.paused = false; };
+  $("fnSave").onclick = () => {
+    const nm = $("fnName").value.trim(); if (!nm) { $("fnName").focus(); toast("Dê um nome ao deck."); return; }
+    d.name = nm; delete d.unnamed; d.format = $("fnFmt").value; S.settings.scanDest = ""; save(); closeSheet(); toast(`Deck “${nm}” salvo com ${n} cartas`, 2500); openEditor(d.id);
+  };
 }
 function scanForDeck(d) { S.settings.scanDest = d.id; save(true); go("scan"); }
 async function startScanner() {
@@ -1876,7 +1889,7 @@ function resultSheet(c) {
     <div class="qq" id="rQQ">${[1, 2, 3, 4].map(n => `<button data-q="${n}" aria-pressed="${c.qty === n}">${n}</button>`).join("")}<span class="stepper"><button id="rM">−</button><span id="rQ">${c.qty}</span><button id="rP">+</button></span></div>
     <div class="actions" style="align-items:center;justify-content:space-between"><label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rFoil" ${c.foil ? "checked" : ""}> Foil</label>${canCmd ? `<label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rCmd" ${c.asCmd ? "checked" : ""}> É o comandante</label>` : ""}</div>
     <div class="meta">${dest ? "Vai para o deck " + esc(dest.name) + " (e entra na coleção como montada nele)." : "Guardar em: " + esc(lib.text)}</div>
-    ${VOICE.on ? `<div class="voicehint"><i></i> Diga “adicionar”, “pular”, um número (“três”) ou “foil”</div>` : ""}`,
+    ${VOICE.on ? `<div class="voicehint"><i></i> Diga “sim” (adicionar) ou “não” (pular) · um número (“três”) muda a quantidade · “foil”</div>` : ""}`,
     `<button class="btn" id="rSkip">Pular</button><button class="btn primary" id="rAdd">Adicionar</button>`);
   const setQ = (n) => { c.qty = Math.max(1, n); $("rQ").textContent = c.qty; $("rQQ").querySelectorAll("[data-q]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.q === c.qty)); };
   SC.setQ = setQ;
@@ -1923,7 +1936,7 @@ function commitScan(c, auto) {
 const VOICE = { on: false, rec: null, running: false };
 const NUM_PT = { um: 1, uma: 1, dois: 2, duas: 2, "três": 3, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10, doze: 12, vinte: 20 };
 (() => { const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) return; $("voiceBtn").classList.remove("hidden");
-  $("voiceBtn").onclick = () => { VOICE.on = !VOICE.on; $("voiceBtn").setAttribute("aria-pressed", VOICE.on); S.settings.voice = VOICE.on; save(true); voiceSync(); if (VOICE.on) toast("Voz ligada: depois que a carta for lida, diga “adicionar”, “pular” ou a quantidade.", 3500); if (SC.cur) resultSheet(SC.cur); };
+  $("voiceBtn").onclick = () => { VOICE.on = !VOICE.on; $("voiceBtn").setAttribute("aria-pressed", VOICE.on); S.settings.voice = VOICE.on; save(true); voiceSync(); if (VOICE.on) toast("Voz ligada: quando a carta for lida, diga “sim” para adicionar ou “não” para pular.", 3500); if (SC.cur) resultSheet(SC.cur); };
   const r = new SR(); r.lang = "pt-BR"; r.continuous = true; r.interimResults = false; VOICE.rec = r;
   r.onresult = (ev) => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) voiceCommand(ev.results[i][0].transcript); };
   r.onend = () => { VOICE.running = false; if (VOICE.on && tab === "scan") setTimeout(voiceSync, 300); };
