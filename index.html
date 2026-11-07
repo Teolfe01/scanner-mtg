@@ -766,8 +766,8 @@ $("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle(
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
 
 // Folha (sheet)
-function openSheet(body, foot = "") { document.documentElement.classList.add("lock"); if (!NAV.sheet) { NAV.sheet = true; history.pushState({ bm: 1, t: tab, v: view, sheet: 1 }, ""); } $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
-function closeSheet(o = {}) { if (NAV.sheet) { NAV.sheet = false; if (!o.pop && history.state && history.state.sheet) history.replaceState({ bm: 1, t: tab, v: view }, ""); } document.documentElement.classList.remove("lock"); $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
+function openSheet(body, foot = "") { NAV.reopen = null; document.documentElement.classList.add("lock"); if (!NAV.sheet) { NAV.sheet = true; history.pushState({ bm: 1, t: tab, v: view, sheet: 1 }, ""); } $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
+function closeSheet(o = {}) { NAV.reopen = null; if (NAV.sheet) { NAV.sheet = false; if (!o.pop && history.state && history.state.sheet) history.replaceState({ bm: 1, t: tab, v: view }, ""); } document.documentElement.classList.remove("lock"); $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
 $("scrim").onclick = () => closeSheet();
 
 // ============ COLEÇÃO ============
@@ -842,7 +842,7 @@ function drawCol() {
   if (arr.length > LIM) $("main").insertAdjacentHTML("beforeend", `<p class="meta" style="text-align:center">Mostrando ${LIM} de ${arr.length}. Use o filtro para achar o resto.</p>`);
   $("main").onclick = (ev) => { const b = ev.target.closest("[data-k]"); if (b) openCard(b.dataset.k); };
 }
-function openCard(key) {
+function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("hidden")) NAV.reopen = ["card", key]; }, 0);
   const e = S.cards.find(x => x.key === key); if (!e) return;
   const o = oInfo(e.oi); const lib = freeQty(e);
   const locs = [];
@@ -1159,7 +1159,7 @@ function renderDeck(id) {
   $("bBuild").onclick = () => buildDeck(d); $("bUnbuild").onclick = () => unbuildDeck(d); $("bMiss").onclick = () => copyMissing(d);
   $("main").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (b) deckCardSheet(d, +b.dataset.oi, b.dataset.b); };
 }
-function deckCardSheet(d, oi, board) {
+function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classList.contains("hidden")) NAV.reopen = ["deck", d.id, oi, board]; }, 0);
   const c = d.cards.find(x => x.oi === oi && x.board === board); const o = oInfo(oi);
   const owned = S.cards.filter(e => e.oi === oi);
   const where = owned.flatMap(e => { const out = []; if (freeQty(e)) out.push(`📦 ${whereLib(e).text} — ${freeQty(e)}×`); for (const [did, q] of Object.entries(e.decks || {})) { const dd = S.decks.find(x => x.id === did); if (dd && q) out.push(`🃏 ${dd.name} — ${q}×`); } return out; });
@@ -1266,6 +1266,39 @@ function addCardToDeck(d) {
   $("aList").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (!b) return; const oi = +b.dataset.oi; const c = d.cards.find(x => x.oi === oi && x.board === "main"); if (c) c.qty++; else d.cards.push({ oi, qty: 1, board: "main" }); save(); draw(); toast("+1 " + DB.o[oi][0], 900); };
 }
 
+// ============ RETOMAR DE ONDE PAROU ============
+// Se o Android fechar o app (ex.: ao abrir a LigaMagic), ele volta na mesma tela, rolagem, filtros e carta aberta.
+function saveResume() {
+  try {
+    S.settings.resume = { at: Date.now(), t: tab, v: view, y: Math.round(window.scrollY), reopen: NAV.reopen || null, DF: DF.f, DFid: DF.id,
+      F: { q: F.q, colors: [...F.colors], type: F.type, role: F.role, where: F.where, sort: F.sort, view: F.view },
+      ED: { pane: ED.pane, group: ED.group, mode: ED.mode, q: ED.q } };
+    store.set("settings", S.settings).catch(() => {});
+  } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveResume(); });
+window.addEventListener("pagehide", saveResume);
+document.addEventListener("click", (e) => { if (e.target.closest('a[target="_blank"]')) saveResume(); }, true);
+function restoreResume() {
+  const r = S.settings.resume; if (!r || Date.now() - r.at > 12 * 3600e3 || !views[r.t]) return false;
+  if (r.v && r.v.id && !S.decks.some(d => d.id === r.v.id)) return false;
+  if (r.F) { Object.assign(F, r.F); F.colors = new Set(r.F.colors || []); }
+  if (r.ED) Object.assign(ED, r.ED);
+  if (r.v && r.v.kind === "edit") ED.id = r.v.id;
+  DF.id = r.DFid || null; DF.f = r.DF || null;
+  go(r.t, r.v || null, { init: true });
+  setTimeout(() => {
+    window.scrollTo(0, r.y || 0);
+    const [k, a, b, c] = r.reopen || [];
+    try {
+      if (k === "card" && S.cards.some(x => x.key === a)) openCard(a);
+      else if (k === "deck") { const d = S.decks.find(x => x.id === a); if (d && d.cards.some(x => x.oi === b && x.board === c)) deckCardSheet(d, b, c); }
+      else if (k === "edmenu" && tab === "decks" && view && view.kind === "edit") deckCardMenu(a, b);
+      else if (k === "info") cardInfo(a);
+    } catch (e) {}
+  }, 350);
+  return true;
+}
 // ============ APP INSTALÁVEL (PWA) ============
 let INSTALL = null;
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js").catch(() => {});
@@ -1681,7 +1714,7 @@ function moveCard(oi, board, g) {
   }
   save(); renderDeckPane(); renderStatsPane();
 }
-function deckCardMenu(oi, board) {
+function deckCardMenu(oi, board) { setTimeout(() => { if (!$("sheet").classList.contains("hidden")) NAV.reopen = ["edmenu", oi, board]; }, 0);
   const d = deckOf(); const c = d.cards.find(x => x.oi === oi && x.board === board); if (!c) return;
   const o = oInfo(oi); const st = ownStatus(d, c);
   const cats = [...new Set(d.cards.map(x => x.cat).filter(Boolean))];
@@ -1704,7 +1737,7 @@ function deckCardMenu(oi, board) {
   $("mDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); closeSheet(); done(); };
   $("mOk").onclick = closeSheet;
 }
-function cardInfo(oi) {
+function cardInfo(oi) { setTimeout(() => { if (!$("sheet").classList.contains("hidden")) NAV.reopen = ["info", oi]; }, 0);
   const o = oInfo(oi); const lib = libFor(oi);
   openSheet(`<div class="detail">${cardImgHTML(fakeEntry({ oi }), { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div><div class="meta">${lib ? `Temos ${lib} livre(s) nas caixas` : "Não temos"}</div></div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}${o.roles.length ? `<div class="roles">${o.roles.map(r => `<span class="pill">${esc(ROLES[r])}</span>`).join("")}</div>` : ""}
@@ -2232,6 +2265,7 @@ function accountMenu() {
     $("splash").classList.add("hidden");
     const startTab = new URLSearchParams(location.search).get("tab"); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
+    else if (restoreResume()) {}
     else if (lv && views[lv.t] && (!lv.v || !lv.v.id || S.decks.some(d => d.id === lv.v.id))) { if (lv.v && lv.v.kind === "edit") ED.id = lv.v.id; go(lv.t, lv.v || null, { init: true }); }
     else go("col", null, { init: true }); updateRate().then(() => { if (tab === "col") renderCol(); });
     try {
