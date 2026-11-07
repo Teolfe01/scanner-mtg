@@ -63,7 +63,7 @@ main { max-width: 900px; margin: 0 auto; padding: 12px 12px calc(var(--nav-h) + 
 h2.sec { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 18px 4px 8px; font-weight: 600; display: flex; justify-content: space-between; }
 
 /* Navegação inferior */
-nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; background: var(--bar); box-shadow: 0 -1px 0 rgba(0,0,0,.4); display: grid; grid-template-columns: repeat(4, 1fr); padding-bottom: env(safe-area-inset-bottom); }
+nav.bottom { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; background: var(--bar); box-shadow: 0 -1px 0 rgba(0,0,0,.4); display: flex; padding-bottom: env(safe-area-inset-bottom); }
 nav.bottom button { border: 0; background: transparent; color: var(--muted); height: var(--nav-h); display: grid; place-items: center; gap: 2px; font-size: 12px; padding: 6px 0; }
 nav.bottom button svg { width: 24px; height: 24px; }
 nav.bottom button[aria-current="page"] { color: var(--accent); }
@@ -289,7 +289,7 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
 /* Barras de rolagem discretas; nunca duas lado a lado */
 * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.16) transparent; }
 ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 99px; } ::-webkit-scrollbar-thumb:hover { background: rgba(255,122,69,.55); }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 99px; } ::-webkit-scrollbar-thumb:hover { background: rgba(var(--acc-rgb),.55); }
 html { scrollbar-gutter: stable; }
 html.lock, html.lock body { overflow: hidden; }
 .ed-search, .ed-stats, .menu, .sheet .body { scrollbar-width: none; }
@@ -314,21 +314,50 @@ a.btn { text-decoration: none; }
 .dkdel { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; opacity: .55; font-size: 18px; transition: opacity .2s, background .2s; }
 .dkdel:hover { opacity: 1; background: rgba(255,90,70,.15); }
 .danger-row .rn { color: var(--bad); }
+/* Configurações */
+nav.bottom > button { flex: 1 1 0; min-width: 0; } nav.bottom > button.hidden { display: none; }
+html.nomotion *, html.nomotion *::before, html.nomotion *::after { animation: none !important; transition: none !important; }
+html[data-grid="s"] .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+html[data-grid="l"] .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { html[data-grid="s"] .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } html[data-grid="l"] .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 860px) { html[data-grid="s"] .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); } html[data-grid="l"] .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+html.noprices .grid .cardimg .price { display: none; }
+.cfg .sec { margin-top: 18px; }
+.cfg-card { display: grid; gap: 4px; padding: 14px 16px !important; }
+.cfg-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,.05); }
+.cfg-card > .cfg-row:last-child, .cfg-card > .cfg-row:last-of-type { border-bottom: 0; }
+.cfg-btn { width: 100%; background: none; border: 0; border-bottom: 1px solid rgba(255,255,255,.05); color: inherit; text-align: left; font: inherit; cursor: pointer; }
+.cfg-l { font-weight: 500; font-size: 15px; }
+.cfg-s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.cfg-go { color: var(--muted); font-size: 22px; }
+.tgl { flex: none; width: 50px; height: 30px; border-radius: 999px; border: 0; background: var(--surface-2); position: relative; cursor: pointer; transition: background .25s; }
+.tgl i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #c9ccd3; transition: transform .25s var(--spring), background .25s; }
+.tgl[aria-checked="true"] { background: var(--grad); } .tgl[aria-checked="true"] i { transform: translateX(20px); background: #fff; }
+.seg { display: flex; flex: none; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
+.seg button { border: 0; background: none; color: var(--muted); font: 500 12px var(--font); padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--grad); color: var(--accent-ink); }
+.themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 10px; margin: 8px 0 6px; }
+.theme { display: grid; justify-items: center; gap: 6px; background: none; border: 0; color: var(--muted); font: 12px var(--font); cursor: pointer; }
+.theme i { width: 46px; height: 46px; border-radius: 16px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); transition: transform .2s var(--spring); }
+.theme[aria-pressed="true"] { color: var(--ink); } .theme[aria-pressed="true"] i { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px #fff; transform: scale(1.06); }
+.deals-note { background: var(--surface); border-radius: 16px; padding: 10px 14px; margin-bottom: 4px; }
+.res a.resimg { display: block; position: relative; text-decoration: none; }
+@media (max-width: 420px) { .cfg-row:has(.seg) { flex-direction: column; align-items: stretch; } .cfg-row .seg { justify-content: stretch; } .cfg-row .seg button { flex: 1; } }
 /* Filtros no resumo do deck */
 .fbtn { cursor: pointer; transition: transform .15s, opacity .2s, box-shadow .2s; }
 button.pill.fbtn { font: inherit; font-size: 11px; color: #cfd5df; }
 .fbtn.on { box-shadow: 0 0 0 2px var(--accent) inset, var(--glow); color: #fff !important; }
-.kpi.fbtn.on { background: rgba(255,122,69,.16); }
+.kpi.fbtn.on { background: rgba(var(--acc-rgb),.16); }
 .card[data-fk="cmc"] .curve .fbtn:not(.on), .card[data-fk="color"] .colorbar .fbtn:not(.on) { opacity: .35; }
-.curve .fbtn.on i { box-shadow: 0 0 14px rgba(255,122,69,.6); }
+.curve .fbtn.on i { box-shadow: 0 0 14px rgba(var(--acc-rgb),.6); }
 .colorbar.tall { height: 14px; } .colorbar .fbtn.on { box-shadow: 0 0 0 2px #fff inset; }
-.fchip { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(255,122,69,.12); border-radius: 999px; padding: 6px 6px 6px 14px; margin: 12px 0 0; font-size: 13px; scroll-margin-top: 80px; }
+.fchip { display: flex; justify-content: space-between; align-items: center; gap: 8px; background: rgba(var(--acc-rgb),.12); border-radius: 999px; padding: 6px 6px 6px 14px; margin: 12px 0 0; font-size: 13px; scroll-margin-top: 80px; }
 .fchip button { border: 0; background: var(--surface-2); color: var(--ink); border-radius: 999px; padding: 6px 12px; font: 600 12px var(--font); }
 #dlist { scroll-margin-top: 70px; }
 /* Comandante + template */
-.cmdban { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, rgba(232,65,58,.12), rgba(255,194,75,.06)); border-radius: 26px; padding: 12px; margin-bottom: 14px; box-shadow: 0 0 0 1px rgba(255,122,69,.18) inset; }
+.cmdban { display: flex; gap: 14px; align-items: center; background: linear-gradient(135deg, rgba(var(--c1-rgb),.12), rgba(var(--c3-rgb),.06)); border-radius: 26px; padding: 12px; margin-bottom: 14px; box-shadow: 0 0 0 1px rgba(var(--acc-rgb),.18) inset; }
 .cmdban .cbimg { border: 0; background: none; padding: 0; width: 110px; flex: none; }
-.cmdban .cbimg .cardimg { box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 30px rgba(255,122,69,.18); }
+.cmdban .cbimg .cardimg { box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 30px rgba(var(--acc-rgb),.18); }
 .cbinfo { display: grid; gap: 6px; min-width: 0; }
 .cbinfo b { font-size: 18px; line-height: 1.2; }
 .cmdban.empty-cmd { justify-content: space-between; flex-wrap: wrap; padding: 18px; }
@@ -346,28 +375,29 @@ button.pill.fbtn { font: inherit; font-size: 11px; color: #cfd5df; }
 /* ===================== TEMA "MIDNIGHT TEAL" ===================== */
 :root {
   --bg: #121316; --bar: #17181c; --surface: #1d1f24; --surface-2: #26292f; --line: #2c2f36;
-  --ink: #f2f4f7; --muted: #8b919c; --link: #ffb35c;
-  --accent: #ff7a45; --accent-2: #ffc24b; --accent-ink: #2a0d05;
-  --grad: linear-gradient(135deg, #e8413a 0%, #ff7a45 50%, #ffc24b 100%);
-  --glow: 0 8px 28px rgba(255, 110, 60, .32);
+  --ink: #f2f4f7; --muted: #8b919c; --link: var(--c3);
+  --c1: #e8413a; --c2: #ff7a45; --c3: #ffc24b; --acc-rgb: 255,122,69; --c1-rgb: 232,65,58; --c3-rgb: 255,194,75; --tint: #ffe2cf; --hot: #221a18;
+  --accent: var(--c2); --accent-2: var(--c3); --accent-ink: #2a0d05;
+  --grad: linear-gradient(135deg, var(--c1) 0%, var(--c2) 50%, var(--c3) 100%);
+  --glow: 0 8px 28px rgba(var(--acc-rgb), .32);
   --ok: #7ee2a0; --warn: #f2c86b; --bad: #ff8b8b;
   --r-lg: 26px; --r-md: 18px; --r-sm: 12px;
   --font: "Poppins", "Roboto", system-ui, sans-serif;
   --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1);
 }
-html, body { background: radial-gradient(1200px 600px at 50% -10%, #221a18 0%, var(--bg) 60%) fixed; letter-spacing: .1px; }
+html, body { background: radial-gradient(1200px 600px at 50% -10%, var(--hot) 0%, var(--bg) 60%) fixed; letter-spacing: .1px; }
 .appbar { background: rgba(18,19,22,.78); backdrop-filter: blur(18px) saturate(140%); -webkit-backdrop-filter: blur(18px) saturate(140%); box-shadow: none; border-bottom: 1px solid rgba(255,255,255,.04); }
 .titlebar h1 { font-weight: 500; font-size: 19px; letter-spacing: .2px; }
 .iconbtn { background: var(--surface); border-radius: 50%; transition: transform .2s var(--spring), background .2s; }
 .iconbtn.invisible { background: transparent; }
 .toolbar input, select, input[type="text"], input[type="search"], input[type="number"], textarea, .ed-sbox input[type=search], .ed-sbox select, .editor select {
   background: var(--surface); border: 1px solid transparent; border-radius: var(--r-md); transition: border-color .2s, box-shadow .2s; }
-.toolbar input:focus, select:focus, input:focus, textarea:focus { outline: none; border-color: rgba(255,122,69,.55); box-shadow: 0 0 0 4px rgba(255,122,69,.12); }
+.toolbar input:focus, select:focus, input:focus, textarea:focus { outline: none; border-color: rgba(var(--acc-rgb),.55); box-shadow: 0 0 0 4px rgba(var(--acc-rgb),.12); }
 .subbar { background: transparent; }
 .count, .addfilter { color: var(--muted); font-style: normal; }
 .addfilter .plus { background: var(--grad); color: var(--accent-ink); box-shadow: var(--glow); }
 .chip { background: var(--surface); border-color: transparent; transition: all .2s var(--ease); }
-.chip[aria-pressed="true"] { background: rgba(255,122,69,.14); border-color: rgba(255,122,69,.5); color: #ffe2cf; }
+.chip[aria-pressed="true"] { background: rgba(var(--acc-rgb),.14); border-color: rgba(var(--acc-rgb),.5); color: var(--tint); }
 .tile, .row, .deckcard, .card, .col, .kpi { background: var(--surface); border-radius: var(--r-lg); box-shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 10px 30px rgba(0,0,0,.25); }
 .row, .deckcard { border-radius: var(--r-md); }
 .kpi { border-radius: var(--r-md); background: var(--surface-2); box-shadow: none; }
@@ -380,7 +410,7 @@ html, body { background: radial-gradient(1200px 600px at 50% -10%, #221a18 0%, v
 .pill { border-radius: 999px; background: var(--surface-2); border-color: transparent; }
 .pill.acc { background: var(--grad); }
 .bar { background: var(--surface-2); height: 6px; } .bar i { background: var(--grad); border-radius: 4px; }
-.curve i { background: linear-gradient(180deg, #ffb347, #e8413a); border-radius: 6px 6px 2px 2px; transform-origin: bottom; animation: growUp .6s var(--ease) both; }
+.curve i { background: linear-gradient(180deg, var(--c3), var(--c1)); border-radius: 6px 6px 2px 2px; transform-origin: bottom; animation: growUp .6s var(--ease) both; }
 .curve div:nth-child(2) i { animation-delay: .04s } .curve div:nth-child(3) i { animation-delay: .08s } .curve div:nth-child(4) i { animation-delay: .12s } .curve div:nth-child(5) i { animation-delay: .16s } .curve div:nth-child(6) i { animation-delay: .2s } .curve div:nth-child(7) i { animation-delay: .24s } .curve div:nth-child(8) i { animation-delay: .28s }
 .hbar i { background: var(--grad); transform-origin: left; animation: growRight .6s var(--ease) both; }
 .colorbar { height: 10px; border-radius: 999px; gap: 2px; }
@@ -392,8 +422,8 @@ html, body { background: radial-gradient(1200px 600px at 50% -10%, #221a18 0%, v
 nav.bottom { left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom)); padding-bottom: 0; border-radius: 26px; background: rgba(23,24,28,.82); backdrop-filter: blur(20px) saturate(150%); -webkit-backdrop-filter: blur(20px) saturate(150%); box-shadow: 0 12px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.05) inset; max-width: 560px; margin: 0 auto; }
 nav.bottom button { position: relative; font-size: 11px; transition: color .25s; }
 nav.bottom button svg { transition: transform .35s var(--spring); }
-nav.bottom button[aria-current="page"] { color: #fff1e6; }
-nav.bottom button[aria-current="page"] svg { transform: translateY(-3px) scale(1.08); color: var(--accent); filter: drop-shadow(0 0 8px rgba(255,122,69,.6)); }
+nav.bottom button[aria-current="page"] { color: #fff; }
+nav.bottom button[aria-current="page"] svg { transform: translateY(-3px) scale(1.08); color: var(--accent); filter: drop-shadow(0 0 8px rgba(var(--acc-rgb),.6)); }
 nav.bottom button::after { content: ""; position: absolute; bottom: 7px; left: 50%; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); transform: translateX(-50%) scale(0); transition: transform .35s var(--spring); box-shadow: 0 0 8px var(--accent); }
 nav.bottom button[aria-current="page"]::after { transform: translateX(-50%) scale(1); }
 nav.bottom button[aria-current="page"] { font-size: 0; }
@@ -404,8 +434,8 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 .scrim { background: rgba(5,6,8,.6); backdrop-filter: blur(4px); animation: fadeIn .25s ease both; }
 .menu { background: rgba(32,34,40,.96); backdrop-filter: blur(16px); border-radius: 20px; transform-origin: top right; animation: menuIn .2s var(--ease) both; }
 .menu button { border-radius: 12px; }
-.toast { background: rgba(32,34,40,.95); color: var(--ink); border-radius: 999px; padding: 11px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(255,122,69,.25); animation: toastIn .35s var(--spring) both; }
-.splash { background: radial-gradient(800px 500px at 50% 30%, rgba(255,122,69,.12), transparent 60%), var(--bg); }
+.toast { background: rgba(32,34,40,.95); color: var(--ink); border-radius: 999px; padding: 11px 18px; box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 0 1px rgba(var(--acc-rgb),.25); animation: toastIn .35s var(--spring) both; }
+.splash { background: radial-gradient(800px 500px at 50% 30%, rgba(var(--acc-rgb),.12), transparent 60%), var(--bg); }
 .splash h2 { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 600; font-size: 28px; }
 .pbar i { background: var(--grad) !important; }
 .empty { border: 0; background: var(--surface); border-radius: var(--r-lg); }
@@ -416,7 +446,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 .inb { background: var(--grad); }
 /* Zoom com tilt 3D e brilho */
 .zoom { background: rgba(6,7,9,.85); backdrop-filter: blur(10px); animation: fadeIn .2s ease both; perspective: 1000px; }
-.zoom img { animation: zoomIn .45s var(--spring) both; transition: transform .12s ease-out; will-change: transform; box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 60px rgba(255,122,69,.15); }
+.zoom img { animation: zoomIn .45s var(--spring) both; transition: transform .12s ease-out; will-change: transform; box-shadow: 0 30px 80px rgba(0,0,0,.7), 0 0 60px rgba(var(--acc-rgb),.15); }
 /* Animações de entrada */
 .view-in > * { animation: riseIn .45s var(--ease) both; }
 .view-in > *:nth-child(2) { animation-delay: .04s } .view-in > *:nth-child(3) { animation-delay: .08s } .view-in > *:nth-child(4) { animation-delay: .12s }
@@ -487,6 +517,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <button data-tab="col" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="9" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Coleção</button>
   <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
   <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
+  <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
 </nav>
 
@@ -520,7 +551,7 @@ const normNum = (n) => String(n || "").toLowerCase().split("/")[0].replace(/[^0-
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 function toast(msg, ms = 2200) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
 // Preços: tudo em centavos de R$. Referência = preço anotado da LigaMagic; sem ele, estimativa (Scryfall US$ × dólar do dia).
-const fmtUSD = (c) => c ? "R$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
+const fmtUSD = (c) => !c ? "" : (S.settings && S.settings.prefs && S.settings.prefs.currency === "USD") ? "US$ " + (c / RATE() / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "R$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const RATE = () => (S.settings && S.settings.usdbrl) || 5.4;
 const ligaKey = (set, number, foil) => set + "|" + normNum(number) + (foil ? "|f" : "");
 function ligaOf(set, number, foil) { const L = S.liga || {}; return L[ligaKey(set, number, foil)] || (foil ? null : null); }
@@ -723,7 +754,7 @@ function cardImgHTML(e, opts = {}) {
 
 // ============ Navegação ============
 let tab = "col", view = null; // view: {kind:'deck', id}
-const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes };
+const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), cfg: (...a) => renderCfg(...a) };
 // Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
 const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
@@ -756,11 +787,12 @@ window.addEventListener("popstate", (e) => {
   go(s.t, s.v || null, { pop: true });
 });
 $("nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) go(b.dataset.tab); });
-$("backBtn").onclick = () => go(tab);
+$("backBtn").onclick = () => (tab === "cfg" ? history.back() : go(tab));
 function setMenu(items) {
+  if (tab !== "cfg" && !items.some(it => /Configura/.test(it[0]))) items = [...items, ["⚙️ Configurações", openSettings]];
   $("menu").innerHTML = items.map((it, i) => `<button data-i="${i}">${esc(it[0])}</button>`).join("");
   $("menu").onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b) return; $("menu").classList.add("hidden"); items[+b.dataset.i][1](); };
-  $("menuBtn").classList.toggle("invisible", !items.length);
+  $("menuBtn").classList.toggle("invisible", !items.length || tab === "cfg");
 }
 $("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
@@ -1267,6 +1299,212 @@ function addCardToDeck(d) {
   $("aList").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (!b) return; const oi = +b.dataset.oi; const c = d.cards.find(x => x.oi === oi && x.board === "main"); if (c) c.qty++; else d.cards.push({ oi, qty: 1, board: "main" }); save(); draw(); toast("+1 " + DB.o[oi][0], 900); };
 }
 
+// ============ CONFIGURAÇÕES ============
+const APP_VERSION = "2026.11.07";
+const THEMES = {
+  fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
+  oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
+  floresta: { n: "Floresta", c: ["#2e9e5b", "#5fcf7a", "#c8ec7a"], ink: "#0b2410", tint: "#dcf7df", hot: "#16211a" },
+  arcano: { n: "Arcano", c: ["#7b4ce0", "#b05cf0", "#f08ad8"], ink: "#1e0a33", tint: "#efdcff", hot: "#1d1726" },
+  sangue: { n: "Sangue", c: ["#8e1530", "#d6334d", "#ff8a7a"], ink: "#2a0509", tint: "#ffd9de", hot: "#241518" },
+  ouro: { n: "Ouro", c: ["#b07d0b", "#e0b23c", "#fff0a8"], ink: "#2a1e02", tint: "#fff3cc", hot: "#221e14" },
+  gelo: { n: "Gelo", c: ["#7f98c0", "#b8cbe6", "#f4f8ff"], ink: "#101826", tint: "#e8eef8", hot: "#1a1d23" },
+};
+const PREF_DEF = { theme: "fogo", motion: true, grid: "m", currency: "BRL", showPrices: true, startTab: "last", vibrate: true, askDup: true, edhrec: true, showDeals: true, showBoxes: true, hoverZoom: true };
+const P = () => Object.assign({}, PREF_DEF, (S.settings && S.settings.prefs) || {});
+const PREFS = P;
+function setPref(k, v) { S.settings.prefs = Object.assign({}, S.settings.prefs, { [k]: v }); store.set("settings", S.settings).catch(() => {}); applyPrefs(); }
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return `${n >> 16 & 255},${n >> 8 & 255},${n & 255}`; };
+function applyPrefs() {
+  const p = P(), t = THEMES[p.theme] || THEMES.fogo, r = document.documentElement.style;
+  r.setProperty("--c1", t.c[0]); r.setProperty("--c2", t.c[1]); r.setProperty("--c3", t.c[2]);
+  r.setProperty("--acc-rgb", hexRgb(t.c[1])); r.setProperty("--c1-rgb", hexRgb(t.c[0])); r.setProperty("--c3-rgb", hexRgb(t.c[2]));
+  r.setProperty("--accent-ink", t.ink); r.setProperty("--tint", t.tint); r.setProperty("--hot", t.hot);
+  document.documentElement.classList.toggle("nomotion", !p.motion);
+  document.documentElement.dataset.grid = p.grid;
+  document.documentElement.classList.toggle("noprices", !p.showPrices);
+  const nb = (t) => document.querySelector(`nav.bottom button[data-tab="${t}"]`);
+  if (nb("deals")) nb("deals").classList.toggle("hidden", !p.showDeals);
+  if (nb("boxes")) nb("boxes").classList.toggle("hidden", !p.showBoxes);
+}
+// erros recentes para o relatório de bug
+const ERRLOG = [];
+window.addEventListener("error", (e) => { ERRLOG.push(new Date().toLocaleTimeString("pt-BR") + " " + (e.message || "erro") + (e.filename ? " @" + e.lineno : "")); if (ERRLOG.length > 15) ERRLOG.shift(); });
+window.addEventListener("unhandledrejection", (e) => { ERRLOG.push(new Date().toLocaleTimeString("pt-BR") + " promise: " + String(e.reason && e.reason.message || e.reason).slice(0, 200)); if (ERRLOG.length > 15) ERRLOG.shift(); });
+function openSettings() { go("cfg", { kind: "cfg" }); }
+function renderCfg() {
+  const p = P();
+  $("title").textContent = "Configurações"; $("bars").innerHTML = ""; $("backBtn").classList.remove("invisible"); setMenu([]); $("fab").classList.add("hidden");
+  const tog = (k, on) => `<button class="tgl" role="switch" aria-checked="${on}" data-tgl="${k}"><i></i></button>`;
+  const seg = (k, opts, cur) => `<div class="seg" data-seg="${k}">${opts.map(([v, l]) => `<button data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div>`;
+  const row = (label, sub, ctrl) => `<div class="cfg-row"><div><div class="cfg-l">${label}</div>${sub ? `<div class="cfg-s">${sub}</div>` : ""}</div>${ctrl}</div>`;
+  const btnRow = (id, label, sub) => `<button class="cfg-row cfg-btn" id="${id}"><div><div class="cfg-l">${label}</div>${sub ? `<div class="cfg-s">${sub}</div>` : ""}</div><span class="cfg-go">›</span></button>`;
+  $("main").innerHTML = `<div class="cfg">
+    <h2 class="sec">Aparência</h2><div class="card cfg-card">
+      <div class="cfg-l">Cor do tema</div>
+      <div class="themes">${Object.entries(THEMES).map(([k, t]) => `<button class="theme" data-theme="${k}" aria-pressed="${k === p.theme}"><i style="background:linear-gradient(135deg,${t.c.join(",")})"></i><span>${t.n}</span></button>`).join("")}</div>
+      ${row("Tamanho das cartas na coleção", "", seg("grid", [["s", "Pequeno"], ["m", "Médio"], ["l", "Grande"]], p.grid))}
+      ${row("Animações", "Transições, brilhos e efeitos ao tocar", tog("motion", p.motion))}
+      ${row("Ampliar carta ao passar o mouse", "Só no PC", tog("hoverZoom", p.hoverZoom))}
+    </div>
+    <h2 class="sec">Abas e início</h2><div class="card cfg-card">
+      ${row("Aba Ofertas", "Cartas e precons que ficaram baratos", tog("showDeals", p.showDeals))}
+      ${row("Aba Caixas", "Organização física da biblioteca", tog("showBoxes", p.showBoxes))}
+      ${row("Abrir o app em", "", seg("startTab", [["last", "Onde parei"], ["col", "Coleção"], ["scan", "Escanear"], ["decks", "Decks"]], p.startTab))}
+    </div>
+    <h2 class="sec">Preços</h2><div class="card cfg-card">
+      ${row("Moeda", "Preços anotados da LigaMagic são sempre em R$", seg("currency", [["BRL", "R$"], ["USD", "US$"]], p.currency))}
+      ${row("Mostrar preços nas cartas da coleção", "", tog("showPrices", p.showPrices))}
+      ${row("Cotação do dólar", `US$ 1 = R$ ${RATE().toFixed(2).replace(".", ",")}${S.settings.usdbrlAt ? " · atualizada " + new Date(S.settings.usdbrlAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}`, `<button class="btn small" id="cfRate">Atualizar</button>`)}
+    </div>
+    <h2 class="sec">Scanner</h2><div class="card cfg-card">
+      ${row("Vibrar ao reconhecer uma carta", "", tog("vibrate", p.vibrate))}
+      ${row("Perguntar antes de adicionar carta repetida", "", tog("askDup", p.askDup))}
+      ${row("Comandos de voz", "“sim”, “não”, números e “foil”", `<button class="tgl" role="switch" aria-checked="${!!S.settings.voice}" data-tgl="__voice"><i></i></button>`)}
+    </div>
+    <h2 class="sec">Decks e coleção</h2><div class="card cfg-card">
+      ${row("Sugestões do EDHREC", "Comandantes populares e cartas recomendadas", tog("edhrec", p.edhrec))}
+      ${row("Capacidade de cada caixa", "Cartas por caixa da biblioteca", `<input type="number" id="cfCap" min="50" max="2000" step="10" value="${S.boxes.capacity || 250}" style="width:90px">`)}
+    </div>
+    <h2 class="sec">Conta e dados</h2><div class="card cfg-card">
+      ${row("Conta", CLOUD.user ? esc(CLOUD.user.email) + " · biblioteca compartilhada" : "Não conectado", CLOUD.user ? `<button class="btn small" id="cfOut">Sair</button>` : `<button class="btn small primary" id="cfIn">Entrar</button>`)}
+      ${btnRow("cfBk", "Backups automáticos", "3 cópias, a cada 5 dias")}
+      ${btnRow("cfExp", "Exportar coleção (CSV)", "Para planilha, Moxfield, ManaBox…")}
+      ${btnRow("cfImp", "Importar lista (CSV ou texto)", "")}
+      ${btnRow("cfCache", "Limpar imagens guardadas", "Libera espaço; as imagens baixam de novo quando precisar")}
+    </div>
+    <h2 class="sec">Ajuda</h2><div class="card cfg-card">
+      ${btnRow("cfBug", "🐞 Reportar um bug", "Conte o que aconteceu — vai junto um diagnóstico do app")}
+      ${btnRow("cfBugs", "Bugs reportados", "Ver e marcar como resolvidos")}
+      ${isInstalled() ? "" : btnRow("cfInst", "📲 Instalar o app", "")}
+      <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}</div>
+    </div></div>`;
+  const m = $("main");
+  m.querySelectorAll("[data-tgl]").forEach(b => b.onclick = () => { const k = b.dataset.tgl; const on = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", on);
+    if (k === "__voice") { S.settings.voice = on; VOICE.on = on; store.set("settings", S.settings); } else setPref(k, on); });
+  m.querySelectorAll("[data-seg]").forEach(g => g.onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) return; g.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); setPref(g.dataset.seg, b.dataset.v); });
+  m.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => { m.querySelectorAll("[data-theme]").forEach(x => x.setAttribute("aria-pressed", x === b)); setPref("theme", b.dataset.theme); });
+  $("cfRate").onclick = async () => { S.settings.usdbrlAt = 0; await updateRate(); renderCfg(); toast("Cotação atualizada"); };
+  $("cfCap").onchange = (e) => { const v = Math.max(50, Math.min(2000, +e.target.value || 250)); S.boxes.capacity = v; S.boxes.layoutDirty = true; save(); toast("Capacidade: " + v + " cartas por caixa"); };
+  if ($("cfOut")) $("cfOut").onclick = async () => { if (!confirm("Sair da conta neste aparelho?")) return; try { await CLOUD.auth.signOut(); } catch (e) {} location.reload(); };
+  if ($("cfIn")) $("cfIn").onclick = signIn;
+  $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
+  $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
+  $("cfBug").onclick = bugDialog; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp;
+}
+function diagText() {
+  const lines = [`Versão ${APP_VERSION}`, `Tela: ${tab}${view ? " " + JSON.stringify(view) : ""}`, `Aparelho: ${navigator.userAgent}`, `Tela: ${innerWidth}x${innerHeight} · ${isInstalled() ? "app instalado" : "navegador"}${IS_APP() ? " (APK)" : ""}`,
+    `Coleção: ${S.cards.length} itens · ${S.decks.length} decks · nuvem: ${CLOUD.user ? "conectado" : "desconectado"}`, `Online: ${navigator.onLine}`];
+  if (ERRLOG.length) lines.push("Erros recentes:", ...ERRLOG.map(e => "  " + e));
+  return lines.join("\n");
+}
+function bugDialog() {
+  openSheet(`<h3 style="margin:0">🐞 Reportar um bug</h3><p class="meta" style="margin:0">Conte o que você fez e o que aconteceu de errado. Prints ajudam: mande no chat junto com o relatório.</p>
+    <textarea id="bgTxt" rows="5" placeholder="Ex.: abri um deck, toquei em Remontar e o app travou"></textarea>
+    <label class="meta ck"><input type="checkbox" id="bgDiag" checked> Incluir diagnóstico (versão, aparelho, tela, erros recentes)</label>
+    <details class="meta"><summary>Ver diagnóstico</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(diagText())}</pre></details>`,
+    `<button class="btn" id="bgX">Cancelar</button><button class="btn primary" id="bgGo">Enviar</button>`);
+  $("bgX").onclick = closeSheet;
+  $("bgGo").onclick = async () => {
+    const txt = $("bgTxt").value.trim(); if (!txt) { $("bgTxt").focus(); toast("Descreva o problema"); return; }
+    const report = `BUG — Biblioteca MTG\n${txt}\n\n${$("bgDiag").checked ? diagText() : ""}`.trim();
+    let saved = false; try { if (CLOUD.user) { await base().collection("bugs").add({ at: Date.now(), by: CLOUD.user.email, text: txt, diag: $("bgDiag").checked ? diagText() : "", status: "aberto" }); saved = true; } } catch (e) {}
+    openSheet(`<h3 style="margin:0">Obrigado!</h3><p style="margin:0">${saved ? "O bug ficou registrado em <b>Configurações → Bugs reportados</b>." : "Não consegui registrar na nuvem agora."} Para eu corrigir, copie o relatório e cole na conversa com o Claude.</p><pre class="textbox" style="white-space:pre-wrap;font-size:11px;max-height:200px;overflow:auto">${esc(report)}</pre>`,
+      `<a class="btn" href="mailto:teolfe@gmail.com?subject=${encodeURIComponent("Bug Biblioteca MTG")}&body=${encodeURIComponent(report)}">E-mail</a><button class="btn primary" id="bgCopy">Copiar relatório</button>`);
+    $("bgCopy").onclick = async () => { try { await navigator.clipboard.writeText(report); toast("Relatório copiado"); } catch (e) { toast("Não consegui copiar"); } };
+  };
+}
+async function bugsList() {
+  openSheet(`<h3 style="margin:0">Bugs reportados</h3><div class="rows" id="bgList"><div class="meta">Carregando…</div></div>`, `<button class="btn" id="blX">Fechar</button><button class="btn primary" id="blNew">Reportar novo</button>`);
+  $("blX").onclick = closeSheet; $("blNew").onclick = bugDialog;
+  if (!CLOUD.user) { $("bgList").innerHTML = `<div class="meta">Entre com a conta para ver os bugs registrados.</div>`; return; }
+  try {
+    const qs = await base().collection("bugs").orderBy("at", "desc").limit(30).get();
+    $("bgList").innerHTML = qs.docs.map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nenhum bug reportado. 🎉</div>`;
+    $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
+  } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
+}
+// ============ OFERTAS ============
+// A LigaMagic não deixa outros apps lerem os preços, então a referência é o preço internacional (Scryfall) em R$,
+// com histórico guardado pelo próprio app para detectar quedas. Cada item leva para a página da carta na Liga.
+const DEALS = { busy: false, data: null };
+async function livePrices(ois) {
+  const out = {}; const list = [...new Set(ois)];
+  for (let i = 0; i < list.length; i += 75) {
+    const ids = list.slice(i, i + 75).map(oi => ({ name: DB.o[oi][0].split(" // ")[0] }));
+    try {
+      const r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifiers: ids }) });
+      const j = await r.json();
+      for (const c of j.data || []) { const oi = edhOi(c.name); const usd = parseFloat(c.prices && (c.prices.usd || c.prices.usd_foil) || ""); if (oi !== undefined && usd) { const pi = c.set ? DB.bySetNum.get(c.set + "|" + normNum(c.collector_number || "")) : undefined; out[oi] = Math.round(usd * 100); out["b" + oi] = pi !== undefined ? (DB.p[pi][6] || DB.p[pi][7] || 0) : 0; } }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 120));
+  }
+  return out;
+}
+async function loadDeals(force) {
+  if (DEALS.busy) return; DEALS.busy = true;
+  try {
+    const cached = await store.get("deals");
+    if (!force && cached && Date.now() - cached.at < 12 * 3600e3) { DEALS.data = cached; return; }
+    const miss = {};
+    for (const d of S.decks) for (const oi of [...new Set(d.cards.filter(c => c.board !== "maybe" && c.board !== "side").map(c => c.oi))]) {
+      if (/Basic Land/.test(DB.o[oi][5])) continue;
+      const want = d.cards.filter(c => c.oi === oi && c.board !== "maybe" && c.board !== "side").reduce((a, c) => a + c.qty, 0);
+      const need = want - haveFor(d, oi) - libFor(oi); if (need > 0) { miss[oi] = miss[oi] || { need: 0, decks: [] }; miss[oi].need += need; miss[oi].decks.push(d.name); }
+    }
+    const ois = Object.keys(miss).map(Number).slice(0, 450);
+    const live = await livePrices(ois);
+    const hist = (await store.get("phist")) || {}; const day = new Date().toISOString().slice(0, 10);
+    const items = ois.filter(oi => live[oi]).map(oi => {
+      const h = hist[oi] = hist[oi] || []; if (!h.length || h[h.length - 1][0] !== day) h.push([day, live[oi]]); if (h.length > 60) h.splice(0, h.length - 60);
+      const base0 = live["b" + oi] || 0; // mesmo printing, preço da base embutida (data do build)
+      const ref = Math.max(...h.slice(0, -1).map(x => x[1]), base0 || 0);
+      const drop = ref ? Math.round((1 - live[oi] / ref) * 100) : 0;
+      return { oi, usd: live[oi], drop, since: h.length > 1 ? h[0][0] : (DB.built || "").slice(0, 10), need: miss[oi].need, decks: miss[oi].decks };
+    });
+    await store.set("phist", hist);
+    DEALS.data = { at: Date.now(), items }; await store.set("deals", DEALS.data);
+  } finally { DEALS.busy = false; }
+}
+function renderDeals() {
+  $("title").textContent = "Ofertas"; $("bars").innerHTML = ""; $("fab").classList.add("hidden");
+  setMenu([["Atualizar preços agora", () => { loadDeals(true).then(drawDeals); drawDeals(); }], ["Esconder esta aba", () => { setPref("showDeals", false); go("col"); toast("Aba Ofertas escondida — dá para voltar em Configurações"); }], ["⚙️ Configurações", openSettings]]);
+  $("main").innerHTML = `<div class="meta deals-note">A LigaMagic não libera os preços para outros apps. Aqui a referência é o preço internacional convertido para R$, e o app guarda o histórico para mostrar o que caiu. Toque numa carta para conferir na Liga.</div><div id="dealsBody"></div>`;
+  drawDeals(); loadDeals(false).then(drawDeals);
+}
+function drawDeals() {
+  if (tab !== "deals" || !$("dealsBody")) return;
+  const D = DEALS.data; const conv = (usd) => Math.round(usd * RATE());
+  if (!D) { $("dealsBody").innerHTML = `<div class="ed-results">${Array(6).fill(`<div class="res"><div class="cardimg">${`<div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i></div>`}</div></div>`).join("")}</div><div class="meta" style="text-align:center;margin-top:8px">Buscando preços das cartas que faltam nos seus decks…</div>`; return; }
+  const card = (x, badge) => `<div class="res"><a class="resimg" href="${esc(ligaURL(x.oi))}" target="_blank" rel="noopener">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}${badge || ""}<span class="edh-pct">${fmtUSD(conv(x.usd))}</span></a><span class="resname">${esc(DB.o[x.oi][0])}</span><span class="cfg-s">${x.need}× · ${esc(x.decks.slice(0, 2).join(", "))}</span></div>`;
+  const drops = D.items.filter(x => x.drop >= 10).sort((a, b) => b.drop - a.drop);
+  const cheap = D.items.slice().sort((a, b) => a.usd - b.usd);
+  const total = D.items.reduce((a, x) => a + conv(x.usd) * x.need, 0);
+  $("dealsBody").innerHTML = `
+    <h2 class="sec"><span>Baixaram de preço</span><span>${drops.length}</span></h2>
+    ${drops.length ? `<div class="ed-results">${drops.slice(0, 30).map(x => card(x, `<span class="edh-rank">↓ ${x.drop}%</span>`)).join("")}</div>` : `<div class="meta">Nenhuma carta que falta nos seus decks caiu 10% ou mais${D.items.length ? "" : " (nenhuma carta faltando nos decks)"}. O app vai acompanhando os preços a cada dia.</div>`}
+    <h2 class="sec"><span>Faltando nos seus decks — mais baratas</span><span>${D.items.length}</span></h2>
+    ${D.items.length ? `<div class="meta" style="margin-bottom:8px">Completar tudo custaria cerca de <b>${fmtUSD(total)}</b>.</div><div class="ed-results">${cheap.slice(0, 60).map(x => card(x)).join("")}</div>` : `<div class="meta">Todos os seus decks estão completos com a coleção. 🎉</div>`}
+    <h2 class="sec"><span>Precons recentes — valor em cartas</span></h2><div class="rows" id="preconDeals"><div class="meta">Carregando lista de precons…</div></div>
+    <div class="cfg-s" style="text-align:center;margin-top:10px">Atualizado ${new Date(D.at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`;
+  drawPreconDeals();
+}
+async function drawPreconDeals() {
+  try {
+    const j = await (await fetch("https://mtgjson.com/api/v5/DeckList.json")).json();
+    const cut = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
+    const list = (j.data || []).filter(d => /Commander Deck/i.test(d.type) && d.releaseDate >= cut).sort((a, b) => b.releaseDate.localeCompare(a.releaseDate)).slice(0, 24);
+    if (!$("preconDeals")) return;
+    const cache = (await store.get("preconval")) || {};
+    $("preconDeals").innerHTML = list.map(d => `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn">${esc(d.name)}</span><span class="rs">${esc(d.code)} · ${new Date(d.releaseDate + "T12:00").toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}${cache[d.fileName] ? ` · cartas valem <b>${fmtUSD(cache[d.fileName])}</b>` : ""}</span></span>
+      <span class="actions" style="margin:0">${cache[d.fileName] ? "" : `<button class="btn small" data-pv="${esc(d.fileName)}">Calcular</button>`}<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent('site:ligamagic.com.br "' + d.name + '" commander deck')}">Liga ↗</a></span></div>`).join("") || `<div class="meta">Nenhum precon recente.</div>`;
+    $("preconDeals").onclick = async (e) => { const b = e.target.closest("[data-pv]"); if (!b) return; b.textContent = "…"; b.disabled = true;
+      try { const dj = (await (await fetch(`https://mtgjson.com/api/v5/decks/${b.dataset.pv}.json`)).json()).data; let v = 0;
+        for (const c of [...(dj.commander || []), ...(dj.mainBoard || [])]) { const pi = c.setCode ? DB.bySetNum.get(c.setCode.toLowerCase() + "|" + normNum(c.number)) : undefined; const oi = edhOi(c.name); const pp = pi !== undefined ? pi : oi !== undefined ? defaultPrint(oi) : -1; if (pp >= 0) v += brlOf(DB.p[pp][0], DB.p[pp][1], false) * (c.count || 1); }
+        cache[b.dataset.pv] = v; await store.set("preconval", cache); drawPreconDeals(); } catch (err) { b.textContent = "Erro"; } };
+  } catch (e) { if ($("preconDeals")) $("preconDeals").innerHTML = `<div class="meta">Não consegui carregar os precons (sem internet?).</div>`; }
+}
+
 // ============ RETOMAR DE ONDE PAROU ============
 // Se o Android fechar o app (ex.: ao abrir a LigaMagic), ele volta na mesma tela, rolagem, filtros e carta aberta.
 function saveResume() {
@@ -1354,7 +1592,7 @@ document.addEventListener("pointerdown", (e) => {
   const hide = () => { clearTimeout(t); cur = null; H.classList.add("hidden"); };
   const place = (x, y) => { const w = 320, h = w * 680 / 488, m = 18; let left = x + m; if (left + w > innerWidth - 8) left = x - w - m; let top = Math.min(Math.max(8, y - h / 2), innerHeight - h - 8); H.style.left = Math.max(8, left) + "px"; H.style.top = top + "px"; };
   document.addEventListener("mouseover", (e) => {
-    const c = e.target.closest(".cardimg"); if (c === cur) return;
+    if (!P().hoverZoom) return; const c = e.target.closest(".cardimg"); if (c === cur) return;
     if (!c || c.closest("#zoom, #hov, .ed-preview, .detail, #scanView")) { hide(); return; }
     const img = c.querySelector("img"); const src = img && (img.currentSrc || img.getAttribute("src")); if (!src) { hide(); return; }
     cur = c; clearTimeout(t); t = setTimeout(() => { HI.src = src; H.classList.remove("hidden"); H.classList.remove("in"); void H.offsetWidth; H.classList.add("in"); place(e.clientX, e.clientY); }, 220);
@@ -1516,7 +1754,7 @@ async function drawEdhRecs(d) {
 function drawResults() {
   if (!$("edResults")) return;
   const hasFilter = ED.q || ED.colors.size || ED.type || ED.role || ED.cmc || ED.owned;
-  if (!hasFilter || (ED.owned && !ED.q && !ED.colors.size && !ED.type && !ED.role && !ED.cmc)) { const dd = deckOf(); if (dd.cards.some(c => c.board === "cmd")) return drawEdhRecs(dd); if (!hasFilter) { $("edCount").textContent = "Digite um nome ou use os filtros."; $("edResults").innerHTML = ""; return; } }
+  if (!hasFilter || (ED.owned && !ED.q && !ED.colors.size && !ED.type && !ED.role && !ED.cmc)) { const dd = deckOf(); if (P().edhrec && dd.cards.some(c => c.board === "cmd")) return drawEdhRecs(dd); if (!hasFilter) { $("edCount").textContent = "Digite um nome ou use os filtros."; $("edResults").innerHTML = ""; return; } }
   const { list, total } = searchCards(); const d = deckOf();
   $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
   $("edResults").innerHTML = list.map(i => {
@@ -1587,7 +1825,7 @@ function pickCommander(d, partnerOf = null) {
     <div class="meta" id="pcN"></div><div class="ed-results" id="pcR"></div>`, `<button class="btn" id="pcX">Cancelar</button>`);
   const resHTML = (i, extra = "") => `<div class="res"><button class="resimg" data-pick="${i}">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${extra}${libFor(i) ? `<span class="ownb" style="left:auto;right:6%">✓</span>` : ""}</button><span class="resname">${esc(DB.o[i][0])}</span></div>`;
   const draw = async () => {
-    if (!P.q.trim() && partnerOf === null) {
+    if (!P.q.trim() && partnerOf === null && PREFS().edhrec) {
       const seq = (P.seq = (P.seq || 0) + 1);
       $("pcN").textContent = "Carregando os mais jogados do EDHREC…";
       try {
@@ -2046,7 +2284,7 @@ $("dbgBtn").onclick = () => { SC.debug = !SC.debug; $("dbgBtn").setAttribute("ar
 $("photoInput").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); };
 for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(true); };
 async function onLocked(hit, fromPhoto) {
-  SC.paused = true; if (navigator.vibrate) navigator.vibrate(40);
+  SC.paused = true; if (navigator.vibrate && P().vibrate) navigator.vibrate(40);
   const p = DB.p[hit.pi];
   const cur = { oi: hit.oi, set: p[0], number: p[1], lang: $("langSel").value || hit.lang || p[4] || "en", foil: $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1, via: hit.via, img: "" };
   if (!fromPhoto && $("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") return commitScan(cur, true);
@@ -2083,7 +2321,7 @@ function resultSheet(c) {
 }
 function commitScan(c, auto) {
   const have = S.cards.filter(x => x.oi === c.oi).reduce((a, x) => a + x.qty, 0);
-  if (have && !c.dupOk) {
+  if (have && !c.dupOk && P().askDup) {
     SC.paused = true; SC.cur = null;
     const where = S.cards.filter(x => x.oi === c.oi).map(x => `${x.qty}× ${x.set.toUpperCase()} #${x.number}${x.foil ? " foil" : ""} — ${inDecks(x) ? "em deck" : whereLib(x).text.replace(/^Caixa /, "Cx ")}`).slice(0, 4);
     openSheet(`<h3 style="margin:0">Já tem essa carta</h3><p style="margin:0">Vocês já têm <b>${have}× ${esc(DB.o[c.oi][0])}</b>.</p><div class="meta">${where.map(esc).join("<br>")}</div><p style="margin:0">Adicionar mais ${c.qty > 1 ? c.qty + " cópias" : "uma cópia"}?</p>
@@ -2272,7 +2510,8 @@ function accountMenu() {
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
-    const startTab = new URLSearchParams(location.search).get("tab"); const lv = S.settings.lastView;
+    applyPrefs();
+    const startTab = new URLSearchParams(location.search).get("tab") || (P().startTab !== "last" && !(S.settings.resume && S.settings.resume.fromLink) ? P().startTab : null); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
     else if (restoreResume()) {}
     else if (lv && views[lv.t] && (!lv.v || !lv.v.id || S.decks.some(d => d.id === lv.v.id))) { if (lv.v && lv.v.kind === "edit") ED.id = lv.v.id; go(lv.t, lv.v || null, { init: true }); }
