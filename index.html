@@ -1115,6 +1115,9 @@ function renderDeck(id) {
   };
   $("main").innerHTML = `
     <button class="btn primary" id="openEd" style="width:100%;margin-bottom:10px">✎ Editar deck (busca, categorias e análise)</button>
+    ${(() => { const oiS = [...new Set(d.cards.map(c => c.oi))]; const pull = oiS.reduce((a, oi) => a + Math.min(Math.max(0, d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0) - haveFor(d, oi)), libFor(oi)), 0);
+      const mounted = oiS.reduce((a, oi) => a + haveFor(d, oi), 0);
+      return pull ? `<button class="btn" id="rebuildDeck" style="width:100%;margin-bottom:10px">↺ ${mounted || /precon/.test(d.source || "") ? "Remontar deck" : "Montar com a coleção"} — pegar ${pull} carta(s) das caixas</button>` : ""; })()}
     <div class="card">
       <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi"><b>${missing}</b><span>faltam</span></div></div>
       <div><div class="meta" style="margin-bottom:4px">Curva de mana (sem terrenos)</div><div class="curve">${curve.map((n, i) => `<div><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
@@ -1173,13 +1176,40 @@ function unbuildDeck(d) {
 }
 async function copyDeck(d) { const t = ["cmd", "main", "side"].map(b => { const l = d.cards.filter(c => c.board === b); if (!l.length) return ""; return (b === "cmd" ? "Commander\n" : b === "side" ? "\nSideboard\n" : "") + l.map(c => `${c.qty} ${DB.o[c.oi][0]}`).join("\n"); }).join("\n").trim(); try { await navigator.clipboard.writeText(t); toast("Lista copiada."); } catch { download(d.name + ".txt", t); } }
 async function copyMissing(d) { const l = d.cards.map(c => [c.qty - Math.min(c.qty, haveFor(d, c.oi) + libFor(c.oi)), DB.o[c.oi][0]]).filter(x => x[0] > 0); if (!l.length) return toast("Você já tem todas as cartas."); const t = l.map(x => `${x[0]} ${x[1]}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${l.length} cartas copiadas.`); } catch { download("faltantes.txt", t); } }
+function discardDeckFlow(d, mine, n, boxN) {
+  const step = (k, body, okLabel, next) => {
+    openSheet(`<h3 style="margin:0;color:var(--bad)">Descartar cartas · confirmação ${k} de 3</h3>${body}`, `<button class="btn" id="dcNo">Cancelar</button><button class="btn ${k === 3 ? "danger" : "primary"}" id="dcYes">${okLabel}</button>`);
+    $("dcNo").onclick = () => deleteDeck(d); $("dcYes").onclick = next;
+  };
+  let useBox = n === 0 && boxN > 0;
+  const total = () => n + (useBox ? boxN : 0);
+  step(1, `<p style="margin:0">O deck <b>${esc(d.name)}</b> será apagado e as cartas dele sairão da coleção.</p>
+    ${n ? `<p class="meta" style="margin:0">${n} carta(s) montadas no deck.</p>` : ""}
+    ${boxN ? `<label class="row" style="grid-template-columns:auto 1fr"><input type="checkbox" id="dcBox" ${useBox ? "checked" : ""}><span><span class="rn">Descartar também ${boxN} cópia(s) que estão nas caixas</span><span class="rs">Cartas da lista deste deck que estão guardadas na biblioteca (deck desmontado).</span></span></label>` : ""}`,
+    "Continuar", () => {
+      if ($("dcBox")) useBox = $("dcBox").checked;
+      if (!total()) { toast("Nenhuma carta para descartar."); return deleteDeck(d); }
+      step(2, `<p style="margin:0">Vou tirar <b>${total()} carta(s)</b> da coleção de vez. Elas não voltam para as caixas.</p>`, "Sim, continuar", () => {
+        step(3, `<p style="margin:0"><b>Última confirmação.</b> Excluir “${esc(d.name)}” e descartar ${total()} carta(s)? Dá para recuperar só restaurando um backup.</p>`, "Descartar definitivamente", () => {
+          let removed = 0;
+          const plan = useBox ? [...new Set(d.cards.map(c => c.oi))].map(oi => [oi, Math.min(Math.max(0, d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0) - haveFor(d, oi)), libFor(oi))]) : [];
+          for (const e of mine) { const q = e.decks[d.id]; e.qty -= q; removed += q; delete e.decks[d.id]; }
+          for (const [oi, cnt] of plan) { let need = cnt; for (const e of S.cards.filter(x => x.oi === oi)) while (need > 0 && freeQty(e) > 0) { e.qty--; need--; removed++; } }
+          S.cards = S.cards.filter(e => e.qty > 0); S.decks = S.decks.filter(x => x !== d); save();
+          closeSheet(); toast(`Deck excluído e ${removed} carta(s) descartadas`, 3000); go("decks");
+        });
+      });
+    });
+}
 function deleteDeck(d) {
   const mine = S.cards.filter(e => (e.decks || {})[d.id]); const n = mine.reduce((a, e) => a + e.decks[d.id], 0);
+  // cópias livres nas caixas das cartas da lista que não estão montadas (ex.: deck já desmontado)
+  const boxN = [...new Set(d.cards.map(c => c.oi))].reduce((a, oi) => { const want = d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0); return a + Math.min(Math.max(0, want - haveFor(d, oi)), libFor(oi)); }, 0);
   openSheet(`<h3 style="margin:0">Excluir "${esc(d.name)}"</h3>
     <p class="meta" style="margin:0">${n ? `Este deck tem <b>${n}</b> carta(s) da coleção montadas nele. O que fazer com elas?` : "Nenhuma carta da coleção está montada neste deck."}</p>
     <div class="rows">
       <button class="row" id="xKeep" style="grid-template-columns:1fr"><span><span class="rn">Desfazer o deck</span><span class="rs">Apaga a lista e as cartas voltam para as caixas da biblioteca (mostro onde guardar cada uma).</span></span></button>
-      ${n ? `<button class="row danger-row" id="xAll" style="grid-template-columns:1fr"><span><span class="rn">Excluir tudo</span><span class="rs">Apaga a lista e tira essas ${n} carta(s) da coleção — use se vendeu, trocou ou deu o deck.</span></span></button>` : ""}
+      ${n + boxN ? `<button class="row danger-row" id="xAll" style="grid-template-columns:1fr"><span><span class="rn">Excluir e descartar as cartas da coleção</span><span class="rs">Apaga a lista e tira as cartas dele da coleção — use se vendeu, trocou ou deu o deck. Pede 3 confirmações.</span></span></button>` : ""}
     </div>`, `<button class="btn" id="xNo">Cancelar</button>`);
   $("xNo").onclick = closeSheet;
   $("xKeep").onclick = () => {
@@ -1191,12 +1221,7 @@ function deleteDeck(d) {
     openSheet(`<h3 style="margin:0">Deck desfeito — guardar ${back.length} carta(s)</h3><div class="loc">${back.map(t => `<div><span>${esc(t.name)}</span><span class="meta">${esc(t.where.replace(/^Caixa /, "Cx "))}</span></div>`).join("")}</div>`, `<button class="btn primary" id="xOk">Pronto</button>`);
     $("xOk").onclick = () => go("decks");
   };
-  if ($("xAll")) $("xAll").onclick = () => {
-    if (!confirm(`Tirar ${n} carta(s) da coleção de vez? Isso não dá pra desfazer.`)) return;
-    for (const e of mine) { e.qty -= e.decks[d.id]; delete e.decks[d.id]; }
-    S.cards = S.cards.filter(e => e.qty > 0); S.decks = S.decks.filter(x => x !== d); save();
-    toast(`Deck e ${n} carta(s) removidos da coleção`); go("decks");
-  };
+  if ($("xAll")) $("xAll").onclick = () => discardDeckFlow(d, mine, n, boxN);
 }
 function addCardToDeck(d) {
   openSheet(`<h3 style="margin:0">Adicionar ao deck</h3><input type="search" id="aq" placeholder="Nome da carta"><label class="meta" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="aOwned" checked> só cartas que eu tenho</label><div class="rows" id="aList"></div>`, `<button class="btn primary" id="aDone">Pronto</button>`);
@@ -1329,7 +1354,7 @@ function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) ret
 
 function openEditor(id) { ED.id = id; ED.pane = d0pane(id); go("decks", { kind: "edit", id }); }
 function d0pane(id) { const d = S.decks.find(x => x.id === id); return d && d.cards.length ? "deck" : "busca"; }
-document.addEventListener("click", (e) => { const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); });
+document.addEventListener("click", (e) => { const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); const r = e.target.closest("#rebuildDeck"); if (r && view && view.id) { const d = S.decks.find(x => x.id === view.id); if (d) buildDeck(d); } });
 function renderEditor() {
   const d = deckOf(); if (!d) return go("decks");
   document.body.classList.add("wide");
