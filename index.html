@@ -424,7 +424,6 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 @keyframes growRight { from { transform: scaleX(0); } }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 @keyframes bump { 30% { transform: scale(1.08); } 60% { transform: scale(.97); } }
-#backupBanner { background: rgba(29,31,36,.92) !important; color: var(--muted) !important; margin: 8px 12px 0; border-radius: 999px; backdrop-filter: blur(12px); box-shadow: 0 0 0 1px rgba(255,122,69,.18) inset; padding: 6px 6px 6px 16px !important; animation: riseIn .4s var(--ease) both; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
@@ -440,7 +439,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <div class="menu hidden" id="menu"></div>
 </div>
 
-<div class="hidden" id="backupBanner" style="position:sticky;top:0;z-index:9;background:#3b2f1f;color:#f6d9b4;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 14px;font-size:13px"><span></span><button class="btn small primary" id="backupNow">Salvar no Drive</button></div>
+
 <main id="main"></main>
 
 <!-- Scanner -->
@@ -607,7 +606,7 @@ const store = {
 };
 const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {} };
 let saveT = 0;
-function save(silent) { setTimeout(pushCloud, 300); if (!silent && S.settings) { S.settings.changes = (S.settings.changes || 0) + 1; setTimeout(updateBackupBanner); } clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+function save(silent) { setTimeout(pushCloud, 300); clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
 // Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
 const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
@@ -778,7 +777,7 @@ function colFiltered() {
 }
 function renderCol() {
   $("title").textContent = "Coleção";
-  setMenu([...(isInstalled() ? [] : [["📲 Instalar o app", installApp]]), ...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Salvar backup no Drive", backup], ["Restaurar backup do Drive", restore], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
+  setMenu([...(isInstalled() ? [] : [["📲 Instalar o app", installApp]]), ...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Backups automáticos", backupsDialog], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
   if (!$("colBars")) {
     $("bars").innerHTML = `<div id="colBars">
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
@@ -932,28 +931,70 @@ function importDialog() {
 }
 function download(name, text, type = "text/plain") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 500); }
 function exportCSV() { const rows = [["Count", "Name", "Edition", "Collector Number", "Foil", "Language"], ...S.cards.map(e => [e.qty, e.name, e.set, e.number, e.foil ? "foil" : "", e.lang])]; download(`colecao-${new Date().toISOString().slice(0, 10)}.csv`, rows.map(r => r.map(v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v).join(",")).join("\n"), "text/csv"); }
-async function backup() {
-  const name = `biblioteca-mtg-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  const text = JSON.stringify({ v: 1, at: new Date().toISOString(), cards: S.cards, decks: S.decks, boxes: S.boxes });
-  const file = new File([text], name, { type: "application/json" });
+// ============ BACKUPS AUTOMÁTICOS (na nuvem do app) ============
+// A cada 5 dias o primeiro aparelho que abrir o app grava uma cópia completa em libs/principal/backups.
+// Ficam só as 3 mais recentes. Cada cópia é dividida em partes (limite de 1 MB por documento).
+const BK = { every: 5 * 864e5, keep: 3, part: 700000, running: false };
+const bkCol = () => base().collection("backups");
+async function makeBackup(reason = "auto") {
+  if (!CLOUD.user) throw new Error("sem login");
+  const json = JSON.stringify({ v: 2, at: new Date().toISOString(), cards: S.cards, decks: S.decks, boxes: S.boxes, liga: S.liga || {} });
+  const parts = []; for (let i = 0; i < json.length; i += BK.part) parts.push(json.slice(i, i + BK.part));
+  const ref = bkCol().doc(String(Date.now()));
+  for (let i = 0; i < parts.length; i++) await ref.collection("parts").doc(String(i)).set({ d: parts[i] });
+  await ref.set({ at: Date.now(), by: CLOUD.user.email, reason, cards: S.cards.reduce((a, e) => a + e.qty, 0), decks: S.decks.length, parts: parts.length, bytes: json.length });
+  await base().collection("meta").doc("backup").set({ lastAt: Date.now(), by: CLOUD.user.email });
+  const all = await bkCol().orderBy("at", "desc").get();
+  for (const d of all.docs.slice(BK.keep)) { const ps = await d.ref.collection("parts").get(); for (const x of ps.docs) await x.ref.delete(); await d.ref.delete(); }
+  return ref.id;
+}
+async function autoBackup() {
+  if (BK.running || !cloudReady()) return; BK.running = true;
   try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: "Backup Biblioteca MTG" }); }
-    else download(name, text, "application/json");
-    S.settings.lastBackup = Date.now(); S.settings.changes = 0; save(); updateBackupBanner();
-  } catch (e) { if (e.name !== "AbortError") download(name, text, "application/json"); }
+    const m = await base().collection("meta").doc("backup").get();
+    const last = m.exists ? m.data().lastAt || 0 : 0;
+    if (Date.now() - last >= BK.every && (S.cards.length || S.decks.length)) { await makeBackup("auto"); console.info("backup automático feito"); }
+  } catch (e) { console.warn("backup automático falhou", e); }
+  BK.running = false;
 }
-function updateBackupBanner() {
-  const b = $("backupBanner"); if (!b) return;
-  const n = S.settings.changes || 0;
-  b.classList.toggle("hidden", !(n >= 5 && S.cards.length));
-  b.querySelector("span").textContent = `${n} mudança${n === 1 ? "" : "s"} sem backup`;
+async function loadBackup(id) {
+  const ps = await bkCol().doc(id).collection("parts").get();
+  const json = ps.docs.sort((a, b) => +a.id - +b.id).map(d => d.data().d).join("");
+  return JSON.parse(json);
 }
-function restore() {
-  const inp = document.createElement("input"); inp.type = "file"; inp.accept = ".json,application/json";
-  inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!Array.isArray(d.cards)) throw new Error("arquivo inválido"); S.cards = d.cards; S.decks = d.decks || []; S.boxes = d.boxes || S.boxes; S.settings.changes = 0; save(true); toast("Backup restaurado: " + S.cards.length + " cartas."); go("col"); } catch (e) { toast("Não consegui restaurar: " + e.message); } };
-  inp.click();
+async function backupsDialog() {
+  if (!CLOUD.user) { openSheet(`<h3 style="margin:0">Backups automáticos</h3><p class="meta" style="margin:0">Os backups ficam na nuvem da biblioteca. Entre com a conta Google para usar.</p>`, `<button class="btn primary" id="bkX">OK</button>`); $("bkX").onclick = closeSheet; return; }
+  openSheet(`<h3 style="margin:0">Backups automáticos</h3><p class="meta" style="margin:0">A cada 5 dias o app guarda sozinho uma cópia completa da coleção e dos decks. Ficam as 3 mais recentes.</p><div class="rows" id="bkList"><div class="meta">Carregando…</div></div>`,
+    `<button class="btn" id="bkClose">Fechar</button><button class="btn primary" id="bkNow">Fazer backup agora</button>`);
+  $("bkClose").onclick = closeSheet;
+  $("bkNow").onclick = async () => { $("bkNow").disabled = true; $("bkNow").textContent = "Salvando…"; try { await makeBackup("manual"); toast("Backup feito"); backupsDialog(); } catch (e) { toast("Não consegui fazer o backup agora."); $("bkNow").disabled = false; $("bkNow").textContent = "Fazer backup agora"; } };
+  try {
+    const all = await bkCol().orderBy("at", "desc").get();
+    const fmt = (t) => new Date(t).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+    const m = await base().collection("meta").doc("backup").get(); const next = m.exists ? m.data().lastAt + BK.every : Date.now();
+    $("bkList").innerHTML = (all.docs.map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn">${fmt(b.at)}</span><span class="rs">${b.cards} cartas · ${b.decks} decks · ${b.reason === "manual" ? "manual" : b.reason === "restore" ? "antes de restaurar" : "automático"}</span></span><button class="btn small" data-rs="${d.id}">Restaurar</button></div>`; }).join("") || `<div class="meta">Nenhum backup ainda — o primeiro é feito automaticamente.</div>`)
+      + `<div class="meta">Próximo automático: ${fmt(Math.max(next, Date.now()))}</div>`;
+    $("bkList").onclick = (ev) => { const b = ev.target.closest("[data-rs]"); if (b) restoreBackup(b.dataset.rs, all.docs.find(d => d.id === b.dataset.rs).data()); };
+  } catch (e) { $("bkList").innerHTML = `<div class="meta">Não consegui carregar os backups (sem internet?).</div>`; }
 }
-
+function restoreBackup(id, meta) {
+  const when = new Date(meta.at).toLocaleString("pt-BR");
+  openSheet(`<h3 style="margin:0">Restaurar backup de ${esc(when)}?</h3><p style="margin:0">A coleção e os decks voltam a ficar como estavam nessa data (${meta.cards} cartas, ${meta.decks} decks), para vocês dois. Antes, guardo uma cópia do estado atual.</p>`,
+    `<button class="btn" id="rbNo">Cancelar</button><button class="btn primary" id="rbYes">Continuar</button>`);
+  $("rbNo").onclick = backupsDialog;
+  $("rbYes").onclick = () => {
+    openSheet(`<h3 style="margin:0">Tem certeza?</h3><p style="margin:0">Tudo que mudou depois de ${esc(when)} será substituído.</p><p class="meta" style="margin:0">Confirmação 2 de 2.</p>`, `<button class="btn" id="rb2No">Cancelar</button><button class="btn primary" id="rb2Yes">Sim, restaurar</button>`);
+    $("rb2No").onclick = backupsDialog;
+    $("rb2Yes").onclick = async () => {
+      $("rb2Yes").disabled = true; $("rb2Yes").textContent = "Restaurando…";
+      try {
+        const d = await loadBackup(id); await makeBackup("restore");
+        S.cards = d.cards || []; S.decks = d.decks || []; if (d.boxes) S.boxes = d.boxes; if (d.liga) S.liga = d.liga;
+        save(); closeSheet(); toast(`Backup restaurado: ${S.cards.length} itens, ${S.decks.length} decks`, 3000); go("col");
+      } catch (e) { toast("Não consegui restaurar agora."); backupsDialog(); }
+    };
+  };
+}
 // ============ DECKS ============
 // Deck: { id, name, format, source, cards: [{ oi, qty, board: 'main'|'side'|'cmd', set?, number? }], built: bool }
 const deckCount = (d, board) => d.cards.filter(c => !board || c.board === board).reduce((a, c) => a + c.qty, 0);
@@ -2103,7 +2144,9 @@ async function afterLogin(u) {
   $("login").classList.add("hidden");
   S.settings.mode = "cloud"; save(true);
   startSync();
+  let tries = 0; const t = setInterval(() => { if (cloudReady()) { clearInterval(t); setTimeout(autoBackup, 4000); } else if (++tries > 60) clearInterval(t); }, 2000);
 }
+setInterval(() => { if (document.visibilityState === "visible") autoBackup(); }, 6 * 3600e3);
 $("loginBtn").onclick = async () => { $("loginMsg").textContent = "Abrindo o login do Google…"; try { const u = await signIn(); await afterLogin(u); } catch (e) { $("loginMsg").textContent = "Não consegui entrar: " + (e.message || e.code); } };
 function accountMenu() {
   const items = [];
@@ -2125,7 +2168,6 @@ function accountMenu() {
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
-    $("backupNow").onclick = backup; updateBackupBanner();
     const startTab = new URLSearchParams(location.search).get("tab"); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
     else if (lv && views[lv.t] && (!lv.v || !lv.v.id || S.decks.some(d => d.id === lv.v.id))) { if (lv.v && lv.v.kind === "edit") ED.id = lv.v.id; go(lv.t, lv.v || null, { init: true }); }
@@ -2135,7 +2177,6 @@ function accountMenu() {
       if (u) afterLogin(u);
       else if (CLOUD.auth) { $("login").classList.remove("hidden"); if (CLOUD.error) $("loginMsg").textContent = "Não consegui entrar: " + CLOUD.error; }
     } catch (e) { console.warn("nuvem indisponível", e); }
-    if (S.cards.length > 20 && (!S.settings.lastBackup || Date.now() - S.settings.lastBackup > 14 * 864e5)) setTimeout(() => toast("Dica: faça um backup da coleção (menu ⋮ → Fazer backup).", 3500), 1500);
   } catch (e) { $("splashMsg").textContent = "Erro ao iniciar: " + (e.message || e); }
 })();
 })();
