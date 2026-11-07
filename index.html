@@ -862,20 +862,51 @@ function resolveRow(r) {
   const m = r.name ? (DB.byName.has(norm(r.name)) ? { i: DB.byName.get(norm(r.name)) } : matchName(r.name, false)) : null; if (!m) return -1;
   const list = DB.prints[m.i] || []; const inSet = r.set ? list.find(pi => DB.p[pi][0] === r.set) : undefined; return inSet !== undefined ? inSet : defaultPrint(m.i);
 }
+// Confirmação em duas etapas antes de qualquer importação
+function confirm2(o) {
+  openSheet(`<h3 style="margin:0">${o.title}</h3>${o.body}`, `<button class="btn" id="c2Back">${o.backLabel || "Voltar"}</button><button class="btn primary" id="c2Next">Continuar</button>`);
+  if (o.onShow) o.onShow();
+  $("c2Back").onclick = () => (o.onBack ? o.onBack() : closeSheet());
+  $("c2Next").onclick = () => {
+    const extra = o.collect ? o.collect() : null;
+    openSheet(`<h3 style="margin:0">Tem certeza?</h3><p style="margin:0">${o.second(extra)}</p><p class="meta" style="margin:0">Confirmação 2 de 2.</p>`, `<button class="btn" id="c2No">Cancelar</button><button class="btn primary" id="c2Yes">${o.okLabel || "Sim, importar"}</button>`);
+    $("c2No").onclick = () => (o.onBack ? o.onBack() : closeSheet());
+    $("c2Yes").onclick = () => o.onOk(extra);
+  };
+}
+let IMP_TEXT = "";
 function importDialog() {
   openSheet(`<h3 style="margin:0">Importar para a coleção</h3><p class="meta" style="margin:0">Cole um CSV (Moxfield, Archidekt, ManaBox, Biblioteca MTG) ou uma lista de texto como "4 Lightning Bolt (2XM) 117".</p>
-    <textarea id="impText" rows="9" style="font:13px/1.4 ui-monospace,monospace"></textarea><label class="btn small" style="justify-self:start">Escolher arquivo<input type="file" id="impFile" accept=".csv,.txt" style="display:none"></label><div class="meta" id="impStatus"></div>`,
+    <textarea id="impText" rows="9" style="font:13px/1.4 ui-monospace,monospace">${esc(IMP_TEXT)}</textarea><label class="btn small" style="justify-self:start">Escolher arquivo<input type="file" id="impFile" accept=".csv,.txt" style="display:none"></label><div class="meta" id="impStatus"></div>`,
     `<button class="btn" id="impCancel">Fechar</button><button class="btn primary" id="impGo">Importar</button>`);
   $("impFile").onchange = async (e) => { const f = e.target.files[0]; if (f) $("impText").value = await f.text(); };
   $("impCancel").onclick = closeSheet;
   $("impGo").onclick = async () => {
-    const rows = parseList($("impText").value); if (!rows.length) { $("impStatus").textContent = "Não reconheci nenhuma linha."; return; }
-    let n = 0; const miss = []; const added = [];
-    for (const r of rows) { const pi = resolveRow(r); if (pi < 0) { miss.push(r.name); continue; } const p = DB.p[pi]; added.push(addToCollection({ oi: p[3], set: p[0], number: p[1], lang: r.lang || p[4] || "en", foil: r.foil, qty: r.qty })); n += r.qty; }
-    S.boxes.layoutDirty = true;
-    $("impStatus").innerHTML = `<b>${n} carta(s) importada(s).</b>${miss.length ? " Não encontrei: " + esc(miss.slice(0, 20).join(", ")) : ""}`;
-    fillImages(added).then(() => { if (tab === "col") drawCol(); });
-    if (tab === "col") drawCol();
+    IMP_TEXT = $("impText").value;
+    const rows = parseList(IMP_TEXT); if (!rows.length) { $("impStatus").textContent = "Não reconheci nenhuma linha."; return; }
+    const ok = [], miss = [];
+    for (const r of rows) { const pi = resolveRow(r); if (pi < 0) miss.push(r.name); else ok.push({ r, p: DB.p[pi] }); }
+    const total = ok.reduce((a, x) => a + x.r.qty, 0);
+    const dups = ok.filter(x => S.cards.some(e => e.oi === x.p[3]));
+    const dupN = dups.reduce((a, x) => a + x.r.qty, 0);
+    confirm2({
+      title: "Conferir importação",
+      body: `<div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi"><b>${dupN}</b><span>já temos</span></div><div class="kpi"><b>${miss.length}</b><span>não achei</span></div></div>
+        ${dups.length ? `<div class="meta">Já estão na coleção: ${esc(dups.slice(0, 12).map(x => DB.o[x.p[3]][0] + " (" + S.cards.filter(e => e.oi === x.p[3]).reduce((a, e) => a + e.qty, 0) + "×)").join(", "))}${dups.length > 12 ? "…" : ""}</div>
+        <div class="rows"><label class="row" style="grid-template-columns:auto 1fr"><input type="radio" name="dupm" value="add" checked><span><span class="rn">Adicionar mais cópias</span><span class="rs">Soma às que vocês já têm (ex.: tinha 1, fica com 2).</span></span></label>
+        <label class="row" style="grid-template-columns:auto 1fr"><input type="radio" name="dupm" value="skip"><span><span class="rn">Pular as que já temos</span><span class="rs">Importa só as cartas novas.</span></span></label></div>` : ""}
+        ${miss.length ? `<div class="meta">Não encontrei (vão ficar de fora): ${esc(miss.slice(0, 15).join(", "))}</div>` : ""}`,
+      backLabel: "Voltar e editar", onBack: importDialog,
+      collect: () => { const r = document.querySelector('input[name="dupm"]:checked'); return r ? r.value : "add"; },
+      second: (m) => { const n = m === "skip" ? total - dupN : total; return `Vou adicionar <b>${n} carta(s)</b> à coleção${m === "skip" && dupN ? ` (pulando ${dupN} que vocês já têm)` : dupN ? ` (incluindo ${dupN} cópia(s) a mais de cartas que já têm)` : ""}.`; },
+      onOk: (m) => {
+        let n = 0; const added = [];
+        for (const { r, p } of ok) { if (m === "skip" && S.cards.some(e => e.oi === p[3])) continue; added.push(addToCollection({ oi: p[3], set: p[0], number: p[1], lang: r.lang || p[4] || "en", foil: r.foil, qty: r.qty })); n += r.qty; }
+        S.boxes.layoutDirty = true; IMP_TEXT = ""; closeSheet(); save();
+        toast(`${n} carta(s) importada(s)`, 2500);
+        fillImages(added).then(() => { if (tab === "col") drawCol(); }); if (tab === "col") drawCol();
+      },
+    });
   };
 }
 function download(name, text, type = "text/plain") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => a.remove(), 500); }
@@ -943,8 +974,10 @@ function importDeckDialog() {
     const rows = parseList($("dText").value); if (!rows.length) { $("dStatus").textContent = "Não reconheci nenhuma linha."; return; }
     const cards = []; const miss = [];
     rows.forEach((r, i) => { const pi = resolveRow(r); if (pi < 0) { miss.push(r.name); return; } const p = DB.p[pi]; cards.push({ oi: p[3], qty: r.qty, board: r.board || "main", set: r.set ? p[0] : "", number: r.set ? p[1] : "" }); });
-    if (miss.length) toast("Não encontrei: " + miss.slice(0, 6).join(", "), 4000);
-    newDeck($("dName").value || "Deck importado", $("dFormat").value, cards, "lista");
+    const name = $("dName").value || "Deck importado", fmt = $("dFormat").value; const n = cards.reduce((a, c) => a + c.qty, 0);
+    confirm2({ title: "Conferir deck", body: `<p style="margin:0"><b>${esc(name)}</b> · ${esc(fmt)} · ${n} cartas</p>${miss.length ? `<div class="meta">Não encontrei (vão ficar de fora): ${esc(miss.slice(0, 15).join(", "))}</div>` : ""}<p class="meta" style="margin:0">Só cria a lista do deck — não mexe na coleção.</p>`,
+      second: () => `Criar o deck <b>${esc(name)}</b> com ${n} cartas?`, okLabel: "Sim, criar deck",
+      onOk: () => { closeSheet(); newDeck(name, fmt, cards, "lista"); } });
   };
 }
 // Precons via MTGJSON
@@ -976,10 +1009,10 @@ async function preconDialog() {
         if (ex) ex.qty += c.count || 1; else cards.push({ oi: p[3], qty: c.count || 1, board, set: p[0], number: p[1], foil: !!c.isFoil });
       });
       add(j.commander, "cmd"); add(j.mainBoard, "main"); add(j.sideBoard, "side");
-      if (miss.length) toast("Não encontrei: " + miss.slice(0, 5).join(", "), 4000);
-      const fmt = /commander/i.test(j.type || "") ? "Commander" : "Livre";
-      const d = newDeck(j.name, fmt, cards, "precon " + (j.code || ""));
-      setTimeout(() => offerCollectionAdd(d), 400);
+      const fmt = /commander/i.test(j.type || "") ? "Commander" : "Livre"; const n = cards.reduce((a, c) => a + c.qty, 0);
+      confirm2({ title: "Importar precon", body: `<p style="margin:0"><b>${esc(j.name)}</b> · ${esc(j.type || "")} · ${n} cartas</p>${miss.length ? `<div class="meta">Não encontrei: ${esc(miss.slice(0, 10).join(", "))}</div>` : ""}`,
+        backLabel: "Escolher outro", onBack: preconDialog, second: () => `Importar o precon <b>${esc(j.name)}</b> (${n} cartas)?`,
+        onOk: () => { closeSheet(); const d = newDeck(j.name, fmt, cards, "precon " + (j.code || "")); setTimeout(() => offerCollectionAdd(d), 400); } });
     } catch (e) { $("pStatus").textContent = "Não consegui baixar esse deck."; }
   };
 }
@@ -988,6 +1021,11 @@ function offerCollectionAdd(d) {
     `<button class="btn" id="oNo">Não, só a lista</button><button class="btn primary" id="oYes">Sim, adicionar e montar</button>`);
   $("oNo").onclick = closeSheet;
   $("oYes").onclick = () => {
+    const dupN = d.cards.filter(c => S.cards.some(e => e.oi === c.oi && !/Basic Land/.test(DB.o[c.oi][5]))).length;
+    openSheet(`<h3 style="margin:0">Tem certeza?</h3><p style="margin:0">Vou adicionar <b>${deckCount(d)} cartas</b> à coleção e marcar como montadas em <b>${esc(d.name)}</b>.${dupN ? ` ${dupN} delas vocês já têm em outra cópia — vão ficar com uma cópia a mais.` : ""}</p><p class="meta" style="margin:0">Confirmação 2 de 2.</p>`, `<button class="btn" id="oNo2">Cancelar</button><button class="btn primary" id="oYes2">Sim, adicionar</button>`);
+    $("oNo2").onclick = closeSheet; $("oYes2").onclick = () => doAdd();
+  };
+  const doAdd = () => {
     const added = [];
     for (const c of d.cards) { const e = addToCollection({ oi: c.oi, set: c.set, number: c.number, lang: "en", foil: c.foil, qty: c.qty }); e.decks[d.id] = (e.decks[d.id] || 0) + c.qty; added.push(e); }
     d.built = true; save(); closeSheet(); renderDeck(d.id); toast("Precon adicionado e montado."); fillImages(added);
@@ -1852,6 +1890,17 @@ function resultSheet(c) {
   $("rAdd").onclick = () => commitScan(c, false);
 }
 function commitScan(c, auto) {
+  const have = S.cards.filter(x => x.oi === c.oi).reduce((a, x) => a + x.qty, 0);
+  if (have && !c.dupOk) {
+    SC.paused = true; SC.cur = null;
+    const where = S.cards.filter(x => x.oi === c.oi).map(x => `${x.qty}× ${x.set.toUpperCase()} #${x.number}${x.foil ? " foil" : ""} — ${inDecks(x) ? "em deck" : whereLib(x).text.replace(/^Caixa /, "Cx ")}`).slice(0, 4);
+    openSheet(`<h3 style="margin:0">Já tem essa carta</h3><p style="margin:0">Vocês já têm <b>${have}× ${esc(DB.o[c.oi][0])}</b>.</p><div class="meta">${where.map(esc).join("<br>")}</div><p style="margin:0">Adicionar mais ${c.qty > 1 ? c.qty + " cópias" : "uma cópia"}?</p>
+      ${VOICE.on ? `<div class="voicehint"><i></i> Diga “sim” ou “não”</div>` : ""}`, `<button class="btn" id="dupNo">Não, pular</button><button class="btn primary" id="dupYes">Sim, adicionar</button>`);
+    SC.dup = c;
+    $("dupNo").onclick = () => { SC.dup = null; SC.lastOi = c.oi; SC.clearSeen = false; resume(); };
+    $("dupYes").onclick = () => { SC.dup = null; c.dupOk = true; commitScan(c, auto); };
+    return;
+  }
   const e = addToCollection(c);
   const dest = S.settings.scanDest && S.decks.find(d => d.id === S.settings.scanDest);
   SC.cur = null;
@@ -1889,6 +1938,7 @@ function voiceSync() {
 }
 function voiceCommand(raw) {
   const t = raw.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); if (!t) return;
+  if (SC.dup && $("dupYes")) { if (/\b(sim|adiciona|adicionar|ok|pode|isso|confirma)\b/.test(t)) { toast("🎤 sim"); $("dupYes").click(); } else if (/\b(nao|pula|pular|cancela)\b/.test(t)) { toast("🎤 não"); $("dupNo").click(); } return; }
   const c = SC.cur; if (!c || $("sheet").classList.contains("hidden")) return;
   const nm = t.match(/\b(\d{1,2})\b/) || t.match(/\b(um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|doze|vinte)\b/);
   if (nm) { const n = /\d/.test(nm[1]) ? +nm[1] : NUM_PT[nm[1]]; if (n && SC.setQ) SC.setQ(n); }
