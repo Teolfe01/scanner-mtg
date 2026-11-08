@@ -1328,7 +1328,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.09";
+const APP_VERSION = "2026.11.09b";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1338,7 +1338,7 @@ const THEMES = {
   ouro: { n: "Ouro", c: ["#b07d0b", "#e0b23c", "#fff0a8"], ink: "#2a1e02", tint: "#fff3cc", hot: "#221e14" },
   gelo: { n: "Gelo", c: ["#7f98c0", "#b8cbe6", "#f4f8ff"], ink: "#101826", tint: "#e8eef8", hot: "#1a1d23" },
 };
-const PREF_DEF = { theme: "fogo", motion: true, grid: "m", currency: "BRL", showPrices: true, startTab: "last", vibrate: true, askDup: true, edhrec: true, showDeals: true, showEdh: true, showBoxes: true, hoverZoom: true };
+const PREF_DEF = { theme: "fogo", motion: true, grid: "m", currency: "BRL", showPrices: true, startTab: "last", vibrate: true, scanSound: true, askDup: true, edhrec: true, showDeals: true, showEdh: true, showBoxes: true, hoverZoom: true };
 const P = () => Object.assign({}, PREF_DEF, (S.settings && S.settings.prefs) || {});
 const PREFS = P;
 function setPref(k, v) { S.settings.prefs = Object.assign({}, S.settings.prefs, { [k]: v }); store.set("settings", S.settings).catch(() => {}); applyPrefs(); }
@@ -1389,6 +1389,7 @@ function renderCfg() {
     </div>
     <h2 class="sec">Scanner</h2><div class="card cfg-card">
       ${row("Vibrar ao reconhecer uma carta", "", tog("vibrate", p.vibrate))}
+      ${row("Som por faixa de preço", "Ao escanear: até R$ 5, R$ 5+, R$ 10+, R$ 20+ e R$ 100+ têm sons diferentes", tog("scanSound", p.scanSound) + `<button class="btn small" id="cfSnd" style="margin-left:8px">Ouvir</button>`)}
       ${row("Perguntar antes de adicionar carta repetida", "", tog("askDup", p.askDup))}
       ${row("Comandos de voz", "“sim”, “não”, números e “foil”", `<button class="tgl" role="switch" aria-checked="${!!S.settings.voice}" data-tgl="__voice"><i></i></button>`)}
     </div>
@@ -1420,7 +1421,7 @@ function renderCfg() {
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
-  $("cfBug").onclick = bugDialog; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp;
+  $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp;
 }
 function diagText() {
   const lines = [`Versão ${APP_VERSION}`, `Tela: ${tab}${view ? " " + JSON.stringify(view) : ""}`, `Aparelho: ${navigator.userAgent}`, `Tela: ${innerWidth}x${innerHeight} · ${isInstalled() ? "app instalado" : "navegador"}${IS_APP() ? " (APK)" : ""}`,
@@ -2480,9 +2481,28 @@ async function scanPhoto(file) {
 $("dbgBtn").onclick = () => { SC.debug = !SC.debug; $("dbgBtn").setAttribute("aria-pressed", SC.debug); $("dbg").classList.toggle("hidden", !SC.debug); };
 $("photoInput").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); };
 for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(true); };
+// ---- Som por faixa de preço (scanner) ----
+// valores em centavos de R$: <5 · 5+ · 10+ · 20+ · 100+
+let ACTX = null;
+const actx = () => { try { ACTX = ACTX || new (window.AudioContext || window.webkitAudioContext)(); if (ACTX.state === "suspended") ACTX.resume(); } catch (e) {} return ACTX; };
+document.addEventListener("pointerdown", () => { if (!ACTX) actx(); }, { once: true, capture: true });
+function tone(ctx, f, t0, dur, type = "sine", vol = .18) {
+  const o = ctx.createOscillator(), g = ctx.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + .012); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(ctx.destination); o.start(t0); o.stop(t0 + dur + .02);
+}
+function priceSound(cents, force) {
+  if (!force && !P().scanSound) return; const ctx = actx(); if (!ctx) return; const t = ctx.currentTime + .02; const r = (cents || 0) / 100;
+  if (r < 5) tone(ctx, 330, t, .12, "sine", .12);                                                     // até R$ 5: "tuc" baixinho
+  else if (r < 10) { tone(ctx, 523, t, .12); tone(ctx, 659, t + .1, .16); }                             // R$ 5+: duas notas
+  else if (r < 20) { [523, 659, 784].forEach((f, i) => tone(ctx, f, t + i * .09, .18, "triangle", .2)); } // R$ 10+: arpejo
+  else if (r < 100) { [523, 659, 784, 1047].forEach((f, i) => tone(ctx, f, t + i * .08, .22, "triangle", .22)); tone(ctx, 1047, t + .32, .35, "sine", .12); } // R$ 20+: arpejo brilhante
+  else { [784, 988, 1175, 1568].forEach((f, i) => tone(ctx, f, t + i * .07, .2, "square", .08)); [1568, 2093, 2637].forEach((f, i) => tone(ctx, f, t + .3 + i * .06, .5, "sine", .14)); if (navigator.vibrate && P().vibrate) navigator.vibrate([60, 60, 120]); } // R$ 100+: fanfarra
+}
 async function onLocked(hit, fromPhoto) {
   SC.paused = true; if (navigator.vibrate && P().vibrate) navigator.vibrate(40);
   const p = DB.p[hit.pi];
+  try { priceSound(priceOf({ oi: hit.oi, set: p[0], number: p[1], foil: $("foilBtn").getAttribute("aria-pressed") === "true", lang: "en" })); } catch (e) {}
   const cur = { oi: hit.oi, set: p[0], number: p[1], lang: $("langSel").value || hit.lang || p[4] || "en", foil: $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1, via: hit.via, img: "" };
   if (!fromPhoto && $("autoBtn").getAttribute("aria-pressed") === "true" && hit.via !== "name") return commitScan(cur, true);
   resultSheet(cur);
