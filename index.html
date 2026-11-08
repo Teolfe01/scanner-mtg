@@ -1518,7 +1518,7 @@ async function edhLoad(oi, br) {
   // contagem por bracket (página geral de decks)
   edhDecks("decks/" + slug).then(all => {
     if (tab !== "edh") return; const bc = all.bracket_counts || {}; let tot = 0;
-    BRACKETS.forEach(([s, , n]) => { const el = document.querySelector(`[data-cnt="${s}"]`); const v = n ? bc[n] || 0 : Object.values(bc).reduce((a, x) => a + x, 0) || all.n; if (!n) tot = v; if (el) el.textContent = v ? " " + v.toLocaleString("pt-BR") : " 0"; });
+    BRACKETS.forEach(([s, , n]) => { const el = document.querySelector(`[data-cnt="${s}"]`); const v = n ? bc[n] || 0 : all.n || Object.values(bc).reduce((a, x) => a + x, 0); if (!n) tot = v; if (el) el.textContent = v ? " " + v.toLocaleString("pt-BR") : " 0"; });
     if ($("ehTotal")) $("ehTotal").textContent = `${tot.toLocaleString("pt-BR")} decks no EDHREC`;
   }).catch(() => {});
   edhDecks("decks/" + slug + sfx).then(dk => edhDrawDecks(oi, br, dk)).catch(() => { if ($("ehDecks")) $("ehDecks").innerHTML = `<div class="meta">Não consegui carregar os decks${br ? " deste bracket" : ""} (sem internet ou sem decks).</div>`; });
