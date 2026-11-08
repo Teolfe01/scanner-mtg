@@ -787,12 +787,14 @@ window.addEventListener("popstate", (e) => {
   if (NAV.sheet) { closeSheet({ pop: true }); return; }
   if (!$("menu").classList.contains("hidden")) $("menu").classList.add("hidden");
   if (s.guard) {
-    if (Date.now() - NAV.guardAt < 2000) { history.back(); return; }
+    if (Date.now() - NAV.guardAt < 2000) { if (IS_NATIVE()) { history.pushState({ bm: 1, t: tab, v: view }, ""); saveResume(); const A = window.Capacitor.Plugins.App; A && A.minimizeApp ? A.minimizeApp() : A && A.exitApp && A.exitApp(); return; } history.back(); return; }
     NAV.guardAt = Date.now(); toast("Toque em voltar de novo para sair", 2000); history.pushState({ bm: 1, t: tab, v: view }, ""); return;
   }
   if (sameView(s, { t: tab, v: view })) { history.back(); return; }
   go(s.t, s.v || null, { pop: true });
 });
+// App nativo (Capacitor): o botão voltar do Android passa pelo histórico do app em vez de fechar
+setTimeout(() => { try { const A = IS_NATIVE() && window.Capacitor.Plugins.App; if (A) A.addListener("backButton", () => history.back()); } catch (e) {} }, 0);
 $("nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) go(b.dataset.tab); });
 $("backBtn").onclick = () => (tab === "cfg" ? history.back() : go(tab));
 function setMenu(items) {
@@ -1307,7 +1309,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.08";
+const APP_VERSION = "2026.11.08b";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
