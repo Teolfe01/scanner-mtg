@@ -17,7 +17,6 @@ jobs:
         with: { distribution: temurin, java-version: "21" }
       - uses: actions/setup-node@v4
         with: { node-version: "22" }
-      - uses: android-actions/setup-android@v3
       - name: Dependências
         working-directory: android-app
         run: npm ci || npm install
