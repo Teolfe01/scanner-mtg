@@ -340,6 +340,24 @@ html.noprices .grid .cardimg .price { display: none; }
 .theme { display: grid; justify-items: center; gap: 6px; background: none; border: 0; color: var(--muted); font: 12px var(--font); cursor: pointer; }
 .theme i { width: 46px; height: 46px; border-radius: 16px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); transition: transform .2s var(--spring); }
 .theme[aria-pressed="true"] { color: var(--ink); } .theme[aria-pressed="true"] i { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px #fff; transform: scale(1.06); }
+.edh-head { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; background: var(--surface); border-radius: 18px; padding: 12px; margin-bottom: 10px; }
+.edh-cmdimg { border: 0; padding: 0; background: none; border-radius: 6%; }
+.edh-name { font-size: 18px; font-weight: 700; line-height: 1.2; }
+.edh-ci { margin: 4px 0; display: flex; gap: 3px; }
+.edh-br { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.edh-br::-webkit-scrollbar { display: none; }
+.edh-br .chip { white-space: nowrap; flex: 0 0 auto; }
+.chip .cnt { opacity: .6; font-size: .85em; }
+.edh-brnote { margin: 4px 2px 6px; }
+.edh-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.edh-stats > div { background: var(--surface); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.edh-stats b { font-size: 15px; } .edh-stats span { font-size: 11px; color: var(--muted); }
+.edh-avg { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: var(--surface); border-radius: 16px; padding: 10px 12px; margin-top: 10px; }
+.edh-deck { grid-template-columns: 1fr auto; text-decoration: none; color: inherit; }
+.edh-deck .bb { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: rgba(var(--acc-rgb), .18); color: var(--accent); margin-left: 4px; }
+.edh-deck .tg { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: rgba(255,255,255,.07); color: var(--muted); }
+.avl { columns: 2 200px; column-gap: 16px; font-size: 13px; line-height: 1.6; }
+.avl .own { color: var(--accent); }
 .precons { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .precon { background: var(--surface); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; animation: riseIn .3s ease both; }
 .precon .pc-art { width: 100%; aspect-ratio: 626/457; max-height: 190px; object-fit: cover; display: block; background: var(--surface2, #222); }
@@ -524,6 +542,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <button data-tab="col" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="9" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Coleção</button>
   <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
   <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
+  <button data-tab="edh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 18h18l-1.5-10-4.5 4-3-6-3 6-4.5-4z"/><path d="M5 21h14"/></svg>EDH</button>
   <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
 </nav>
@@ -761,7 +780,7 @@ function cardImgHTML(e, opts = {}) {
 
 // ============ Navegação ============
 let tab = "col", view = null; // view: {kind:'deck', id}
-const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), cfg: (...a) => renderCfg(...a) };
+const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), edh: (...a) => renderEdh(...a), cfg: (...a) => renderCfg(...a) };
 // Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
 const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
@@ -1309,7 +1328,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.08b";
+const APP_VERSION = "2026.11.09";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1319,7 +1338,7 @@ const THEMES = {
   ouro: { n: "Ouro", c: ["#b07d0b", "#e0b23c", "#fff0a8"], ink: "#2a1e02", tint: "#fff3cc", hot: "#221e14" },
   gelo: { n: "Gelo", c: ["#7f98c0", "#b8cbe6", "#f4f8ff"], ink: "#101826", tint: "#e8eef8", hot: "#1a1d23" },
 };
-const PREF_DEF = { theme: "fogo", motion: true, grid: "m", currency: "BRL", showPrices: true, startTab: "last", vibrate: true, askDup: true, edhrec: true, showDeals: true, showBoxes: true, hoverZoom: true };
+const PREF_DEF = { theme: "fogo", motion: true, grid: "m", currency: "BRL", showPrices: true, startTab: "last", vibrate: true, askDup: true, edhrec: true, showDeals: true, showEdh: true, showBoxes: true, hoverZoom: true };
 const P = () => Object.assign({}, PREF_DEF, (S.settings && S.settings.prefs) || {});
 const PREFS = P;
 function setPref(k, v) { S.settings.prefs = Object.assign({}, S.settings.prefs, { [k]: v }); store.set("settings", S.settings).catch(() => {}); applyPrefs(); }
@@ -1334,6 +1353,7 @@ function applyPrefs() {
   document.documentElement.classList.toggle("noprices", !p.showPrices);
   const nb = (t) => document.querySelector(`nav.bottom button[data-tab="${t}"]`);
   if (nb("deals")) nb("deals").classList.toggle("hidden", !p.showDeals);
+  if (nb("edh")) nb("edh").classList.toggle("hidden", !p.showEdh);
   if (nb("boxes")) nb("boxes").classList.toggle("hidden", !p.showBoxes);
 }
 // erros recentes para o relatório de bug
@@ -1357,6 +1377,7 @@ function renderCfg() {
       ${row("Ampliar carta ao passar o mouse", "Só no PC", tog("hoverZoom", p.hoverZoom))}
     </div>
     <h2 class="sec">Abas e início</h2><div class="card cfg-card">
+      ${row("Aba EDH", "Decks por bracket e cartas sinérgicas de cada comandante", tog("showEdh", p.showEdh))}
       ${row("Aba Ofertas", "Cartas e precons que ficaram baratos", tog("showDeals", p.showDeals))}
       ${row("Aba Caixas", "Organização física da biblioteca", tog("showBoxes", p.showBoxes))}
       ${row("Abrir o app em", "", seg("startTab", [["last", "Onde parei"], ["col", "Coleção"], ["scan", "Escanear"], ["decks", "Decks"]], p.startTab))}
@@ -1444,6 +1465,156 @@ async function bugsList() {
     $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
   } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
 }
+// ============ ABA EDH ============
+// Escolhe um comandante e mostra, por bracket (1–5), os decks do EDHREC, a lista média e as cartas de maior sinergia.
+const BRACKETS = [["", "Todos", ""], ["exhibition", "1 · Exibição", "1"], ["core", "2 · Básico", "2"], ["upgraded", "3 · Melhorado", "3"], ["optimized", "4 · Otimizado", "4"], ["cedh", "5 · cEDH", "5"]];
+const EDHT = { cat: "", own: false, more: false, sort: "recent", tag: "" };
+const edhState = () => (S.settings.edh = S.settings.edh || { oi: null, br: "" });
+const usd2c = (usd) => Math.round((usd || 0) * 100 * RATE());
+const fmt0 = (c) => fmtUSD(c).replace(/,\d\d$/, "");
+// páginas de decks são grandes: guarda só o necessário
+async function edhDecks(path) {
+  const key = "edhd:" + path; if (EDH.mem.has(key)) return EDH.mem.get(key);
+  try { const c = await store.get(key); if (c && Date.now() - c.at < 864e5) { EDH.mem.set(key, c.j); return c.j; } } catch (e) {}
+  const r = await fetch("https://json.edhrec.com/pages/" + path + ".json"); if (!r.ok) throw new Error("EDHREC " + r.status);
+  const j0 = await r.json(); const t = (j0.table || []).slice().sort((a, b) => (b.savedate || "").localeCompare(a.savedate || ""));
+  const j = { bracket_counts: j0.bracket_counts || {}, tag_counts: (j0.tag_counts || []).slice(0, 14), n: t.length, prices: t.map(x => x.price || 0).filter(Boolean).sort((a, b) => a - b), table: t.slice(0, 120) };
+  EH_mem(key, j); return j;
+}
+function EH_mem(key, j) { EDH.mem.set(key, j); store.set(key, { at: Date.now(), j }).catch(() => {}); }
+function renderEdh() {
+  const st = edhState();
+  $("title").textContent = "EDH"; $("bars").innerHTML = ""; $("fab").classList.add("hidden");
+  setMenu([["Escolher outro comandante", edhPick], ...(st.oi != null ? [["Ver no EDHREC ↗", () => window.open("https://edhrec.com/commanders/" + cmdSlug([st.oi]), "_blank")]] : []), ["Esconder esta aba", () => { setPref("showEdh", false); go("col"); toast("Aba EDH escondida — dá para voltar em Configurações"); }]]);
+  if (st.oi == null || !DB.o[st.oi]) return edhLanding();
+  const oi = st.oi;
+  $("main").innerHTML = `<div class="edh-head">
+      <button class="edh-cmdimg" id="ehZoom">${cardImgHTML(fakeEntry({ oi }), { bare: true })}</button>
+      <div class="edh-info"><div class="edh-name">${esc(DB.o[oi][0])}</div>
+        <div class="meta">${esc(DB.o[oi][5])}</div>
+        <div class="edh-ci">${(DB.o[oi][4] || "C").split("").map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join("")}</div>
+        <div class="meta" id="ehTotal"></div>
+        <div class="actions" style="margin:6px 0 0"><button class="btn small" id="ehPick">Trocar</button><button class="btn small primary" id="ehNew">Montar deck</button></div></div></div>
+    <div class="chips edh-br" id="ehBr">${BRACKETS.map(([s, n]) => `<button class="chip" data-br="${s}" aria-pressed="${st.br === s}">${n}<span class="cnt" data-cnt="${s}"></span></button>`).join("")}</div>
+    <div class="meta edh-brnote" id="ehBrNote"></div>
+    <h2 class="sec"><span>Decks${st.br ? " neste bracket" : ""}</span><span id="ehDn"></span></h2><div id="ehDecks"><div class="meta">Carregando decks do EDHREC…</div></div>
+    <h2 class="sec"><span>Cartas sinérgicas</span><span id="ehCn"></span></h2>
+    <div class="chips" id="ehCat"></div>
+    <label class="meta ck" style="margin:2px 0 8px"><input type="checkbox" id="ehOwn" ${EDHT.own ? "checked" : ""}> Só as que temos na coleção</label>
+    <div class="meta" id="ehTagNote"></div>
+    <div class="ed-results" id="ehCards">${Array(8).fill(`<div class="res"><div class="cardimg"><div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i></div></div></div>`).join("")}</div>
+    <div style="text-align:center;margin:10px 0" id="ehMoreW"></div>
+    <div class="cfg-s" style="text-align:center;margin:14px 0 4px">Dados públicos do EDHREC · sinergia = quanto a carta aparece mais com este comandante do que em outros decks das mesmas cores</div>`;
+  $("ehPick").onclick = edhPick; $("ehNew").onclick = () => edhNewDeck(oi, st.br);
+  $("ehZoom").onclick = (e) => zoomImg(e.currentTarget.querySelector(".cardimg"), { actions: [["Voltar", () => closeZoom()], ["Ver na Liga ↗", () => { closeZoom(); window.open(ligaURL(oi), "_blank"); }, "primary"]] });
+  $("ehBr").onclick = (e) => { const b = e.target.closest("[data-br]"); if (!b) return; st.br = b.dataset.br; EDHT.more = false; EDHT.tag = ""; store.set("settings", S.settings); renderEdh(); };
+  $("ehOwn").onchange = (e) => { EDHT.own = e.target.checked; edhDrawCards(); };
+  edhLoad(oi, st.br);
+}
+const BR_TXT = { "": "Todos os decks registrados no EDHREC para este comandante.", exhibition: "Bracket 1 — decks temáticos e casuais, sem combos nem Game Changers.", core: "Bracket 2 — nível de um precon: sem Game Changers, sem combos de 2 cartas cedo.", upgraded: "Bracket 3 — decks melhorados: até 3 Game Changers, combos só no fim do jogo.", optimized: "Bracket 4 — alta potência: sem restrições de cartas.", cedh: "Bracket 5 — competitivo (cEDH), feito para o meta de torneio." };
+async function edhLoad(oi, br) {
+  const slug = cmdSlug([oi]); const sfx = br ? "/" + br : "";
+  $("ehBrNote").textContent = BR_TXT[br] || "";
+  // contagem por bracket (página geral de decks)
+  edhDecks("decks/" + slug).then(all => {
+    if (tab !== "edh") return; const bc = all.bracket_counts || {}; let tot = 0;
+    BRACKETS.forEach(([s, , n]) => { const el = document.querySelector(`[data-cnt="${s}"]`); const v = n ? bc[n] || 0 : Object.values(bc).reduce((a, x) => a + x, 0) || all.n; if (!n) tot = v; if (el) el.textContent = v ? " " + v.toLocaleString("pt-BR") : " 0"; });
+    if ($("ehTotal")) $("ehTotal").textContent = `${tot.toLocaleString("pt-BR")} decks no EDHREC`;
+  }).catch(() => {});
+  edhDecks("decks/" + slug + sfx).then(dk => edhDrawDecks(oi, br, dk)).catch(() => { if ($("ehDecks")) $("ehDecks").innerHTML = `<div class="meta">Não consegui carregar os decks${br ? " deste bracket" : ""} (sem internet ou sem decks).</div>`; });
+  try { const j = await edh("commanders/" + slug + sfx); if (tab !== "edh") return; EDHT.page = j; EDHT.pageKey = slug + sfx; edhCats(); edhDrawCards(); }
+  catch (e) { if ($("ehCards")) $("ehCards").innerHTML = `<div class="meta">Não consegui carregar as cartas do EDHREC${br ? " para este bracket" : ""}.</div>`; }
+}
+function edhDrawDecks(oi, br, dk) {
+  if (tab !== "edh" || !$("ehDecks")) return;
+  if (!dk.n) { $("ehDecks").innerHTML = `<div class="meta">Nenhum deck registrado${br ? " neste bracket" : ""}.</div>`; $("ehDn").textContent = "0"; return; }
+  $("ehDn").textContent = dk.n.toLocaleString("pt-BR");
+  const med = dk.prices.length ? dk.prices[Math.floor(dk.prices.length / 2)] : 0;
+  const p25 = dk.prices.length ? dk.prices[Math.floor(dk.prices.length * .25)] : 0, p75 = dk.prices.length ? dk.prices[Math.floor(dk.prices.length * .75)] : 0;
+  const rows = dk.table.slice().sort(EDHT.sort === "cheap" ? (a, b) => a.price - b.price : EDHT.sort === "exp" ? (a, b) => b.price - a.price : () => 0);
+  const typ = (x) => [["creature", "Cri"], ["instant", "Ins"], ["sorcery", "Fei"], ["artifact", "Art"], ["enchantment", "Enc"], ["planeswalker", "PW"], ["land", "Ter"]].filter(([k]) => x[k]).map(([k, n]) => `${n} ${x[k]}`).join(" · ");
+  $("ehDecks").innerHTML = `<div class="edh-stats">
+      <div><b>${fmt0(usd2c(med))}</b><span>preço médio</span></div>
+      <div><b>${fmt0(usd2c(p25)).replace(/^R\$ |^US\$ /, "")}–${fmt0(usd2c(p75)).replace(/^R\$ |^US\$ /, "")}</b><span>faixa comum</span></div>
+      <div><b>${dk.n.toLocaleString("pt-BR")}</b><span>decks</span></div></div>
+    ${dk.tag_counts.length ? `<div class="meta" style="margin:8px 0 4px">Temas mais comuns — toque para ver as cartas do tema:</div><div class="chips" id="ehTags">${dk.tag_counts.slice(0, 10).map(t => `<button class="chip" data-tag="${esc(t.slug)}" aria-pressed="${EDHT.tag === t.slug}">${esc(t.value)} <span class="cnt">${t.count}</span></button>`).join("")}</div>` : ""}
+    <div class="edh-avg"><div><b>Lista média${br ? " do bracket" : ""}</b><div class="meta">As ~99 cartas mais comuns nesses decks. Veja quantas já temos ou monte um deck com ela.</div></div>
+      <div class="actions" style="margin:0"><button class="btn small" id="ehAvg">Ver lista</button><button class="btn small primary" id="ehAvgNew">Montar com ela</button></div></div>
+    <div class="seg" id="ehSort" style="margin:10px 0 6px">${[["recent", "Recentes"], ["cheap", "Mais baratos"], ["exp", "Mais caros"]].map(([v, n]) => `<button data-v="${v}" aria-pressed="${EDHT.sort === v}">${n}</button>`).join("")}</div>
+    <div class="rows">${rows.slice(0, EDHT.dmore ? 40 : 6).map(x => `<a class="row edh-deck" target="_blank" rel="noopener" href="https://edhrec.com/deckpreview/${esc(x.urlhash)}">
+      <span><span class="rn">${fmt0(usd2c(x.price))} <span class="bb b${x.bracket || 0}">B${x.bracket || "?"}</span>${(x.tags || []).slice(0, 2).map(t => ` <span class="tg">${esc(t)}</span>`).join("")}</span>
+      <span class="rs">${typ(x)}</span><span class="rs">${x.savedate ? new Date(x.savedate + "T12:00").toLocaleDateString("pt-BR") : ""}${x.salt ? ` · sal ${Math.round(x.salt)}` : ""}</span></span><span class="rs">↗</span></a>`).join("")}</div>
+    <div class="cfg-s" style="margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:8px"><span>As listas completas abrem no EDHREC.</span>${rows.length > 6 ? `<button class="btn small" id="ehDMore">${EDHT.dmore ? "Mostrar menos" : "Ver mais decks"}</button>` : ""}</div>`;
+  if ($("ehDMore")) $("ehDMore").onclick = () => { EDHT.dmore = !EDHT.dmore; edhDrawDecks(oi, br, dk); };
+  $("ehSort").onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) return; EDHT.sort = b.dataset.v; edhDrawDecks(oi, br, dk); };
+  $("ehAvg").onclick = () => edhAvgSheet(oi, br); $("ehAvgNew").onclick = () => edhNewDeck(oi, br, true);
+  if ($("ehTags")) $("ehTags").onclick = async (e) => { const b = e.target.closest("[data-tag]"); if (!b) return;
+    EDHT.tag = EDHT.tag === b.dataset.tag ? "" : b.dataset.tag; EDHT.more = false;
+    $("ehTags").querySelectorAll("[data-tag]").forEach(x => x.setAttribute("aria-pressed", x.dataset.tag === EDHT.tag));
+    const slug = cmdSlug([oi]);
+    try { const j = await edh("commanders/" + slug + (EDHT.tag ? "/" + EDHT.tag : br ? "/" + br : "")); EDHT.page = j; edhCats(); edhDrawCards(); $("ehCards").scrollIntoView({ behavior: "smooth", block: "start" }); } catch (err) { toast("Não consegui carregar esse tema."); } };
+}
+function edhCats() {
+  const lists = (EDHT.page && EDHT.page.container.json_dict.cardlists) || [];
+  const cats = lists.filter(l => !/^(New Cards|Top Cards|Lands)$/.test(l.header) || l.header === "Lands");
+  if (!cats.some(l => l.header === EDHT.cat)) EDHT.cat = "";
+  $("ehCat").innerHTML = [`<button class="chip" data-cat="" aria-pressed="${!EDHT.cat}">Todas</button>`, ...cats.map(l => `<button class="chip" data-cat="${esc(l.header)}" aria-pressed="${EDHT.cat === l.header}">${esc(EDH_PT[l.header] || l.header)}</button>`)].join("");
+  $("ehCat").onclick = (e) => { const b = e.target.closest("[data-cat]"); if (!b) return; EDHT.cat = b.dataset.cat; EDHT.more = false; $("ehCat").querySelectorAll("[data-cat]").forEach(x => x.setAttribute("aria-pressed", x === b)); edhDrawCards(); };
+}
+function edhDrawCards() {
+  if (tab !== "edh" || !$("ehCards") || !EDHT.page) return;
+  const st = edhState(); const lists = EDHT.page.container.json_dict.cardlists || [];
+  const own = new Set(S.cards.map(e => e.oi)); const seen = new Set(); let items = [];
+  for (const l of lists) { if (EDHT.cat ? l.header !== EDHT.cat : /^(Lands)$/.test(l.header)) continue;
+    for (const v of l.cardviews || []) { if (seen.has(v.name)) continue; seen.add(v.name); const oi = edhOi(v.name); if (oi === undefined || oi === st.oi) continue;
+      items.push({ oi, syn: v.synergy || 0, pct: v.potential_decks ? Math.round(100 * v.num_decks / v.potential_decks) : 0, gc: l.header === "Game Changers" }); } }
+  items.sort((a, b) => b.syn - a.syn || b.pct - a.pct);
+  if (EDHT.own) items = items.filter(x => own.has(x.oi));
+  const lim = EDHT.more ? 200 : 36;
+  $("ehCn").textContent = items.length;
+  $("ehTagNote").textContent = EDHT.tag ? `Mostrando cartas do tema escolhido (vale para todos os brackets).` : "";
+  $("ehCards").innerHTML = items.slice(0, lim).map(x => `<div class="res"><button class="resimg" data-z="${x.oi}">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}${x.syn > 0.005 ? `<span class="edh-rank">+${Math.round(x.syn * 100)}%</span>` : ""}<span class="edh-pct">${x.pct}% dos decks</span>${own.has(x.oi) ? `<span class="ownb" style="left:auto;right:6%">✓</span>` : ""}</button><span class="resname">${esc(DB.o[x.oi][0])}</span></div>`).join("") || `<div class="meta">${EDHT.own ? "Nenhuma dessas está na coleção." : "Sem cartas nessa categoria."}</div>`;
+  $("ehMoreW").innerHTML = items.length > lim ? `<button class="btn small" id="ehMore">Mostrar mais (${items.length - lim})</button>` : "";
+  if ($("ehMore")) $("ehMore").onclick = () => { EDHT.more = true; edhDrawCards(); };
+  $("ehCards").onclick = (e) => { const b = e.target.closest("[data-z]"); if (!b) return; const oi = +b.dataset.z;
+    zoomImg(b.querySelector(".cardimg"), { actions: [["Voltar", () => closeZoom()], ["Ver na Liga ↗", () => { closeZoom(); window.open(ligaURL(oi), "_blank"); }, "primary"]] }); };
+}
+async function edhAvgSheet(oi, br) {
+  openSheet(`<h3 style="margin:0">Lista média · ${esc(BRACKETS.find(b => b[0] === br)[1])}</h3><div class="meta" id="avN">Carregando…</div><div id="avL"></div>`, `<button class="btn" id="avX">Fechar</button><button class="btn primary" id="avNew">Montar deck com ela</button>`);
+  $("avX").onclick = closeSheet; $("avNew").onclick = () => edhNewDeck(oi, br, true);
+  try {
+    const j = await edh("average-decks/" + cmdSlug([oi]) + (br ? "/" + br : "")); const lists = (j.deck && j.deck.cards) || {};
+    const own = new Set(S.cards.map(e => e.oi)); let tot = 0, have = 0;
+    const html = Object.entries(lists).map(([t, arr]) => `<h2 class="sec"><span>${esc({ Creature: "Criaturas", Instant: "Instantâneas", Sorcery: "Feitiços", Artifact: "Artefatos", Enchantment: "Encantamentos", Planeswalker: "Planeswalkers", Battle: "Batalhas", Land: "Terrenos" }[t] || t)}</span><span>${arr.reduce((a, x) => a + x[1], 0)}</span></h2><div class="avl">${arr.map(([n, q]) => { const o = edhOi(n); const h = o !== undefined && own.has(o); tot += q; if (h) have += q; return `<div class="${h ? "own" : ""}">${q > 1 ? q + "× " : ""}${esc(n)}${h ? " ✓" : ""}</div>`; }).join("")}</div>`).join("");
+    if (!$("avL")) return; $("avL").innerHTML = html; $("avN").innerHTML = `Temos <b>${have}</b> de ${tot} cartas na coleção (✓).`;
+  } catch (e) { if ($("avN")) $("avN").textContent = "Não consegui carregar a lista média deste bracket."; }
+}
+function edhNewDeck(oi, br, withAvg) {
+  if (!withAvg) {
+    return openSheet(`<h3 style="margin:0">Montar deck com ${esc(DB.o[oi][0].split(" // ")[0])}</h3><div class="rows">
+      <button class="row" id="enAvg" style="grid-template-columns:1fr"><span><span class="rn">Começar pela lista média${br ? " do bracket" : ""}</span><span class="rs">~99 cartas mais comuns${br ? " em decks deste bracket" : ""}; depois você troca o que quiser.</span></span></button>
+      <button class="row" id="enEmpty" style="grid-template-columns:1fr"><span><span class="rn">Começar vazio, com sugestões</span><span class="rs">O editor mostra as recomendações do EDHREC por categoria.</span></span></button></div>`, `<button class="btn" id="enX">Cancelar</button>`),
+      $("enX").onclick = closeSheet, $("enAvg").onclick = () => edhNewDeck(oi, br, true),
+      $("enEmpty").onclick = () => { closeSheet(); const d = edhMakeDeck(oi); ED.pane = "busca"; openEditor(d.id); };
+  }
+  closeSheet(); const d = edhMakeDeck(oi); openEditor(d.id); applyAverage(d, [oi], "replace", br);
+}
+function edhMakeDeck(oi) {
+  const pi = defaultPrint(oi);
+  const d = { id: uid(), name: DB.o[oi][0].split(" // ")[0], format: "Commander", source: "edhrec", cards: [{ oi, qty: 1, board: "cmd", set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" }], built: false, created: Date.now() };
+  S.decks.push(d); ED.useCI = true; save(); return d;
+}
+function edhPick() { pickCommander((oi) => { const st = edhState(); st.oi = oi; EDHT.tag = ""; EDHT.cat = ""; EDHT.more = false; store.set("settings", S.settings); closeSheet(); if (tab === "edh") renderEdh(); else go("edh"); }); }
+async function edhLanding() {
+  $("main").innerHTML = `<div class="cmdban empty-cmd"><div><b>Escolha um comandante</b><div class="meta">Veja decks de cada bracket (1 a 5), a lista média e as cartas com mais sinergia, direto do EDHREC.</div></div><button class="btn primary" id="ehPick0">Escolher</button></div>
+    <h2 class="sec"><span>Mais jogados</span></h2><div class="ed-results" id="ehTop"><div class="meta">Carregando…</div></div>`;
+  $("ehPick0").onclick = edhPick;
+  try { const top = await edhTopCommanders(null); if (tab !== "edh" || !$("ehTop")) return;
+    $("ehTop").innerHTML = top.slice(0, 30).map(x => `<div class="res"><button class="resimg" data-oi="${x.oi}">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}<span class="edh-rank">#${x.rank}</span><span class="edh-pct">${x.decks.toLocaleString("pt-BR")} decks</span></button><span class="resname">${esc(DB.o[x.oi][0])}</span></div>`).join("");
+    $("ehTop").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (!b) return; edhState().oi = +b.dataset.oi; store.set("settings", S.settings); renderEdh(); window.scrollTo(0, 0); };
+  } catch (e) { if ($("ehTop")) $("ehTop").innerHTML = `<div class="meta">Sem conexão com o EDHREC agora.</div>`; }
+}
+
 // ============ OFERTAS ============
 // A LigaMagic não deixa outros apps lerem os preços, então a referência é o preço internacional (Scryfall) em R$,
 // com histórico guardado pelo próprio app para detectar quedas. Cada item leva para a página da carta na Liga.
@@ -1882,7 +2053,7 @@ function pickCommander(d, partnerOf = null) {
   $("pcX").onclick = closeSheet;
   $("pcR").onclick = (e) => {
     const b = e.target.closest("[data-pick]"); if (!b) return; const oi = +b.dataset.pick;
-    zoomImg(b.querySelector(".cardimg"), { actions: [["Voltar", () => closeZoom()], [partnerOf !== null ? "Escolher como parceiro" : "Escolher como comandante", () => { closeZoom(); setCommander(d, oi, partnerOf !== null); }, "primary"]] });
+    zoomImg(b.querySelector(".cardimg"), { actions: [["Voltar", () => closeZoom()], [partnerOf !== null ? "Escolher como parceiro" : "Escolher como comandante", () => { closeZoom(); typeof d === "function" ? d(oi) : setCommander(d, oi, partnerOf !== null); }, "primary"]] });
   };
   draw(); setTimeout(() => $("pcQ") && isWide() && $("pcQ").focus(), 50);
 }
@@ -1913,9 +2084,9 @@ async function loadAverageDeck(d, ask = true) {
   }
   applyAverage(d, cmd, hasMain ? "add" : "replace");
 }
-async function applyAverage(d, cmd, mode) {
+async function applyAverage(d, cmd, mode, br = "") {
   toast("Buscando a lista média no EDHREC…", 1500);
-  let j; try { j = await edh("average-decks/" + cmdSlug(cmd)); } catch (e) { closeSheet(); return toast("Não consegui acessar o EDHREC agora (sem internet?)."); }
+  let j; try { j = await edh("average-decks/" + cmdSlug(cmd) + (br ? "/" + br : "")); } catch (e) { closeSheet(); return toast("Não consegui acessar o EDHREC agora (sem internet?)."); }
   const lists = (j.deck && j.deck.cards) || {}; const miss = []; const add = [];
   for (const arr of Object.values(lists)) for (const [name, qty] of arr) { const oi = edhOi(name); if (oi === undefined) { miss.push(name); continue; } if (!cmd.includes(oi)) add.push([oi, qty]); }
   if (mode === "replace") { d.cards.filter(c => c.board === "main").forEach(c => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); }); }
