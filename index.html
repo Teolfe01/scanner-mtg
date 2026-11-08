@@ -1374,8 +1374,8 @@ function renderCfg() {
       ${btnRow("cfCache", "Limpar imagens guardadas", "Libera espaço; as imagens baixam de novo quando precisar")}
     </div>
     <h2 class="sec">Ajuda</h2><div class="card cfg-card">
-      ${btnRow("cfBug", "🐞 Reportar um bug", "Conte o que aconteceu — vai junto um diagnóstico do app")}
-      ${btnRow("cfBugs", "Bugs reportados", "Ver e marcar como resolvidos")}
+      ${btnRow("cfBug", "🐞 Reportar bug ou 💡 sugerir melhoria", "Vai junto um diagnóstico do app")}
+      ${btnRow("cfBugs", "Bugs e sugestões", "Lista para o pacote de atualização (a cada 2 dias)")}
       ${isInstalled() ? "" : btnRow("cfInst", "📲 Instalar o app", "")}
       <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}</div>
     </div></div>`;
@@ -1399,28 +1399,39 @@ function diagText() {
   return lines.join("\n");
 }
 function bugDialog() {
-  openSheet(`<h3 style="margin:0">🐞 Reportar um bug</h3><p class="meta" style="margin:0">Conte o que você fez e o que aconteceu de errado. Prints ajudam: mande no chat junto com o relatório.</p>
-    <textarea id="bgTxt" rows="5" placeholder="Ex.: abri um deck, toquei em Remontar e o app travou"></textarea>
+  openSheet(`<h3 style="margin:0">Bug ou sugestão</h3>
+    <div class="seg" id="bgType" style="justify-content:stretch"><button data-v="bug" aria-pressed="${(window.__fbType || "bug") === "bug"}" style="flex:1">🐞 Bug</button><button data-v="ideia" aria-pressed="${window.__fbType === "ideia"}" style="flex:1">💡 Sugestão de melhoria</button></div>
+    <p class="meta" style="margin:0" id="bgHint"></p>
+    <textarea id="bgTxt" rows="5"></textarea>
     <label class="meta ck"><input type="checkbox" id="bgDiag" checked> Incluir diagnóstico (versão, aparelho, tela, erros recentes)</label>
     <details class="meta"><summary>Ver diagnóstico</summary><pre style="white-space:pre-wrap;font-size:11px">${esc(diagText())}</pre></details>`,
     `<button class="btn" id="bgX">Cancelar</button><button class="btn primary" id="bgGo">Enviar</button>`);
   $("bgX").onclick = closeSheet;
-  $("bgGo").onclick = async () => {
+  const setType = (t) => { window.__fbType = t; $("bgType").querySelectorAll("[data-v]").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === t));
+    $("bgHint").textContent = t === "bug" ? "Conte o que você fez e o que aconteceu de errado." : "Descreva a melhoria ou função nova. Elas ficam juntas e entram nas atualizações do app a cada 2 dias.";
+    $("bgTxt").placeholder = t === "bug" ? "Ex.: abri um deck, toquei em Remontar e o app travou" : "Ex.: poder marcar cartas como 'quero trocar'"; };
+  setType(window.__fbType || "bug"); $("bgType").onclick = (e) => { const b = e.target.closest("[data-v]"); if (b) setType(b.dataset.v); };
+  $("bgGo").onclick = async () => { const kind = window.__fbType || "bug";
     const txt = $("bgTxt").value.trim(); if (!txt) { $("bgTxt").focus(); toast("Descreva o problema"); return; }
-    const report = `BUG — Biblioteca MTG\n${txt}\n\n${$("bgDiag").checked ? diagText() : ""}`.trim();
-    let saved = false; try { if (CLOUD.user) { await base().collection("bugs").add({ at: Date.now(), by: CLOUD.user.email, text: txt, diag: $("bgDiag").checked ? diagText() : "", status: "aberto" }); saved = true; } } catch (e) {}
-    openSheet(`<h3 style="margin:0">Obrigado!</h3><p style="margin:0">${saved ? "O bug ficou registrado em <b>Configurações → Bugs reportados</b>." : "Não consegui registrar na nuvem agora."} Para eu corrigir, copie o relatório e cole na conversa com o Claude.</p><pre class="textbox" style="white-space:pre-wrap;font-size:11px;max-height:200px;overflow:auto">${esc(report)}</pre>`,
+    const report = `${kind === "bug" ? "BUG" : "SUGESTÃO"} — Biblioteca MTG\n${txt}\n\n${$("bgDiag").checked ? diagText() : ""}`.trim();
+    let saved = false; try { if (CLOUD.user) { await base().collection("bugs").add({ at: Date.now(), by: CLOUD.user.email, kind, text: txt, diag: $("bgDiag").checked ? diagText() : "", status: "aberto" }); saved = true; } } catch (e) {}
+    openSheet(`<h3 style="margin:0">Obrigado!</h3><p style="margin:0">${saved ? "Ficou registrado em <b>Configurações → Bugs e sugestões</b>." : "Não consegui registrar na nuvem agora — copie o relatório."} ${kind === "bug" ? "Se for urgente, copie e cole na conversa com o Claude." : "Vai junto no próximo pacote de melhorias."}</p><pre class="textbox" style="white-space:pre-wrap;font-size:11px;max-height:200px;overflow:auto">${esc(report)}</pre>`,
       `<a class="btn" href="mailto:teolfe@gmail.com?subject=${encodeURIComponent("Bug Biblioteca MTG")}&body=${encodeURIComponent(report)}">E-mail</a><button class="btn primary" id="bgCopy">Copiar relatório</button>`);
     $("bgCopy").onclick = async () => { try { await navigator.clipboard.writeText(report); toast("Relatório copiado"); } catch (e) { toast("Não consegui copiar"); } };
   };
 }
 async function bugsList() {
-  openSheet(`<h3 style="margin:0">Bugs reportados</h3><div class="rows" id="bgList"><div class="meta">Carregando…</div></div>`, `<button class="btn" id="blX">Fechar</button><button class="btn primary" id="blNew">Reportar novo</button>`);
-  $("blX").onclick = closeSheet; $("blNew").onclick = bugDialog;
-  if (!CLOUD.user) { $("bgList").innerHTML = `<div class="meta">Entre com a conta para ver os bugs registrados.</div>`; return; }
+  openSheet(`<h3 style="margin:0">Bugs e sugestões</h3><p class="meta" style="margin:0">Para a atualização do app: toque em <b>Copiar pendentes</b> e cole tudo na conversa com o Claude.</p><div class="rows" id="bgList"><div class="meta">Carregando…</div></div>`, `<button class="btn" id="blCopy">Copiar pendentes</button><button class="btn primary" id="blNew">Novo</button>`);
+  $("blNew").onclick = bugDialog;
+  if (!CLOUD.user) { $("bgList").innerHTML = `<div class="meta">Entre com a conta para ver a lista.</div>`; $("blCopy").onclick = () => toast("Entre com a conta primeiro"); return; }
   try {
-    const qs = await base().collection("bugs").orderBy("at", "desc").limit(30).get();
-    $("bgList").innerHTML = qs.docs.map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nenhum bug reportado. 🎉</div>`;
+    const qs = await base().collection("bugs").orderBy("at", "desc").limit(60).get();
+    const open = qs.docs.map(d => d.data()).filter(b => b.status !== "resolvido");
+    $("blCopy").onclick = async () => {
+      const txt = `PACOTE DE MELHORIAS — Biblioteca MTG (${new Date().toLocaleDateString("pt-BR")})\n\n` + (open.map((b, i) => `${i + 1}. [${b.kind === "ideia" ? "SUGESTÃO" : "BUG"}] ${b.text}\n   — ${(b.by || "").split("@")[0]}, ${new Date(b.at).toLocaleDateString("pt-BR")}${b.kind !== "ideia" && b.diag ? "\n   " + b.diag.split("\n").slice(0, 3).join(" | ") : ""}`).join("\n\n") || "Nada pendente.");
+      try { await navigator.clipboard.writeText(txt); toast(`${open.length} item(ns) copiados — cole na conversa com o Claude`, 3000); } catch (e) { toast("Não consegui copiar"); }
+    };
+    $("bgList").innerHTML = qs.docs.map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${b.kind === "ideia" ? "💡" : "🐞"} ${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nada por aqui ainda.</div>`;
     $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
   } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
 }
@@ -1518,7 +1529,7 @@ function saveResume() {
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveResume(); });
 window.addEventListener("pagehide", saveResume);
 // No app instalado (APK/tela inicial), links externos abrem na mesma janela: o "voltar" do celular retorna ao app
-const IS_APP = () => /android-app:\/\//.test(document.referrer) || matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches || S.settings.isApp;
+const IS_APP = () => IS_NATIVE() || /android-app:\/\//.test(document.referrer) || matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches || S.settings.isApp;
 if (/android-app:\/\//.test(document.referrer)) { S.settings.isApp = true; }
 document.addEventListener("click", (e) => {
   const a = e.target.closest('a[target="_blank"]'); if (!a) return;
@@ -2410,7 +2421,14 @@ async function cloudInit() {
   try { await CLOUD.auth.getRedirectResult(); } catch (e) { CLOUD.error = e.message; }
   return new Promise(res => { const off = CLOUD.auth.onAuthStateChanged(u => { off(); CLOUD.user = u; res(u); }); });
 }
+const IS_NATIVE = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 async function signIn() {
+  if (IS_NATIVE()) { // app Android nativo: login do Google pelo próprio Android
+    const FA = window.Capacitor.Plugins.FirebaseAuthentication;
+    const r = await FA.signInWithGoogle();
+    const cred = firebase.auth.GoogleAuthProvider.credential(r.credential && r.credential.idToken, r.credential && r.credential.accessToken);
+    const u = (await CLOUD.auth.signInWithCredential(cred)).user; CLOUD.user = u; return u;
+  }
   const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" });
   try { const r = await CLOUD.auth.signInWithPopup(p); CLOUD.user = r.user; return r.user; }
   catch (e) { if (/popup|operation-not-supported/i.test(e.code || "")) { await CLOUD.auth.signInWithRedirect(p); return null; } throw e; }

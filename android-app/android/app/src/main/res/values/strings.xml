@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Biblioteca MTG</string>
+    <string name="title_activity_main">Biblioteca MTG</string>
+    <string name="package_name">io.github.teolfe01.bibliotecamtg.app</string>
+    <string name="custom_url_scheme">io.github.teolfe01.bibliotecamtg.app</string>
+</resources>

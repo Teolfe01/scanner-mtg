@@ -1,0 +1,40 @@
+name: App Android nativo
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["android-app/android/app/google-services.json", "android-app/build.trigger"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Precisa do google-services.json
+        run: test -f android-app/android/app/google-services.json || (echo "::error::Falta android-app/android/app/google-services.json (Firebase > app Android)"; exit 1)
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "21" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - uses: android-actions/setup-android@v3
+      - name: Dependências
+        working-directory: android-app
+        run: npm ci || npm install
+      - name: Sincronizar Capacitor
+        working-directory: android-app
+        run: npx cap sync android
+      - name: Compilar APK
+        working-directory: android-app/android
+        env: { VERSION_CODE: "${{ github.run_number }}" }
+        run: chmod +x gradlew && ./gradlew assembleRelease --no-daemon
+      - name: Renomear
+        run: cp android-app/android/app/build/outputs/apk/release/app-release.apk BibliotecaMTG.apk
+      - name: Publicar versão
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-v${{ github.run_number }}
+          name: App Android v${{ github.run_number }}
+          body: "Baixe o BibliotecaMTG.apk abaixo e instale no Android. O app abre a Biblioteca MTG sem depender do navegador."
+          files: BibliotecaMTG.apk
+          make_latest: true
