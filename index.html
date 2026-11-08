@@ -340,6 +340,13 @@ html.noprices .grid .cardimg .price { display: none; }
 .theme { display: grid; justify-items: center; gap: 6px; background: none; border: 0; color: var(--muted); font: 12px var(--font); cursor: pointer; }
 .theme i { width: 46px; height: 46px; border-radius: 16px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); transition: transform .2s var(--spring); }
 .theme[aria-pressed="true"] { color: var(--ink); } .theme[aria-pressed="true"] i { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px #fff; transform: scale(1.06); }
+.precons { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
+.precon { background: var(--surface); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; animation: riseIn .3s ease both; }
+.precon .pc-art { width: 100%; aspect-ratio: 626/457; max-height: 190px; object-fit: cover; display: block; background: var(--surface2, #222); }
+.precon div.pc-art { background: #25272d; position: relative; overflow: hidden; }
+.precon div.pc-art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.08) 50%, transparent 70%); animation: pcShine 1.4s infinite; }
+@keyframes pcShine { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.precon .pc-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 2px; }
 .deals-note { background: var(--surface); border-radius: 16px; padding: 10px 14px; margin-bottom: 4px; }
 .res a.resimg { display: block; position: relative; text-decoration: none; }
 @media (max-width: 420px) { .cfg-row:has(.seg) { flex-direction: column; align-items: stretch; } .cfg-row .seg { justify-content: stretch; } .cfg-row .seg button { flex: 1; } }
@@ -1300,7 +1307,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.07";
+const APP_VERSION = "2026.11.08";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1496,7 +1503,7 @@ function drawDeals() {
     ${drops.length ? `<div class="ed-results">${drops.slice(0, 30).map(x => card(x, `<span class="edh-rank">↓ ${x.drop}%</span>`)).join("")}</div>` : `<div class="meta">Nenhuma carta que falta nos seus decks caiu 10% ou mais${D.items.length ? "" : " (nenhuma carta faltando nos decks)"}. O app vai acompanhando os preços a cada dia.</div>`}
     <h2 class="sec"><span>Faltando nos seus decks — mais baratas</span><span>${D.items.length}</span></h2>
     ${D.items.length ? `<div class="meta" style="margin-bottom:8px">Completar tudo custaria cerca de <b>${fmtUSD(total)}</b>.</div><div class="ed-results">${cheap.slice(0, 60).map(x => card(x)).join("")}</div>` : `<div class="meta">Todos os seus decks estão completos com a coleção. 🎉</div>`}
-    <h2 class="sec"><span>Precons recentes — valor em cartas</span></h2><div class="rows" id="preconDeals"><div class="meta">Carregando lista de precons…</div></div>
+    <h2 class="sec"><span>Precons recentes — valor em cartas</span></h2><div class="precons" id="preconDeals"><div class="meta">Carregando lista de precons…</div></div>
     <div class="cfg-s" style="text-align:center;margin-top:10px">Atualizado ${new Date(D.at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`;
   drawPreconDeals();
 }
@@ -1506,13 +1513,19 @@ async function drawPreconDeals() {
     const cut = new Date(Date.now() - 400 * 864e5).toISOString().slice(0, 10);
     const list = (j.data || []).filter(d => /Commander Deck/i.test(d.type) && d.releaseDate >= cut).sort((a, b) => b.releaseDate.localeCompare(a.releaseDate)).slice(0, 24);
     if (!$("preconDeals")) return;
-    const cache = (await store.get("preconval")) || {};
-    $("preconDeals").innerHTML = list.map(d => `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn">${esc(d.name)}</span><span class="rs">${esc(d.code)} · ${new Date(d.releaseDate + "T12:00").toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}${cache[d.fileName] ? ` · cartas valem <b>${fmtUSD(cache[d.fileName])}</b>` : ""}</span></span>
-      <span class="actions" style="margin:0">${cache[d.fileName] ? "" : `<button class="btn small" data-pv="${esc(d.fileName)}">Calcular</button>`}<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent('site:ligamagic.com.br "' + d.name + '" commander deck')}">Liga ↗</a><a class="btn small" target="_blank" rel="noopener" href="https://www.amazon.com.br/s?k=${encodeURIComponent('magic commander deck ' + d.name)}">Amazon ↗</a></span></div>`).join("") || `<div class="meta">Nenhum precon recente.</div>`;
-    $("preconDeals").onclick = async (e) => { const b = e.target.closest("[data-pv]"); if (!b) return; b.textContent = "…"; b.disabled = true;
-      try { const dj = (await (await fetch(`https://mtgjson.com/api/v5/decks/${b.dataset.pv}.json`)).json()).data; let v = 0;
+    const cache = (await store.get("preconval2")) || {};
+    const art = (n) => `https://api.scryfall.com/cards/named?format=image&version=art_crop&exact=${encodeURIComponent(n.split(" // ")[0])}`;
+    const draw = () => { if (!$("preconDeals")) return;
+      $("preconDeals").innerHTML = list.map(d => { const c = cache[d.fileName];
+        return `<div class="precon">${c && c.cmd ? `<img class="pc-art" loading="lazy" src="${art(c.cmd)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'pc-art sk'}))">` : `<div class="pc-art sk"></div>`}
+        <div class="pc-body"><span class="rn">${esc(d.name)}</span><span class="rs">${esc(d.code)} · ${new Date(d.releaseDate + "T12:00").toLocaleDateString("pt-BR", { month: "short", year: "numeric" })}${c ? ` · cartas valem <b>${fmtUSD(c.v)}</b>` : " · calculando…"}</span>${c && c.cmd ? `<span class="rs">Comandante: ${esc(c.cmd)}</span>` : ""}
+        <span class="actions" style="margin:4px 0 0"><a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/search?q=${encodeURIComponent('site:ligamagic.com.br "' + d.name + '" commander deck')}">Liga ↗</a><a class="btn small" target="_blank" rel="noopener" href="https://www.amazon.com.br/s?k=${encodeURIComponent('magic commander deck ' + d.name)}">Amazon ↗</a></span></div></div>`; }).join("") || `<div class="meta">Nenhum precon recente.</div>`; };
+    draw();
+    for (const d of list) { if (cache[d.fileName]) continue; if (tab !== "deals") return;
+      try { const dj = (await (await fetch(`https://mtgjson.com/api/v5/decks/${d.fileName}.json`)).json()).data; let v = 0;
         for (const c of [...(dj.commander || []), ...(dj.mainBoard || [])]) { const pi = c.setCode ? DB.bySetNum.get(c.setCode.toLowerCase() + "|" + normNum(c.number)) : undefined; const oi = edhOi(c.name); const pp = pi !== undefined ? pi : oi !== undefined ? defaultPrint(oi) : -1; if (pp >= 0) v += brlOf(DB.p[pp][0], DB.p[pp][1], false) * (c.count || 1); }
-        cache[b.dataset.pv] = v; await store.set("preconval", cache); drawPreconDeals(); } catch (err) { b.textContent = "Erro"; } };
+        cache[d.fileName] = { v, cmd: (dj.commander && dj.commander[0] && dj.commander[0].name) || "" }; await store.set("preconval2", cache); draw();
+      } catch (err) {} }
   } catch (e) { if ($("preconDeals")) $("preconDeals").innerHTML = `<div class="meta">Não consegui carregar os precons (sem internet?).</div>`; }
 }
 
