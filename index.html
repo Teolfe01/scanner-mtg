@@ -272,6 +272,16 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
 .voicehint i { width: 8px; height: 8px; border-radius: 50%; background: #ff5a4a; animation: vpulse 1.2s ease-in-out infinite; }
 @keyframes vpulse { 50% { opacity: .3; transform: scale(.7); } }
 .destchip button { margin-left: 10px; border: 0; background: rgba(20,22,26,.9); color: #fff; font: 600 12px var(--font); padding: 5px 12px; border-radius: 999px; }
+.scantop #scanDest { max-width: 52vw; text-overflow: ellipsis; }
+.scanmore { flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-top: 2px; background: rgba(20,22,26,.85); border-radius: 16px; backdrop-filter: blur(10px); animation: riseIn .18s ease both; }
+.scanmore.hidden { display: none; }
+#moreBtn[aria-expanded="true"] { background: rgba(var(--acc-rgb), .25); }
+.typebtn { margin-left: auto; margin-right: 4px; }
+.pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
+.pv { border: 0; background: none; color: inherit; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 3px; font: inherit; }
+.pv .pvt { font-size: 11px; color: var(--muted); line-height: 1.3; }
+.pv .pvl { font-size: 11px; font-weight: 700; color: var(--accent); }
+.mn-row { grid-template-columns: 1fr auto; }
 .destrow { flex: 0 0 100%; display: flex; justify-content: center; margin-top: 4px; } .destrow:has(.destchip.hidden) { display: none; }
 .destchip { display: flex; align-items: center; padding: 4px 4px 4px 14px !important; position: relative; background: var(--grad); color: var(--accent-ink); font-weight: 600; font-size: 13px; padding: 6px 14px; border-radius: 999px; box-shadow: var(--glow); white-space: nowrap; max-width: calc(100% - 24px); overflow: hidden; text-overflow: ellipsis; z-index: 2; }
 /* Molde cinza com brilho diagonal enquanto a imagem carrega */
@@ -517,14 +527,17 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <video id="video" playsinline autoplay muted></video>
   <div class="guide" id="guide"><div class="band t"></div><div class="band f"></div></div>
   <div class="scantop">
-    <button class="chipbtn" id="autoBtn" aria-pressed="false">Auto</button>
-    <button class="chipbtn" id="foilBtn" aria-pressed="false">Foil</button>
-    <select id="langSel" class="chipbtn" aria-label="Idioma" style="width:auto;min-height:0;padding:7px 10px"><option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option></select>
     <select id="scanDest" class="chipbtn" aria-label="Destino" style="width:auto;min-height:0;padding:7px 10px"></select>
-    <button class="chipbtn hidden" id="camSwitch">Lente</button>
-    <button class="chipbtn hidden" id="voiceBtn" aria-pressed="false">🎤 Voz</button>
-    <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ</button>
-    <button class="chipbtn" id="dbgBtn" aria-pressed="false">🔍 Leitura</button>
+    <button class="chipbtn" id="foilBtn" aria-pressed="false">Foil</button>
+    <button class="chipbtn" id="moreBtn" aria-expanded="false">⚙ <span id="moreLbl">Opções</span></button>
+    <div class="scanmore hidden" id="scanMore">
+      <button class="chipbtn" id="autoBtn" aria-pressed="false">Auto</button>
+    <select id="langSel" class="chipbtn" aria-label="Idioma" style="width:auto;min-height:0;padding:7px 10px"><option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option></select>
+      <button class="chipbtn hidden" id="camSwitch">Lente</button>
+      <button class="chipbtn hidden" id="voiceBtn" aria-pressed="false">🎤 Voz</button>
+      <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ Câmera</button>
+      <button class="chipbtn" id="dbgBtn" aria-pressed="false">🔍 Leitura</button>
+    </div>
     <div class="destrow"><div class="destchip hidden" id="destChip"></div></div>
   </div>
   <div class="mf zoomwrap hidden" id="zoomWrap"><span>1×</span><input type="range" id="zoomRange" aria-label="Zoom da câmera" step="0.05"><b id="zoomVal">1.0×</b></div>
@@ -532,6 +545,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <div id="dbg" class="hidden" style="position:absolute;left:8px;right:8px;top:110px;background:rgba(0,0,0,.8);padding:6px;border-radius:10px;display:grid;gap:4px;z-index:3"></div>
   <div class="scanbottom">
     <button class="lastscan" id="lastScan">Escaneadas <b id="sessCount">0</b></button>
+    <button class="lastscan typebtn" id="typeBtn">⌨ Digitar</button>
     <label class="roundbtn" aria-label="Foto com a câmera do celular"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none"></label>
     <button class="roundbtn hidden" id="torchBtn" aria-pressed="false" aria-label="Lanterna"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M9 2h6v5l-2 3v12h-2V10L9 7z"/></svg></button>
   </div>
@@ -1329,7 +1343,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.09c";
+const APP_VERSION = "2026.11.09d";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2324,7 +2338,7 @@ async function ensureOCR() {
 function renderScan() {
   $("scanDest").innerHTML = `<option value="">Destino: caixas</option>` + S.decks.map(d => `<option value="${esc(d.id)}">Deck: ${esc(d.name)}</option>`).join("") + `<option value="__new">+ Escanear um deck novo…</option>`;
   $("scanDest").value = S.settings.scanDest && S.decks.some(d => d.id === S.settings.scanDest) ? S.settings.scanDest : "";
-  updateDestChip(); voiceSync();
+  updateDestChip(); voiceSync(); setTimeout(() => { try { moreLabel(); } catch (e) {} }, 0);
   $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
   startScanner();
 }
@@ -2500,6 +2514,64 @@ function priceSound(cents, force) {
   else if (r < 100) { [523, 659, 784, 1047].forEach((f, i) => tone(ctx, f, t + i * .08, .22, "triangle", .22)); tone(ctx, 1047, t + .32, .35, "sine", .12); } // R$ 20+: arpejo brilhante
   else { [784, 988, 1175, 1568].forEach((f, i) => tone(ctx, f, t + i * .07, .2, "square", .08)); [1568, 2093, 2637].forEach((f, i) => tone(ctx, f, t + .3 + i * .06, .5, "sine", .14)); if (navigator.vibrate && P().vibrate) navigator.vibrate([60, 60, 120]); } // R$ 100+: fanfarra
 }
+
+// ---- Opções do scanner (menu recolhido) ----
+function moreLabel() { const on = []; if ($("autoBtn").getAttribute("aria-pressed") === "true") on.push("Auto"); if (VOICE.on) on.push("Voz"); if ($("langSel").value) on.push($("langSel").value.toUpperCase()); $("moreLbl").textContent = on.length ? on.join(" · ") : "Opções"; }
+$("moreBtn").onclick = () => { const open = $("scanMore").classList.toggle("hidden") === false; $("moreBtn").setAttribute("aria-expanded", open); };
+$("scanMore").addEventListener("click", () => setTimeout(moreLabel, 0)); $("langSel").addEventListener("change", moreLabel);
+// ---- Digitar nome ou código ----
+const TRT = (c) => { const t = []; const fe = c.frame_effects || [], pt = c.promo_types || [];
+  if (c.border_color === "borderless") t.push("Sem borda"); if (fe.includes("showcase")) t.push("Showcase"); if (fe.includes("extendedart")) t.push("Arte estendida");
+  if (c.full_art && c.border_color !== "borderless") t.push("Arte completa"); if (fe.includes("etched") || (c.finishes || []).includes("etched")) t.push("Etched");
+  if (["1993", "1997"].includes(c.frame)) t.push("Moldura retrô"); if (fe.includes("inverted")) t.push("Invertida"); if (pt.includes("serialized")) t.push("Numerada");
+  if (pt.includes("textured")) t.push("Texturizada"); if (pt.includes("galaxyfoil") || pt.includes("surgefoil") || pt.includes("ripplefoil")) t.push("Foil especial");
+  if (c.promo && !t.length) t.push("Promo"); return t; };
+function parseCode(q) {
+  const t = q.trim().toLowerCase().replace(/\s+/g, " "); let m = t.match(/^([a-z0-9]{2,6})[\s#\-\/]*([0-9]+[a-z★]?)$/) || t.match(/^([a-z0-9]*[a-z][a-z0-9]*)\s*#?\s*([0-9]+[a-z★]?)$/);
+  if (!m) { const r = t.match(/^([0-9]+[a-z★]?)\s+([a-z0-9]{2,6})$/); if (r) m = [0, r[2], r[1]]; }
+  if (!m || !DB.setCodes.has(m[1])) return undefined; return DB.bySetNum.get(m[1] + "|" + normNum(m[2]));
+}
+function manualEntry() {
+  SC.paused = true;
+  openSheet(`<h3 style="margin:0">Digitar carta</h3><input type="search" id="mnQ" placeholder="Nome (ex.: Sol Ring) ou código (ex.: DSK 150)" autocomplete="off"><div class="meta" id="mnN">O código fica no canto de baixo da carta: coleção + número.</div><div class="rows" id="mnR"></div>`, `<button class="btn" id="mnX">Fechar</button>`);
+  $("mnX").onclick = () => closeSheet();
+  const draw = () => { const q = $("mnQ").value; const pi = parseCode(q);
+    if (pi !== undefined) { const p = DB.p[pi]; $("mnN").textContent = "Código encontrado:";
+      $("mnR").innerHTML = `<button class="row mn-row" data-pi="${pi}"><span><span class="rn">${esc(DB.o[p[3]][0])}</span><span class="rs">${esc(p[0].toUpperCase())} #${esc(p[1])} · ${esc(DB.sets[p[0]] || "")}</span></span><span class="rs">${fmtUSD(brlOf(p[0], p[1], false))}</span></button>`; return; }
+    const r = searchNames(q, 25); $("mnN").textContent = q.trim().length < 2 ? "O código fica no canto de baixo da carta: coleção + número." : r.length ? "Toque na carta para escolher a versão:" : "Nada encontrado.";
+    $("mnR").innerHTML = r.map(oi => `<button class="row mn-row" data-oi="${oi}"><span><span class="rn">${esc(DB.o[oi][0])}</span><span class="rs">${esc(DB.o[oi][5])}</span></span><span class="rs">${(DB.prints[oi] || []).length} versões ›</span></button>`).join(""); };
+  $("mnQ").oninput = () => { clearTimeout(SC.mnT); SC.mnT = setTimeout(draw, 120); };
+  $("mnQ").onkeydown = (e) => { if (e.key === "Enter") { const b = $("mnR").querySelector("button"); if (b) b.click(); } };
+  $("mnR").onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.pi) { const p = DB.p[+b.dataset.pi]; return openManual({ oi: p[3], set: p[0], number: p[1] }); }
+    pickVersion(+b.dataset.oi); };
+  draw(); setTimeout(() => $("mnQ") && $("mnQ").focus(), 60);
+}
+function openManual({ oi, set, number, foil }) {
+  const p = DB.p[DB.bySetNum.get(set + "|" + normNum(number))] || [];
+  resultSheet({ oi, set, number, lang: $("langSel").value || p[4] || "en", foil: foil !== undefined ? foil : $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1, via: "manual", img: "" });
+}
+async function pickVersion(oi) {
+  const local = (DB.prints[oi] || []).slice().reverse();
+  const F = { f: "" }; let items = local.map(pi => ({ pi, t: [], foilOnly: false }));
+  openSheet(`<h3 style="margin:0">${esc(DB.o[oi][0])}</h3><div class="meta" id="pvN">${local.length} versões · carregando tratamentos…</div><div class="chips" id="pvF"></div><div class="pv-grid" id="pvG"></div>`, `<button class="btn" id="pvB">Voltar</button>`);
+  $("pvB").onclick = () => manualEntry();
+  const draw = () => { if (!$("pvG")) return;
+    const tags = [...new Set(items.flatMap(x => x.t.length ? x.t : ["Normal"]))];
+    $("pvF").innerHTML = tags.length > 1 ? [`<button class="chip" data-f="" aria-pressed="${!F.f}">Todas</button>`, ...tags.map(t => `<button class="chip" data-f="${esc(t)}" aria-pressed="${F.f === t}">${esc(t)}</button>`)].join("") : "";
+    const list = items.filter(x => !F.f || (x.t.length ? x.t : ["Normal"]).includes(F.f));
+    $("pvG").innerHTML = list.map(x => { const p = DB.p[x.pi]; return `<button class="pv" data-pi="${x.pi}">${cardImgHTML({ oi, set: p[0], number: p[1], foil: false, lang: "en" }, { bare: true })}<span class="pvl">${esc(x.t.join(" · ") || "Normal")}${x.foilOnly ? " · só foil" : ""}</span><span class="pvt">${esc(p[0].toUpperCase())} #${esc(p[1])} · ${esc(DB.sets[p[0]] || "")}<br>${fmtUSD(brlOf(p[0], p[1], x.foilOnly)) || "—"}</span></button>`; }).join(""); };
+  $("pvF").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { F.f = b.dataset.f; draw(); } };
+  $("pvG").onclick = (e) => { const b = e.target.closest("[data-pi]"); if (!b) return; const x = items.find(i => i.pi === +b.dataset.pi); const p = DB.p[x.pi]; openManual({ oi, set: p[0], number: p[1], foil: x.foilOnly || undefined }); };
+  draw();
+  try {
+    let url = `https://api.scryfall.com/cards/search?unique=prints&order=released&dir=desc&q=${encodeURIComponent(`!"${DB.o[oi][0]}" include:extras game:paper`)}`; const sf = new Map();
+    for (let k = 0; url && k < 4; k++) { const j = await (await fetch(url)).json(); for (const c of j.data || []) sf.set(c.set + "|" + normNum(c.collector_number), c); url = j.has_more ? j.next_page : null; }
+    items = items.map(x => { const p = DB.p[x.pi]; const c = sf.get(p[0] + "|" + normNum(p[1])); return c ? { pi: x.pi, t: TRT(c), foilOnly: (c.finishes || []).length > 0 && !(c.finishes || []).includes("nonfoil") } : x; });
+    if ($("pvN")) $("pvN").textContent = `${local.length} versões · toque para escolher`; draw();
+  } catch (e) { if ($("pvN")) $("pvN").textContent = `${local.length} versões (sem internet para ver os tratamentos)`; }
+}
+$("typeBtn").onclick = manualEntry;
 async function onLocked(hit, fromPhoto) {
   SC.paused = true; if (navigator.vibrate && P().vibrate) navigator.vibrate(40);
   const p = DB.p[hit.pi];
@@ -2510,7 +2582,7 @@ async function onLocked(hit, fromPhoto) {
 }
 function resultSheet(c) {
   const o = oInfo(c.oi);
-  const via = c.via === "name" ? ["warn", "Reconhecida pelo nome — confira a edição"] : ["ok", { both: "Nome + coleção + número conferem", foot: "Coleção + número conferem", "name-set": "Nome + coleção conferem" }[c.via] || "Conferida"];
+  const via = c.via === "name" ? ["warn", "Reconhecida pelo nome — confira a edição"] : ["ok", { manual: "Escolhida por você", both: "Nome + coleção + número conferem", foot: "Coleção + número conferem", "name-set": "Nome + coleção conferem" }[c.via] || "Conferida"];
   const prints = (DB.prints[c.oi] || []).slice().reverse();
   const e = { oi: c.oi, set: c.set, number: c.number, foil: c.foil, lang: c.lang };
   const lib = whereLib(e);
