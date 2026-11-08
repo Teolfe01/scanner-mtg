@@ -1343,7 +1343,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.09d";
+const APP_VERSION = "2026.11.09e";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2294,7 +2294,7 @@ function labelsSheet() {
 
 // ============ SCANNER ============
 const SC = { busy: false, paused: false, last: null, streak: 0, lastOi: -1, clearSeen: true, timer: 0, session: [] };
-let stream = null, track = null, worker = null;
+let stream = null, track = null, worker = null, worker2 = null;
 const LANG_CODES = { EN: "en", PT: "pt", SP: "es", ES: "es", FR: "fr", DE: "de", IT: "it", JP: "ja", JA: "ja", KO: "ko", RU: "ru", CS: "zhs", CT: "zht" };
 const SUB_NUM = { O: "0", Q: "0", D: "0", I: "1", L: "1", "|": "1", Z: "2", S: "5", B: "8", G: "6", T: "7" };
 const SUB_SET = { "0": ["O"], O: ["0"], "1": ["I", "L"], I: ["1", "L"], L: ["1", "I"], "5": ["S"], S: ["5"], "8": ["B"], B: ["8"], "2": ["Z"], Z: ["2"], "6": ["G"], G: ["6"] };
@@ -2326,15 +2326,20 @@ function decide(titleTxt, foot) {
     const pi = both !== undefined ? both : (foot.prints.length === 1 ? foot.prints[0] : (nm ? undefined : foot.prints[0]));
     if (pi !== undefined) return { pi, oi: DB.p[pi][3], lang: foot.lang, via: both !== undefined ? "both" : "foot" };
   }
-  if (nm) { const ps = (DB.prints[nm.i] || []).filter(pi => foot.sets.includes(DB.p[pi][0])); if (ps.length === 1) return { pi: ps[0], oi: nm.i, lang: foot.lang, via: "name-set" }; const dp = defaultPrint(nm.i); return dp < 0 ? null : { pi: dp, oi: nm.i, lang: foot.lang, via: "name" }; }
+  if (nm) { const ps = (DB.prints[nm.i] || []).filter(pi => foot.sets.includes(DB.p[pi][0])); if (ps.length === 1) return { pi: ps[0], oi: nm.i, lang: foot.lang, via: "name-set" }; const dp = defaultPrint(nm.i); return dp < 0 ? null : { pi: dp, oi: nm.i, lang: foot.lang, via: "name", exact: nm.d === 0 }; }
   return null;
 }
 async function ensureOCR() {
   if (worker) return;
   const base = new URL("lib/", location.href).href;
   $("scanStatus").textContent = "Carregando o leitor…";
-  worker = await Tesseract.createWorker("eng", 1, { workerPath: base + "worker.min.js", corePath: base, langPath: base, gzip: true });
+  const mk = () => Tesseract.createWorker("eng", 1, { workerPath: base + "worker.min.js", corePath: base, langPath: base, gzip: true });
+  // dois leitores em paralelo: um para o nome, outro para o rodapé (coleção + número)
+  const [a, b] = await Promise.all([mk(), mk().catch(() => null)]);
+  worker2 = b; if (worker2) { try { await worker2.setParameters({ tessedit_pageseg_mode: "6" }); } catch (e) { worker2 = null; } }
+  SC.psm = null; worker = a;
 }
+async function psm(w, m) { if (w === worker2) return; if (SC.psm === m) return; SC.psm = m; await w.setParameters({ tessedit_pageseg_mode: m }); }
 function renderScan() {
   $("scanDest").innerHTML = `<option value="">Destino: caixas</option>` + S.decks.map(d => `<option value="${esc(d.id)}">Deck: ${esc(d.name)}</option>`).join("") + `<option value="__new">+ Escanear um deck novo…</option>`;
   $("scanDest").value = S.settings.scanDest && S.decks.some(d => d.id === S.settings.scanDest) ? S.settings.scanDest : "";
@@ -2461,17 +2466,16 @@ async function tick() {
     SC.alt = !SC.alt;
     const c1 = SC.alt ? crop($("video"), r, .05, .025, .66, .085, 56) : crop($("video"), r, .02, 0, .8, .14, 72);
     const c2 = SC.alt ? crop($("video"), r, .035, .895, .56, .09, 84) : crop($("video"), r, 0, .86, .7, .14, 110);
-    await worker.setParameters({ tessedit_pageseg_mode: SC.alt ? "7" : "6" });
-    const t1 = (await worker.recognize(c1)).data.text.replace(/\n/g, " ").trim();
-    await worker.setParameters({ tessedit_pageseg_mode: "6" });
-    const t2 = (await worker.recognize(c2)).data.text;
+    let t1, t2;
+    if (worker2) { await psm(worker, SC.alt ? "7" : "6"); const [a, b] = await Promise.all([worker.recognize(c1), worker2.recognize(c2)]); t1 = a.data.text.replace(/\n/g, " ").trim(); t2 = b.data.text; }
+    else { await psm(worker, SC.alt ? "7" : "6"); t1 = (await worker.recognize(c1)).data.text.replace(/\n/g, " ").trim(); await psm(worker, "6"); t2 = (await worker.recognize(c2)).data.text; }
     if (SC.debug) { const dbg = $("dbg"); dbg.innerHTML = ""; dbg.append(c1, c2); const p = document.createElement("pre"); p.textContent = "NOME: " + t1 + "\nRODAPÉ: " + t2.trim(); dbg.append(p); }
     const hit = decide(t1, parseFoot(t2)); const g = $("guide");
     if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide"; $("scanStatus").textContent = t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; }
     else {
       const key = hit.pi; SC.streak = SC.last === key ? SC.streak + 1 : 1; SC.last = key; g.className = "guide seen";
       $("scanStatus").textContent = "Lendo: " + DB.o[hit.oi][0];
-      const need = hit.via === "both" ? 1 : 2;
+      const need = hit.via === "both" || hit.via === "name-set" || (hit.via === "name" && hit.exact) ? 1 : 2;
       if (SC.streak >= need && !(hit.oi === SC.lastOi && !SC.clearSeen)) { g.className = "guide lock"; await onLocked(hit, false); }
     }
   } catch (e) { $("scanStatus").textContent = "Erro: " + (e.message || e); }
@@ -2482,13 +2486,13 @@ async function scanPhoto(file) {
   try {
     let bmp; try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { bmp = await createImageBitmap(file); }
     const full = { x: 0, y: 0, w: bmp.width, h: bmp.height };
-    await worker.setParameters({ tessedit_pageseg_mode: "6" });
+    SC.psm = null; await worker.setParameters({ tessedit_pageseg_mode: "6" });
     const top = (await worker.recognize(crop(bmp, full, 0, 0, 1, .22, Math.min(420, bmp.height * .22)))).data.text;
     const bot = (await worker.recognize(crop(bmp, full, 0, .78, 1, .22, Math.min(480, bmp.height * .22)))).data.text;
     let foot = parseFoot(bot);
     let hit = null;
     for (const l of top.split("\n").filter(x => x.trim().length > 3)) { const h = decide(l, foot); if (h && (!hit || h.via !== "name")) { hit = h; if (h.via !== "name") break; } }
-    if (!hit) { await worker.setParameters({ tessedit_pageseg_mode: "3" }); const all = (await worker.recognize(crop(bmp, full, 0, 0, 1, 1, Math.min(1800, bmp.height)))).data.text; if (!foot.prints.length) foot = parseFoot(all); for (const l of all.split("\n").filter(x => x.trim().length > 3).slice(0, 30)) { const h = decide(l, foot); if (h) { hit = h; break; } } if (!hit && foot.prints.length === 1) hit = { pi: foot.prints[0], oi: DB.p[foot.prints[0]][3], lang: foot.lang, via: "foot" }; }
+    if (!hit) { SC.psm = null; await worker.setParameters({ tessedit_pageseg_mode: "3" }); const all = (await worker.recognize(crop(bmp, full, 0, 0, 1, 1, Math.min(1800, bmp.height)))).data.text; if (!foot.prints.length) foot = parseFoot(all); for (const l of all.split("\n").filter(x => x.trim().length > 3).slice(0, 30)) { const h = decide(l, foot); if (h) { hit = h; break; } } if (!hit && foot.prints.length === 1) hit = { pi: foot.prints[0], oi: DB.p[foot.prints[0]][3], lang: foot.lang, via: "foot" }; }
     if (!hit) { toast("Não reconheci a carta. Tente com a carta ocupando a foto.", 3000); SC.paused = false; return; }
     await onLocked(hit, true);
   } catch (e) { toast("Erro ao ler a foto."); SC.paused = false; }
