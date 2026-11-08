@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "329365500470",
+    "project_id": "mtg-biblioteca",
+    "storage_bucket": "mtg-biblioteca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:329365500470:android:bfc73bcbb7d276f1115e97",
+        "android_client_info": {
+          "package_name": "io.github.teolfe01.bibliotecamtg.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "329365500470-t83b4neobp8ph8bfkjufraoag197cqbe.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "io.github.teolfe01.bibliotecamtg.app",
+            "certificate_hash": "31a5cfff2f7a28ef8ba63d65b873114e324c5b4c"
+          }
+        },
+        {
+          "client_id": "329365500470-8iscvuogegugktd1ojt0ukjegvaggob6.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCKUkA4X75xk8uPT_HY_aBXIl9ru-zbXiY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "329365500470-8iscvuogegugktd1ojt0ukjegvaggob6.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
