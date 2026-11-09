@@ -399,7 +399,7 @@ body.pt-on #main { padding: 0 !important; max-width: none !important; }
 .pt-c { width: clamp(64px, 7.2vw, 130px); border-radius: 5%; cursor: pointer; touch-action: manipulation; }
 .pt-c .cardimg { box-shadow: 0 4px 14px rgba(0,0,0,.45); }
 .pt-bf { position: absolute; transition: transform .22s cubic-bezier(.2,.9,.3,1.1), left .2s ease, top .2s ease; }
-.pt-bf.tap { transform: rotate(90deg); } .pt-bf:hover { filter: brightness(1.1); z-index: 3; }
+.pt-bf.tap { transform: rotate(90deg); } .pt-c.tok .cardimg { box-shadow: 0 0 0 2px rgba(255,211,107,.6), 0 4px 14px rgba(0,0,0,.45); } .pt-bf:hover { filter: brightness(1.1); z-index: 3; }
 .pt-bottom { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 10px; padding: 4px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.05); background: linear-gradient(transparent, rgba(0,0,0,.25)); }
 .pt-bl { align-self: start; padding-top: 6px; }
 .pt-menu { border: 0; background: none; color: #e6e7ea; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 8px; } .pt-menu:hover { background: rgba(255,255,255,.07); }
@@ -1770,7 +1770,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.15";
+const APP_VERSION = "2026.11.15b";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1920,11 +1920,12 @@ function gfNew(d) {
 }
 function gfShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function gfDraw(n = 1) { for (let i = 0; i < n && GF.lib.length; i++) GF.hand.push(GF.lib.shift()); }
-const gfIsLand = (x) => mainTypes(DB.o[x.oi][5]).includes("Land");
+const gfIsLand = (x) => !x.tok && mainTypes(DB.o[x.oi][5]).includes("Land");
 const gfZones = () => ({ hand: GF.hand, bf: GF.bf, gy: GF.gy, ex: GF.ex, cmd: GF.cmd, lib: GF.lib });
 function gfFind(u) { for (const [z, arr] of Object.entries(gfZones())) { const i = arr.findIndex(x => x.u === u); if (i >= 0) return { z, arr, i, x: arr[i] }; } return null; }
 function gfMove(u, to, where = "end") {
   const f = gfFind(u); if (!f) return; f.arr.splice(f.i, 1); const x = f.x; x.t = false;
+  if (x.tok && to !== "bf") { GFE.delete(u); return; } // ficha que sai do campo deixa de existir
   if (to === "bf" && f.z === "hand" && gfIsLand(x)) GF.landDrop++;
   const dst = gfZones()[to]; if (where === "top") dst.unshift(x); else dst.push(x);
 }
@@ -2034,38 +2035,59 @@ function renderGoldfish(id) {
   setMenu([["Nova partida", () => { gfPush(); gfNew(d); gfDraw0(); }], ["Estatísticas da mão inicial", () => gfStats(d)], ["Voltar ao deck", () => history.back()]]);
   gfDraw0();
 }
+// Elementos de carta reaproveitados entre atualizações (a imagem não recarrega nem pisca)
+const GFE = new Map();
+const gfTokImg = (x) => `<div class="cardimg"><img src="${esc(x.tok.img)}" alt="${esc(x.tok.name)}" loading="lazy" draggable="false"></div>`;
+function gfEl(x, z, cls = "", style = "") {
+  let el = GFE.get(x.u);
+  if (!el) { el = document.createElement("div"); el.innerHTML = x.tok ? gfTokImg(x) : gfImg(x); GFE.set(x.u, el); }
+  el.className = "pt-c" + (cls ? " " + cls : "") + (x.tok ? " tok" : ""); el.dataset.u = x.u; el.dataset.oi = x.tok ? "" : x.oi; el.dataset.z = z; el.style.cssText = style;
+  return el;
+}
 function gfDraw0() {
   if (!GF.lib || tab !== "decks" || !view || view.kind !== "gold") return;
-  const d = S.decks.find(x => x.id === GF.id); const pre = !GF.kept;
-  const mana = GF.bf.filter(x => gfIsLand(x) && !x.t).length;
+  let pt = $("pt");
+  if (!pt || pt.dataset.id !== GF.id) { GFE.clear(); gfBuild(); pt = $("pt"); }
+  const pre = !GF.kept; const mana = GF.bf.filter(x => !x.tok && gfIsLand(x) && !x.t).length;
+  // topo
+  $("ptStats").innerHTML = `<span class="pt-chip"><b>Turno ${GF.turn || "—"}</b></span>
+    <span class="pt-chip pt-life"><button data-a="life-">−</button><b>${GF.life}</b><span>vida</span><button data-a="life+">+</button></span>
+    <span class="pt-chip"><b>${mana}</b> mana livre</span><span class="pt-chip">${GF.landDrop ? "✓ terreno jogado" : "terreno: 0"}</span>`;
+  $("ptTR").innerHTML = pre ? `<button class="pt-tb" data-a="mull">Mulligan${GF.mull ? " (" + GF.mull + ")" : ""}</button><button class="pt-tb pri" data-a="keep">Manter mão ↵</button>`
+    : `<button class="pt-tb" data-a="draw">Comprar</button><button class="pt-tb pri" data-a="next">Próximo turno ›</button>`;
+  // campo
+  const board = $("ptBoard");
+  const bfEls = GF.bf.map(x => gfEl(x, "bf", "pt-bf" + (x.t ? " tap" : ""), `left:${x.x}%;top:${x.y}%`));
+  const empty = document.createElement("div"); empty.className = "pt-empty"; empty.textContent = pre ? `Mão inicial com ${GF.hand.filter(gfIsLand).length} terreno(s)${GF.mull ? ` · ao manter, ${GF.mull} carta(s) vão para o fundo` : ""}` : "Arraste cartas da mão para cá";
+  board.replaceChildren(...bfEls, ...(GF.bf.length ? [] : [empty]));
+  // mão em leque
   const n = GF.hand.length, mid = (n - 1) / 2;
-  const pile = (z, label, arr, show) => `<div class="pt-pile" data-zone="${z}"><div class="pt-ph"><span>${label} (${arr.length})</span><button class="pt-dots" data-pm="${z}" title="Opções">⋮</button></div>
-    <div class="pt-slot" data-open="${z}">${arr.length ? show : `<span class="pt-none">Sem cartas</span>`}</div></div>`;
-  const top = (arr) => arr.length ? `<div class="pt-c" data-u="${arr[arr.length - 1].u}" data-oi="${arr[arr.length - 1].oi}" data-z="?">${gfImg(arr[arr.length - 1])}</div>` : "";
-  $("main").innerHTML = `<div class="pt" id="pt">
-    <div class="pt-top">
-      <button class="pt-tb" id="ptExit">← Sair</button><button class="pt-tb" id="ptKeys">⌨ Atalhos</button>
-      <div class="pt-stats"><span class="pt-chip"><b>Turno ${GF.turn || "—"}</b></span>
-        <span class="pt-chip pt-life"><button data-a="life-">−</button><b>${GF.life}</b><span>vida</span><button data-a="life+">+</button></span>
-        <span class="pt-chip"><b>${mana}</b> mana livre</span><span class="pt-chip">${GF.landDrop ? "✓ terreno jogado" : "terreno: 0"}</span></div>
-      <div class="pt-tr">${pre ? `<button class="pt-tb" data-a="mull">Mulligan${GF.mull ? " (" + GF.mull + ")" : ""}</button><button class="pt-tb pri" data-a="keep">Manter mão ↵</button>`
-        : `<button class="pt-tb" data-a="draw">Comprar</button><button class="pt-tb pri" data-a="next">Próximo turno ›</button>`}</div>
-    </div>
-    <div class="pt-board" data-zone="bf" id="ptBoard">${GF.bf.map(x => `<div class="pt-c pt-bf${x.t ? " tap" : ""}" data-u="${x.u}" data-oi="${x.oi}" data-z="bf" style="left:${x.x}%;top:${x.y}%">${gfImg(x)}</div>`).join("")}
-      ${!GF.bf.length ? `<div class="pt-empty">${pre ? `Mão inicial com ${GF.hand.filter(gfIsLand).length} terreno(s)${GF.mull ? ` · ao manter, ${GF.mull} carta(s) vão para o fundo` : ""}` : "Arraste cartas da mão para cá"}</div>` : ""}</div>
+  const hand = $("ptHandZ");
+  const hEls = GF.hand.map((x, i) => { const k = i - mid; return gfEl(x, "hand", "pt-hc", `--r:${(k * Math.min(5, 34 / Math.max(n, 1))).toFixed(2)}deg;--y:${(k * k * Math.min(2.6, 40 / Math.max(n * n, 1))).toFixed(1)}px;z-index:${i + 1}`); });
+  if (hEls.length) hand.replaceChildren(...hEls); else hand.innerHTML = `<div class="pt-none">Mão vazia</div>`;
+  $("ptHand").textContent = `Mão (${n}) opções ⋮`;
+  // pilhas
+  const pileTop = (z, arr) => { const slot = document.querySelector(`[data-open="${z}"]`); document.querySelector(`[data-pc="${z}"]`).textContent = arr.length;
+    if (!arr.length) { slot.innerHTML = `<span class="pt-none">Sem cartas</span>`; return; } slot.replaceChildren(gfEl(arr[arr.length - 1], z)); };
+  document.querySelector('[data-pc="lib"]').textContent = GF.lib.length; $("ptLibN").textContent = GF.lib.length;
+  pileTop("gy", GF.gy); pileTop("ex", GF.ex);
+  const cmdSlot = document.querySelector('[data-open="cmd"]'); document.querySelector('[data-pc="cmd"]').textContent = GF.cmd.length;
+  if (GF.cmd.length) cmdSlot.replaceChildren(...GF.cmd.map(x => gfEl(x, "cmd"))); else cmdSlot.innerHTML = `<span class="pt-none">Sem cartas</span>`;
+  // limpa elementos de cartas que não estão mais visíveis (fichas que saíram do jogo etc.)
+  const live = new Set([...GF.bf, ...GF.hand, ...GF.cmd, ...(GF.gy.length ? [GF.gy[GF.gy.length - 1]] : []), ...(GF.ex.length ? [GF.ex[GF.ex.length - 1]] : [])].map(x => x.u));
+  for (const u of GFE.keys()) if (!live.has(u) && !GFE.get(u).isConnected) GFE.delete(u);
+}
+function gfBuild() {
+  const pile = (z, label, inner) => `<div class="pt-pile" data-zone="${z}"><div class="pt-ph"><span>${label} (<b data-pc="${z}">0</b>)</span><button class="pt-dots" data-pm="${z}" title="Opções">⋮</button></div><div class="pt-slot" data-open="${z}">${inner}</div></div>`;
+  $("main").innerHTML = `<div class="pt" id="pt" data-id="${esc(GF.id)}">
+    <div class="pt-top"><button class="pt-tb" id="ptExit">← Sair</button><button class="pt-tb" id="ptKeys">⌨ Atalhos</button>
+      <div class="pt-stats" id="ptStats"></div><div class="pt-tr" id="ptTR"></div></div>
+    <div class="pt-board" data-zone="bf" id="ptBoard"></div>
     <div class="pt-bottom">
       <div class="pt-bl"><button class="pt-menu" id="ptAct">⋮ Ações do playtest</button></div>
-      <div class="pt-handw">
-        <div class="pt-hh"><button class="pt-menu" id="ptHand">Mão (${n}) opções ⋮</button></div>
-        <div class="pt-handrow"><button class="pt-ur" id="ptUndo" title="Desfazer (Ctrl+Z)">↶</button>
-          <div class="pt-hand" data-zone="hand" id="ptHandZ">${GF.hand.map((x, i) => { const k = i - mid; return `<div class="pt-c pt-hc" data-u="${x.u}" data-oi="${x.oi}" data-z="hand" style="--r:${(k * Math.min(5, 34 / Math.max(n, 1))).toFixed(2)}deg;--y:${(k * k * Math.min(2.6, 40 / Math.max(n * n, 1))).toFixed(1)}px;z-index:${i + 1}">${gfImg(x)}</div>`; }).join("") || `<div class="pt-none">Mão vazia</div>`}</div>
-          <button class="pt-ur" id="ptRedo" title="Refazer (Ctrl+Y)">↷</button></div>
-      </div>
-      <div class="pt-piles">
-        ${pile("lib", "Grimório", GF.lib, `<div class="pt-back" data-zone="lib"><img src="icon-v2-192.png" alt=""><b>${GF.lib.length}</b></div>`)}
-        ${pile("gy", "Cemitério", GF.gy, top(GF.gy))}${pile("ex", "Exílio", GF.ex, top(GF.ex))}
-        ${pile("cmd", "Comando", GF.cmd, GF.cmd.map(x => `<div class="pt-c" data-u="${x.u}" data-oi="${x.oi}" data-z="cmd">${gfImg(x)}</div>`).join(""))}
-      </div>
+      <div class="pt-handw"><div class="pt-hh"><button class="pt-menu" id="ptHand">Mão opções ⋮</button></div>
+        <div class="pt-handrow"><button class="pt-ur" id="ptUndo" title="Desfazer (Ctrl+Z)">↶</button><div class="pt-hand" data-zone="hand" id="ptHandZ"></div><button class="pt-ur" id="ptRedo" title="Refazer (Ctrl+Y)">↷</button></div></div>
+      <div class="pt-piles">${pile("lib", "Grimório", `<div class="pt-back" data-zone="lib"><img src="icon-v2-192.png" alt="" draggable="false"><b id="ptLibN">0</b></div>`)}${pile("gy", "Cemitério", "")}${pile("ex", "Exílio", "")}${pile("cmd", "Comando", "")}</div>
     </div></div>`;
   const pt = $("pt");
   pt.onclick = (e) => {
@@ -2079,7 +2101,7 @@ function gfDraw0() {
     if (c && c.dataset.z === "bf") { const f = gfFind(+c.dataset.u); if (!f) return; if (e.pointerType === "touch" || !isWide()) return gfCtx(e, +c.dataset.u); gfPush(); f.x.t = !f.x.t; return gfDraw0(); }
     if (c && c.dataset.z === "hand") { if (!isWide()) return gfCtx(e, +c.dataset.u); gfPush(); gfMoveTo(+c.dataset.u, "bf"); return gfDraw0(); }
     if (c && c.dataset.z === "cmd") return gfCtx(e, +c.dataset.u);
-    const op = e.target.closest("[data-open]"); if (op) return gfPile(op.dataset.open === "lib" ? "lib" : op.dataset.open);
+    const op = e.target.closest("[data-open]"); if (op) return gfPile(op.dataset.open);
   };
   pt.oncontextmenu = (e) => { const c = e.target.closest(".pt-c[data-u]"); if (!c) return; if (e.ctrlKey) return; e.preventDefault(); gfCtx(e, +c.dataset.u); };
   pt.onmouseover = (e) => { const c = e.target.closest(".pt-c[data-u]"); let pv = $("gfPv"); if (!c || DRAG.on || !isWide()) { if (pv) pv.remove(); return; }
@@ -2098,14 +2120,42 @@ function gfDraw0() {
       else if (z === "lib") gfMove(u, "lib", "top"); else gfMove(u, z);
       gfDraw0(); } });
 }
+// ---- Fichas (tokens) ----
+const TOKC = new Map(); // oi -> [{ name, id, img, type }]
+async function gfTokensOf(oi) {
+  if (TOKC.has(oi)) return TOKC.get(oi);
+  const name = DB.o[oi][0]; let list = [];
+  try { const j = await (await fetch(`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`)).json();
+    list = (j.all_parts || []).filter(p => p.component === "token" || /Emblem|Token/.test(p.type_line || "")).filter(p => p.name !== name)
+      .map(p => ({ name: p.name, id: p.id, type: p.type_line || "", img: `https://api.scryfall.com/cards/${p.id}?format=image&version=normal` }));
+  } catch (e) { list = null; }
+  if (list) TOKC.set(oi, list); return list || [];
+}
+function gfMakeToken(tok, n = 1, near) {
+  gfPush();
+  for (let i = 0; i < n; i++) { const x = { u: ++GFU, tok, oi: -1, t: false }; const k = GF.bf.filter(y => y.tok).length; x.x = Math.min(88, (near ? near.x + 3 : 4) + (k % 10) * 4.2); x.y = Math.min(70, (near ? near.y + 6 : 32) + Math.floor(k / 10) * 4); GF.bf.push(x); }
+  gfDraw0(); toast(`${n > 1 ? n + "× " : ""}${tok.name} criad${n > 1 ? "as" : "a"}`, 1200);
+}
+async function gfTokenMenu(e, x) {
+  const ev = { clientX: e.clientX, clientY: e.clientY };
+  ctxMenu(ev.clientX, ev.clientY, [{ head: "Procurando fichas…" }]);
+  const list = await gfTokensOf(x.oi);
+  const near = x.x !== undefined ? { x: x.x, y: x.y } : null;
+  if (!list.length) return ctxMenu(ev.clientX, ev.clientY, [{ head: "Fichas" }, ["Nenhuma ficha encontrada para essa carta", () => {}], ["Criar cópia desta carta (ficha)", () => gfMakeToken({ name: DB.o[x.oi][0] + " (cópia)", img: imgOf(x), type: DB.o[x.oi][5] }, 1, near)]]);
+  ctxMenu(ev.clientX, ev.clientY, [{ head: "Criar ficha" }, ...list.flatMap(t => [[`🪙 ${t.name}${t.type ? " · " + t.type.replace(/^Token /, "") : ""}`, () => gfMakeToken(t, 1, near), "pri"], [`   ×N ${t.name}…`, async () => { const v = parseInt(await askText("Quantas fichas?", "2", { inputmode: "numeric" }), 10); if (v > 0) gfMakeToken(t, Math.min(v, 60), near); }]])]);
+}
+function imgOf(x) { const pi = x.set ? DB.bySetNum.get(x.set + "|" + normNum(x.number)) : defaultPrint(x.oi); const p = DB.p[pi >= 0 ? pi : defaultPrint(x.oi)]; return p ? `https://api.scryfall.com/cards/${p[0]}/${encodeURIComponent(p[1])}?format=image&version=normal` : ""; }
 function gfCtx(e, u) {
-  const f = gfFind(u); if (!f) return; const x = f.x, z = f.z, land = gfIsLand(x); const name = DB.o[x.oi][0];
+  const f = gfFind(u); if (!f) return; const x = f.x, z = f.z;
+  if (x.tok) return ctxMenu(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2, [{ head: x.tok.name + " (ficha)" }, [x.t ? "Desvirar" : "Virar (tap)", () => { gfPush(); x.t = !x.t; gfDraw0(); }, "pri"], ["Criar mais uma igual", () => gfMakeToken(x.tok, 1, { x: x.x, y: x.y })], ["Remover ficha", () => { gfPush(); GF.bf = GF.bf.filter(y => y !== x); gfDraw0(); }, "danger"]]);
+  const land = gfIsLand(x); const name = DB.o[x.oi][0]; const makesTok = /\btoken/i.test(DB.o[x.oi][6] || "");
   const mv = (to, w) => () => { gfPush(); if (to === "tap") x.t = !x.t; else if (to === "bf") gfMoveTo(u, "bf"); else gfMove(u, to, w); gfDraw0(); };
   const items = [{ head: name }];
   if (z === "hand") items.push([land ? "Jogar terreno" : "Lançar / jogar", mv("bf"), "pri", isWide() ? "Clique" : ""], ["Descartar", mv("gy")], ["Exilar", mv("ex")], "-", ["Topo do grimório", mv("lib", "top")], ["Fundo do grimório", mv("lib")]);
   else if (z === "bf") items.push([x.t ? "Desvirar" : "Virar (tap)", mv("tap"), "pri", isWide() ? "Clique" : ""], ["Para o cemitério", mv("gy")], ["Exilar", mv("ex")], ["Voltar para a mão", mv("hand")], "-", ["Topo do grimório", mv("lib", "top")], ["Fundo do grimório", mv("lib")]);
   else if (z === "cmd") items.push(["Lançar comandante", mv("bf"), "pri"], ["Para a mão", mv("hand")]);
   else items.push(["Para a mão", mv("hand")], ["Para o campo", mv("bf")], ...(z !== "gy" ? [["Para o cemitério", mv("gy")]] : []), ...(z !== "ex" ? [["Exilar", mv("ex")]] : []), ...(z !== "lib" ? [["Topo do grimório", mv("lib", "top")]] : []));
+  if (makesTok || z === "bf") items.push("-", [makesTok ? "🪙 Criar ficha desta carta…" : "🪙 Criar cópia (ficha)…", () => gfTokenMenu(e, x), makesTok ? "pri" : ""]);
   items.push("-", ["🔍 Ampliar", () => { const t = document.createElement("div"); t.innerHTML = gfImg(x); zoomImg(t); }]);
   ctxMenu(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2, items);
 }
