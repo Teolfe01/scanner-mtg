@@ -1,5 +1,5 @@
 // Service worker da Biblioteca MTG: deixa o app instalável e funcionando offline.
-const V = "bmtg-v2";
+const V = "bmtg-v3";
 const CORE = ["./", "index.html", "manifest.webmanifest", "icon-v2-192.png", "icon-v2-512.png", "icon-v2-maskable-512.png",
   "css/mana.css", "css/keyrune.css", "fonts/mana.woff2", "fonts/keyrune.woff2", "data/cards.json.gz",
   "lib/tesseract.min.js", "lib/worker.min.js", "lib/eng.traineddata.gz"];
@@ -18,7 +18,7 @@ self.addEventListener("fetch", (e) => {
   if (url.origin !== location.origin) return; // Firebase, EDHREC, Scryfall API etc. vão direto pra rede
   // Página: rede primeiro (pega atualizações), cache se estiver offline
   if (req.mode === "navigate" || url.pathname.endsWith("/index.html")) {
-    e.respondWith(fetch(req).then(r => { const cp = r.clone(); caches.open(V).then(c => c.put("index.html", cp)); return r; }).catch(() => caches.match("index.html")));
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(r => { const cp = r.clone(); caches.open(V).then(c => c.put("index.html", cp)); return r; }).catch(() => caches.match("index.html")));
     return;
   }
   // Demais arquivos do app: cache na hora e atualiza em segundo plano
