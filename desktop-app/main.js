@@ -1,8 +1,9 @@
 // Biblioteca MTG para Windows: janela própria que abre o app publicado (atualiza sozinho).
 // Login do Google: o Google bloqueia login dentro de apps como este, então o login abre no navegador
 // padrão e a conta volta para cá por um endereço local (127.0.0.1) que só este app escuta.
-const { app, BrowserWindow, shell, session, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, session, ipcMain, dialog } = require("electron");
 const http = require("http");
+const fs = require("fs");
 const crypto = require("crypto");
 const path = require("path");
 
@@ -11,8 +12,19 @@ const LOGIN_URL = "https://teolfe01.github.io/scanner-mtg/desktop-login.html";
 const SITE = "https://teolfe01.github.io";
 let win = null;
 
-if (!app.requestSingleInstanceLock()) app.quit();
-app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+// registro de erros em %APPDATA%\\Biblioteca MTG\\log.txt
+function log(...a) { try { fs.appendFileSync(path.join(app.getPath("userData"), "log.txt"), new Date().toISOString() + " " + a.map(x => x && x.stack ? x.stack : String(x)).join(" ") + "\n"); } catch (e) {} }
+process.on("uncaughtException", (e) => { log("ERRO", e); try { dialog.showErrorBox("Biblioteca MTG", "Algo deu errado:\n" + (e && e.message || e) + "\n\nDetalhes em: " + path.join(app.getPath("userData"), "log.txt")); } catch (x) {} });
+log("abrindo", app.getVersion(), process.platform, process.arch);
+
+// uma cópia só: abrir de novo traz a janela (e recria se ela tiver sumido)
+if (!app.requestSingleInstanceLock()) { log("já estava aberto — chamando a janela existente"); app.quit(); }
+app.on("second-instance", () => {
+  log("segunda instância");
+  if (!app.isReady()) return;
+  if (!win || win.isDestroyed()) return createWindow();
+  if (win.isMinimized()) win.restore(); if (!win.isVisible()) win.show(); win.focus();
+});
 
 function createWindow() {
   win = new BrowserWindow({
@@ -21,6 +33,8 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
+  win.on("closed", () => { win = null; });
+  win.webContents.on("render-process-gone", (e, d) => { log("página caiu", JSON.stringify(d)); if (win && !win.isDestroyed()) setTimeout(() => win.reload(), 800); });
   win.loadURL(APP_URL).catch(() => win.loadFile(path.join(__dirname, "offline.html")));
   win.webContents.on("did-fail-load", (e, code, desc, url, isMain) => { if (isMain && code !== -3) win.loadFile(path.join(__dirname, "offline.html")); });
   // links externos (LigaMagic, EDHREC, Amazon…) abrem no navegador
@@ -42,6 +56,7 @@ function createWindow() {
 
 app.whenReady().then(() => {
   // câmera (webcam no scanner) e microfone (comandos de voz) só para o app
+  log("pronto");
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
     const ok = (details.requestingUrl || "").startsWith(SITE) && ["media", "clipboard-read", "clipboard-sanitized-write", "notifications", "fullscreen"].includes(perm);
     cb(ok);
@@ -49,7 +64,8 @@ app.whenReady().then(() => {
   session.defaultSession.setPermissionCheckHandler((wc, perm, origin) => origin === SITE && ["media", "clipboard-read", "clipboard-sanitized-write"].includes(perm));
   createWindow();
 });
-app.on("window-all-closed", () => app.quit());
+app.on("window-all-closed", () => { log("fechando"); app.quit(); });
+app.on("will-quit", () => log("saiu"));
 
 // ---- Login do Google pelo navegador ----
 ipcMain.handle("google-login", () => new Promise((resolve, reject) => {

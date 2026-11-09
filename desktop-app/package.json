@@ -1,7 +1,7 @@
 {
   "name": "biblioteca-mtg",
   "productName": "Biblioteca MTG",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Biblioteca MTG para Windows",
   "main": "main.js",
   "author": "Scanner MTG",
