@@ -464,6 +464,16 @@ html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
 .edsel { display: inline-flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 2px; } .edsel select { font-size: 13px; }
 .scanstatus.clickable { pointer-events: auto; cursor: pointer; border: 1px solid rgba(var(--acc-rgb), .6); box-shadow: 0 0 0 4px rgba(var(--acc-rgb), .15); }
 .scanstatus .tapuse { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; background: var(--grad); color: #1a1205; font-weight: 700; font-size: 12px; }
+.dvbar { display: flex; justify-content: space-between; align-items: center; margin: 0 2px 10px; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+.dgrid .deckcard { display: flex !important; flex-direction: column; align-items: stretch; gap: 6px; padding: 0 0 10px; overflow: hidden; position: relative; text-align: left; }
+.dgrid .deckcard .cardimg { width: 100%; aspect-ratio: 5 / 3.6; border-radius: 0; }
+.dgrid .deckcard .cardimg img { object-fit: cover; object-position: 50% 17%; transform: scale(1.18); transform-origin: 50% 15%; }
+.dgrid .deckcard > span { padding: 0 10px; font-size: 12px; } .dgrid .deckcard b { font-size: 14px; line-height: 1.2; }
+.dgrid .deckcard .bar { margin-top: 4px !important; }
+.dgrid .deckcard .dkdel { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,.55); border-radius: 50%; width: 30px; height: 30px; display: grid; place-items: center; font-size: 14px; }
+.dgrid .deckcard .ms-cost { font-size: 11px; }
+@media (max-width: 420px) { .dgrid { grid-template-columns: repeat(2, 1fr); gap: 10px; } }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -1290,7 +1300,9 @@ function renderDecks() {
       <button class="row" id="nd3" style="grid-template-columns:1fr"><span><span class="rn">Começar do zero</span><span class="rs">Monte carta por carta</span></span></button></div>`);
   $("nd1").onclick = preconDialog; $("nd2").onclick = importDeckDialog; $("nd3").onclick = () => newDeck(); };
   if (!S.decks.length) { $("main").innerHTML = `<div class="empty">Nenhum deck ainda.<br>Toque no + para importar um precon ou montar um deck.</div>`; return; }
-  $("main").innerHTML = `<div class="rows">${S.decks.map(d => {
+  const dv = S.settings.deckView || "list";
+  $("main").innerHTML = `<div class="dvbar"><span class="meta">${S.decks.length} deck${S.decks.length > 1 ? "s" : ""}</span><div class="seg" id="dvSeg"><button data-v="list" aria-pressed="${dv === "list"}">☰ Lista</button><button data-v="grid" aria-pressed="${dv === "grid"}">▦ Grade</button></div></div>
+  <div class="${dv === "grid" ? "dgrid" : "rows"}">${S.decks.map(d => {
     const total = deckCount(d), have = d.cards.reduce((a, c) => a + Math.min(c.qty, haveFor(d, c.oi)), 0);
     const cmd = d.cards.find(c => c.board === "cmd") || d.cards[0];
     const pi = cmd ? (cmd.set ? DB.bySetNum.get(cmd.set + "|" + normNum(cmd.number)) : defaultPrint(cmd.oi)) : -1;
@@ -1300,6 +1312,7 @@ function renderDecks() {
       <span><b>${esc(d.name)}</b> ${bracketChip(d)}<br><span class="meta">${esc(d.format || "")} · ${total} cartas</span><br>${ci.map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ")}
       <div class="bar ${have >= total ? "ok" : ""}" style="margin-top:6px"><i style="width:${total ? Math.round(have * 100 / total) : 0}%"></i></div><span class="meta">${have}/${total} montadas${d.built ? " · na caixa do deck" : ""}</span></span>
       <span class="dkdel" role="button" tabindex="0" title="Excluir deck" data-del="${esc(d.id)}">🗑</span></button>`; }).join("")}</div>`;
+  $("dvSeg").onclick = (ev) => { const b = ev.target.closest("[data-v]"); if (!b) return; ev.stopPropagation(); S.settings.deckView = b.dataset.v; save(true); renderDecks(); };
   $("main").onclick = (ev) => { const x = ev.target.closest("[data-del]"); if (x) { ev.stopPropagation(); const dd = S.decks.find(k => k.id === x.dataset.del); if (dd) deleteDeck(dd); return; } const b = ev.target.closest("[data-d]"); if (b) go("decks", { kind: isWide() ? "edit" : "deck", id: b.dataset.d }); };
 }
 function newDeck(name = "", format = "Commander", cards = [], source = "") {
@@ -1773,7 +1786,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.16b";
+const APP_VERSION = "2026.11.16c";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
