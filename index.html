@@ -462,6 +462,8 @@ html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
 .colh .colt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; } .colh .colt b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .colh .colt small { font-size: 11px; color: var(--muted); font-weight: 500; }
 .colh { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 6px 4px 6px 10px; }
 .edsel { display: inline-flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 2px; } .edsel select { font-size: 13px; }
+.scanstatus.clickable { pointer-events: auto; cursor: pointer; border: 1px solid rgba(var(--acc-rgb), .6); box-shadow: 0 0 0 4px rgba(var(--acc-rgb), .15); }
+.scanstatus .tapuse { display: inline-block; margin-left: 6px; padding: 1px 9px; border-radius: 999px; background: var(--grad); color: #1a1205; font-weight: 700; font-size: 12px; }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -1771,7 +1773,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.16";
+const APP_VERSION = "2026.11.16b";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -3432,10 +3434,12 @@ async function tick() {
     if (SC.debug) { const dbg = $("dbg"); dbg.innerHTML = ""; dbg.append(c1, c2); const p = document.createElement("pre"); p.textContent = "Nome: " + (t1 || "—") + "\nCódigo: " + (t2.trim().replace(/\s+/g, " ") || "—"); dbg.append(p); }
     const nonLatin = /^(ja|ko|ru|zh)/.test($("langSel").value); // carta em japonês etc.: o nome não é legível, vale só o código do rodapé
     const hit = decide(nonLatin ? "" : t1, parseFoot(t2)); const g = $("guide");
-    if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide"; $("scanStatus").textContent = nonLatin ? "Mostre bem o rodapé (coleção + número)" : t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; }
+    if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide";
+      if (SC.cand && Date.now() - SC.cand.at < 6000) scanStatusCand("Última leitura");
+      else { SC.cand = null; $("scanStatus").classList.remove("clickable"); $("scanStatus").textContent = nonLatin ? "Mostre bem o rodapé (coleção + número)" : t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; } }
     else {
       const key = hit.pi; SC.streak = SC.last === key ? SC.streak + 1 : 1; SC.last = key; g.className = "guide seen";
-      $("scanStatus").textContent = "Lendo: " + DB.o[hit.oi][0];
+      SC.cand = { hit, at: Date.now() }; scanStatusCand(hit.oi === SC.lastOi && !SC.clearSeen ? "Já adicionada" : "Lendo");
       const need = hit.via === "both" || hit.via === "name-set" || (hit.via === "name" && hit.exact) ? 1 : 2;
       if (SC.streak >= need && !(hit.oi === SC.lastOi && !SC.clearSeen)) { g.className = "guide lock"; await onLocked(hit, false); }
     }
@@ -3551,6 +3555,15 @@ async function pickVersion(oi, plang = "", onPick = null, cur = null) {
   } catch (e) { if ($("pvN")) $("pvN").textContent = `${local.length} versões (sem internet para ver os tratamentos)`; }
 }
 $("typeBtn").onclick = manualEntry;
+// Sugestão clicável: quando o scanner já mostra a carta mas não termina de confirmar, um toque usa a sugestão
+function scanStatusCand(label) {
+  const st = $("scanStatus"); if (!SC.cand) return; const o = DB.o[SC.cand.hit.oi]; const p = DB.p[SC.cand.hit.pi];
+  st.classList.add("clickable"); st.innerHTML = `${esc(label)}: <b>${esc(o[0])}</b>${p ? ` <span class="meta">${esc(p[0].toUpperCase())}</span>` : ""} <span class="tapuse">usar ›</span>`;
+}
+$("scanStatus").addEventListener("click", () => {
+  if (!SC.cand || SC.paused || Date.now() - SC.cand.at > 8000) return;
+  const hit = SC.cand.hit; SC.cand = null; $("scanStatus").classList.remove("clickable"); $("guide").className = "guide lock"; onLocked(hit, false);
+});
 async function onLocked(hit, fromPhoto) {
   SC.paused = true; if (navigator.vibrate && P().vibrate) navigator.vibrate(40); try { closeMore(); } catch (e) {}
   const p = DB.p[hit.pi];
@@ -3655,7 +3668,7 @@ function voiceCommand(raw) {
   if (/\b(adiciona|adicionar|adicione|sim|ok|okay|confirma|confirmar|salva|salvar|isso|pode|beleza)\b/.test(t)) { toast(`🎤 adicionar ${c.qty}×`); $("rAdd").click(); return; }
   if (nm) toast(`🎤 quantidade ${c.qty}`, 1200);
 }
-function resume() { closeSheet(); SC.streak = 0; SC.last = null; SC.paused = false; $("guide").className = "guide"; $("scanStatus").textContent = "Aponte para a próxima carta"; }
+function resume() { closeSheet(); SC.streak = 0; SC.last = null; SC.paused = false; SC.cand = null; $("scanStatus").classList.remove("clickable"); $("guide").className = "guide"; $("scanStatus").textContent = "Aponte para a próxima carta"; }
 $("lastScan").onclick = () => {
   SC.paused = true;
   openSheet(`<h3 style="margin:0">Escaneadas nesta sessão</h3><div class="loc">${SC.session.map((x, i) => `<div><span>${x.qty}× ${esc(x.name)}<br><span class="meta">${esc(x.where)}</span></span><button class="btn small danger" data-u="${i}">Desfazer</button></div>`).join("") || `<div><span>Nada ainda.</span></div>`}</div>`, `<button class="btn" id="sShare">Enviar lista</button><button class="btn primary" id="sOk">Voltar à câmera</button>`);
