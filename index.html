@@ -1445,7 +1445,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.11b";
+const APP_VERSION = "2026.11.11c";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1524,7 +1524,7 @@ function renderCfg() {
     <h2 class="sec">Ajuda</h2><div class="card cfg-card">
       ${btnRow("cfBug", "🐞 Reportar bug ou 💡 sugerir melhoria", "Vai junto um diagnóstico do app")}
       ${btnRow("cfBugs", "Bugs e sugestões", "Lista para o pacote de atualização (a cada 2 dias)")}
-      ${isInstalled() ? "" : /Android|iPhone|iPad/i.test(navigator.userAgent) ? btnRow("cfInst", "📲 Instalar o app", "") : btnRow("cfInst", "💻 Instalar no computador", "Vira um app do PC: janela própria, ícone na área de trabalho e atualização automática")}
+      ${window.bmtgDesktop || isInstalled() ? "" : /Android|iPhone|iPad/i.test(navigator.userAgent) ? btnRow("cfInst", "📲 Instalar o app", "") : btnRow("cfExe", "💻 Baixar app para Windows (.exe)", "Programa que abre direto, sem instalar · atualiza sozinho") + btnRow("cfInst", "Ou instalar pelo Chrome", "Vira um app do PC pelo próprio navegador")}
       <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}</div>
     </div></div>`;
   const m = $("main");
@@ -1538,10 +1538,10 @@ function renderCfg() {
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
-  $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp;
+  $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp; if ($("cfExe")) $("cfExe").onclick = () => window.open("https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe", "_blank");
 }
 function diagText() {
-  const lines = [`Versão ${APP_VERSION}`, `Tela: ${tab}${view ? " " + JSON.stringify(view) : ""}`, `Aparelho: ${navigator.userAgent}`, `Tela: ${innerWidth}x${innerHeight} · ${isInstalled() ? "app instalado" : "navegador"}${IS_APP() ? " (APK)" : ""}`,
+  const lines = [`Versão ${APP_VERSION}`, `Tela: ${tab}${view ? " " + JSON.stringify(view) : ""}`, `Aparelho: ${navigator.userAgent}`, `Tela: ${innerWidth}x${innerHeight} · ${isInstalled() ? "app instalado" : "navegador"}${window.bmtgDesktop ? " (Windows)" : IS_APP() ? " (APK)" : ""}`,
     `Coleção: ${S.cards.length} itens · ${S.decks.length} decks · nuvem: ${CLOUD.user ? "conectado" : "desconectado"}`, `Online: ${navigator.onLine}`];
   if (ERRLOG.length) lines.push("Erros recentes:", ...ERRLOG.map(e => "  " + e));
   return lines.join("\n");
@@ -2996,6 +2996,12 @@ async function cloudInit() {
 }
 const IS_NATIVE = () => !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 async function signIn() {
+  if (window.bmtgDesktop) { // app de Windows: login no navegador padrão, a conta volta para o app
+    toast("Abrindo o login no navegador…", 3000);
+    const r = await window.bmtgDesktop.googleLogin();
+    const cred = firebase.auth.GoogleAuthProvider.credential(r.idToken, r.accessToken || null);
+    const u = (await CLOUD.auth.signInWithCredential(cred)).user; CLOUD.user = u; return u;
+  }
   if (IS_NATIVE()) { // app Android nativo: login do Google pelo próprio Android
     const FA = window.Capacitor.Plugins.FirebaseAuthentication;
     const r = await FA.signInWithGoogle();

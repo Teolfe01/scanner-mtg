@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Entrar · Biblioteca MTG</title><link rel="icon" href="favicon.png">
+<style>body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#121316;color:#eee;display:grid;place-items:center;min-height:100vh;margin:0}
+.box{text-align:center;max-width:420px;padding:24px}img{width:84px;border-radius:20px}
+button{font:inherit;font-weight:700;padding:12px 26px;border-radius:999px;border:0;background:linear-gradient(135deg,#ff6a3d,#ffb547);color:#1a1205;cursor:pointer;margin-top:10px}
+.m{color:#9a9ca3;font-size:14px}</style></head>
+<body><div class="box"><img src="icon-v2-192.png" alt=""><h2>Entrar no Biblioteca MTG para Windows</h2>
+<p class="m" id="msg">Faça login com a sua conta Google. Depois a conta volta sozinha para o app do computador.</p>
+<button id="go">Entrar com Google</button></div>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script>
+// Página aberta no navegador pelo app de Windows. Só devolve o login para o próprio computador (127.0.0.1).
+const q = new URLSearchParams(location.search); const port = +q.get("port"), state = q.get("state") || "";
+const back = (p) => { if (!(port > 1023 && port < 65536) || !/^[a-f0-9]{32}$/.test(state)) { document.getElementById("msg").textContent = "Abra o login pelo app Biblioteca MTG do computador."; return; }
+  location.replace(`http://127.0.0.1:${port}/cb?state=${state}&` + new URLSearchParams(p)); };
+firebase.initializeApp({ apiKey: "AIzaSyADR0knFdWx8P2X6zip8pWaKIK_BNr19F8", authDomain: "mtg-biblioteca.firebaseapp.com", projectId: "mtg-biblioteca", appId: "1:329365500470:web:8cc1fa52bdcc1e30115e97" });
+document.getElementById("go").onclick = async () => {
+  const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" });
+  try { const r = await firebase.auth().signInWithPopup(p); const c = firebase.auth.GoogleAuthProvider.credentialFromResult(r);
+    if (!c || !c.idToken) throw new Error("sem credencial"); back({ id: c.idToken, at: c.accessToken || "" }); }
+  catch (e) { document.getElementById("msg").textContent = "Não deu certo: " + (e.message || e); if (!/popup-closed|cancelled/.test(e.code || "")) back({ error: e.code || "erro" }); }
+};
+</script></body></html>

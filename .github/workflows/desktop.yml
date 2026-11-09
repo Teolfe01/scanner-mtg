@@ -1,0 +1,29 @@
+name: App Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["desktop-app/**", ".github/workflows/desktop.yml"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Gerar .exe
+        working-directory: desktop-app
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --win portable --publish never
+      - name: Publicar
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop
+          name: Biblioteca MTG para Windows
+          make_latest: false
+          files: desktop-app/dist/BibliotecaMTG.exe
+          overwrite_files: true
+          body: "Baixe o BibliotecaMTG.exe e abra — não precisa instalar. O app se atualiza sozinho."
