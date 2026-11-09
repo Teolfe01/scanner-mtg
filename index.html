@@ -1231,8 +1231,9 @@ function renderDeck(id) {
   const lands = cards.filter(c => mainTypes(c.o.type).includes("Land") && c.board !== "side").reduce((a, c) => a + c.qty, 0);
   const avg = nonland.length ? (nonland.reduce((a, c) => a + c.o.cmc * c.qty, 0) / nonland.reduce((a, c) => a + c.qty, 0)).toFixed(2) : "–";
   const value = cards.reduce((a, c) => a + (c.set ? brlOf(c.set, c.number, c.foil) : 0) * c.qty, 0);
-  const groups = [["cmd", "Comandante"], ...TYPES.map(t => ["t:" + t[0], t[1]]), ["side", "Sideboard"]];
-  const groupOf = (c) => c.board === "cmd" ? "cmd" : c.board === "side" ? "side" : "t:" + (mainTypes(c.o.type).find(t => t !== "Land") || mainTypes(c.o.type)[0] || "Artifact");
+  const userCats = [...new Set(cards.filter(c => c.board === "main" && c.cat).map(c => c.cat))].sort((a, b) => a.localeCompare(b));
+  const groups = [["cmd", "Comandante"], ...userCats.map(k => ["c:" + k, k]), ...TYPES.map(t => ["t:" + t[0], t[1]]), ["side", "Sideboard"], ["maybe", "Talvez"]];
+  const groupOf = (c) => c.board === "cmd" ? "cmd" : c.board === "side" ? "side" : c.board === "maybe" ? "maybe" : c.cat ? "c:" + c.cat : "t:" + (mainTypes(c.o.type).find(t => t !== "Land") || mainTypes(c.o.type)[0] || "Artifact");
   const rowHTML = (c) => {
     const st = c.have >= c.qty ? `<span class="pill ok">no deck</span>` : c.lib > 0 ? `<span class="pill warn">na caixa</span>` : `<span class="pill bad">falta ${c.qty - c.have}</span>`;
     const fake = { oi: c.oi, set: c.set || DB.p[defaultPrint(c.oi)]?.[0] || "", number: c.number || DB.p[defaultPrint(c.oi)]?.[1] || "" };
@@ -1280,13 +1281,44 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
     ${fake.set ? priceBlock(oi, fake.set, fake.number, c.foil) : ""}
     <div><h2 class="sec" style="margin-top:0">Suas cópias</h2><div class="loc">${where.map(w => `<div><span>${esc(w)}</span></div>`).join("") || `<div><span>Você não tem essa carta.</span></div>`}</div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
-    <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>`,
+    <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>
+    <div><h2 class="sec" style="margin-top:4px">Mover para</h2>${moveChipsHTML(d, c)}</div>`,
     `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
   $("dcM").onclick = () => { if (c.qty > 1) { c.qty--; $("dcQ").textContent = c.qty; releaseExtra(d, oi); save(); } };
   $("dcP").onclick = () => { c.qty++; $("dcQ").textContent = c.qty; save(); };
   $("dcDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); save(); closeSheet(); renderDeck(d.id); };
   $("dcPull").onclick = () => { const r = allocate(d, oi, c.qty); save(); closeSheet(); renderDeck(d.id); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas."); };
   $("dcOk").onclick = () => { closeSheet(); renderDeck(d.id); };
+  bindMoveChips(d, c, () => { closeSheet(); renderDeck(d.id); });
+}
+// ---- Mover carta entre deck / categorias / sideboard / talvez (como no Archidekt) ----
+function moveChipsHTML(d, c) {
+  const cats = [...new Set(d.cards.filter(x => x.board === "main" && x.cat).map(x => x.cat))].sort((a, b) => a.localeCompare(b));
+  const cur = c.board === "main" ? (c.cat ? "cat:" + c.cat : "main") : c.board;
+  const canCmd = isCmdFormat(d) && cmdCandidates().includes(c.oi);
+  const opts = [["main", "Deck (por tipo)"], ...cats.map(k => ["cat:" + k, "🏷 " + k]), ["side", "Sideboard"], ["maybe", "Talvez"], ...(canCmd ? [["cmd", "Comandante"]] : [])];
+  return `<div class="chips" id="mvC">${opts.map(([v, n]) => `<button class="chip" data-mv="${esc(v)}" aria-pressed="${v === cur}">${esc(n)}</button>`).join("")}<button class="chip" data-mv="__new">＋ Nova categoria</button></div>
+    <div class="two hidden" id="mvNew" style="margin-top:6px"><input type="text" id="mvName" placeholder="Ex.: Ramp, Remoção, Combo, Wincons" maxlength="30"><button class="btn primary" id="mvOk">Criar e mover</button></div>
+    <div class="cfg-s" style="margin-top:4px">Categorias criadas aqui também aparecem no editor (agrupando por "Categorias").</div>`;
+}
+function moveDeckCard(d, c, to) {
+  const board = to.startsWith("cat:") ? "main" : to; const cat = to.startsWith("cat:") ? to.slice(4) : "";
+  if (board === "cmd") { c.board = "cmd"; c.qty = 1; delete c.cat; }
+  else {
+    const ex = d.cards.find(x => x !== c && x.oi === c.oi && x.board === board && (x.cat || "") === cat);
+    if (ex) { ex.qty += c.qty; d.cards = d.cards.filter(x => x !== c); }
+    else { c.board = board; if (cat) c.cat = cat; else delete c.cat; }
+  }
+  releaseExtra(d, c.oi); save();
+  toast(`${DB.o[c.oi][0].split(" // ")[0]} → ${cat || BOARD_NAME[board] || "Deck"}`, 1400);
+}
+function bindMoveChips(d, c, after) {
+  if (!$("mvC")) return;
+  $("mvC").onclick = (e) => { const b = e.target.closest("[data-mv]"); if (!b) return;
+    if (b.dataset.mv === "__new") { $("mvNew").classList.remove("hidden"); $("mvName").focus(); return; }
+    moveDeckCard(d, c, b.dataset.mv); after(); };
+  const mk = () => { const n = $("mvName").value.trim(); if (!n) return; moveDeckCard(d, c, "cat:" + n); after(); };
+  $("mvOk").onclick = mk; $("mvName").onkeydown = (e) => { if (e.key === "Enter") mk(); };
 }
 function releaseExtra(d, oi) {
   const want = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0); let have = haveFor(d, oi);
@@ -1380,7 +1412,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.09i";
+const APP_VERSION = "2026.11.10";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2645,21 +2677,27 @@ function resultSheet(c) {
   const dest = S.settings.scanDest && S.decks.find(d => d.id === S.settings.scanDest);
   const canCmd = dest && isCmdFormat(dest) && !dest.cards.some(x => x.board === "cmd") && cmdCandidates().includes(c.oi) && !/Background/.test(o.type);
   if (c.asCmd === undefined) c.asCmd = !!canCmd && dest.cards.length === 0;
+  const lim = dest ? (isCmdFormat(dest) ? 100 : 60) : 0, inMain = dest ? deckCount(dest, "main") + deckCount(dest, "cmd") : 0;
+  if (dest && c.board === undefined) c.board = inMain >= lim ? "side" : "main";
   SC.cur = c;
   openSheet(`<div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(DB.sets[c.set] || c.set)} · ${esc(c.set.toUpperCase())} #${esc(c.number)}</div><div style="font-weight:600;margin:4px 0">${fmtUSD(priceOf(e))}</div><span class="via ${via[0]}">${esc(via[1])}</span></div></div>
     <div class="two"><select id="rPrint">${prints.map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}</option>`).join("")}</select>
       <select id="rLang">${["en", "pt", "es", "ja", "fr", "de", "it", "ko", "ru", "zhs", "zht"].map(l => `<option${l === c.lang ? " selected" : ""}>${l}</option>`).join("")}</select></div>
     <div class="qq" id="rQQ">${[1, 2, 3, 4].map(n => `<button data-q="${n}" aria-pressed="${c.qty === n}">${n}</button>`).join("")}<span class="stepper"><button id="rM">−</button><span id="rQ">${c.qty}</span><button id="rP">+</button></span></div>
     <div class="actions" style="align-items:center;justify-content:space-between"><label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rFoil" ${c.foil ? "checked" : ""}> Foil</label>${canCmd ? `<label style="display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="rCmd" ${c.asCmd ? "checked" : ""}> É o comandante</label>` : ""}</div>
+    ${dest ? `<div id="rBoardW" class="${c.asCmd ? "hidden" : ""}"><div class="seg" id="rBoard">${[["main", "Deck"], ["side", "Sideboard"], ["maybe", "Talvez"]].map(([v, n]) => `<button data-v="${v}" aria-pressed="${c.board === v}">${n}</button>`).join("")}</div>
+      <div class="meta" style="margin-top:4px">${inMain >= lim ? `⚠ O deck já tem ${inMain} cartas — por isso já veio marcado Sideboard.` : `Deck: ${inMain}/${lim} cartas.`}</div></div>` : ""}
     <div class="meta">${dest ? "Vai para o deck " + esc(dest.name) + " (e entra na coleção como montada nele)." : "Guardar em: " + esc(lib.text)}</div>
-    ${VOICE.on ? `<div class="voicehint"><i></i> Diga “sim” (adicionar) ou “não” (pular) · um número (“três”) muda a quantidade · “foil”</div>` : ""}`,
+    ${VOICE.on ? `<div class="voicehint"><i></i> Diga “sim” (adicionar) ou “não” (pular) · um número (“três”) muda a quantidade · “foil”${dest ? " · “side” ou “deck”" : ""}</div>` : ""}`,
     `<button class="btn" id="rSkip">Pular</button><button class="btn primary" id="rAdd">Adicionar</button>`);
   const setQ = (n) => { c.qty = Math.max(1, n); $("rQ").textContent = c.qty; $("rQQ").querySelectorAll("[data-q]").forEach(b => b.setAttribute("aria-pressed", +b.dataset.q === c.qty)); };
   SC.setQ = setQ;
   $("rQQ").onclick = (ev) => { const b = ev.target.closest("[data-q]"); if (b) setQ(+b.dataset.q); };
   $("rM").onclick = () => setQ(c.qty - 1);
   $("rP").onclick = () => setQ(c.qty + 1);
-  if ($("rCmd")) $("rCmd").onchange = (ev) => c.asCmd = ev.target.checked;
+  if ($("rCmd")) $("rCmd").onchange = (ev) => { c.asCmd = ev.target.checked; if ($("rBoardW")) $("rBoardW").classList.toggle("hidden", c.asCmd); };
+  if ($("rBoard")) $("rBoard").onclick = (ev) => { const b = ev.target.closest("[data-v]"); if (!b) return; c.board = b.dataset.v; $("rBoard").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
+  SC.setBoard = (v) => { const b = $("rBoard") && $("rBoard").querySelector(`[data-v="${v}"]`); if (b) b.click(); };
   $("rFoil").onchange = (ev) => c.foil = ev.target.checked; $("rLang").onchange = (ev) => c.lang = ev.target.value;
   $("rPrint").onchange = (ev) => { const p = DB.p[+ev.target.value]; c.set = p[0]; c.number = p[1]; c.via = "both"; resultSheet(c); };
   $("rSkip").onclick = () => { SC.cur = null; SC.lastOi = c.oi; SC.clearSeen = false; resume(); };
@@ -2682,16 +2720,17 @@ function commitScan(c, auto) {
   SC.cur = null;
   if (dest) {
     e.decks[dest.id] = (e.decks[dest.id] || 0) + c.qty;
-    const board = c.asCmd ? "cmd" : "main";
-    let ex = dest.cards.find(x => x.oi === c.oi && x.board === board) || (!c.asCmd && dest.cards.find(x => x.oi === c.oi));
+    if (c.board === undefined) c.board = deckCount(dest, "main") + deckCount(dest, "cmd") >= (isCmdFormat(dest) ? 100 : 60) ? "side" : "main";
+    const board = c.asCmd ? "cmd" : c.board || "main";
+    let ex = dest.cards.find(x => x.oi === c.oi && x.board === board) || (board === "main" && dest.cards.find(x => x.oi === c.oi && x.board !== "side" && x.board !== "maybe"));
     if (c.asCmd) { dest.cards = dest.cards.filter(x => !(x.oi === c.oi && x.board !== "cmd")); if (!ex) { ex = { oi: c.oi, qty: 1, board: "cmd", set: c.set, number: c.number }; dest.cards.unshift(ex); } if (!dest.name || dest.name === "Novo deck") dest.name = DB.o[c.oi][0].split(" // ")[0]; }
-    else if (!ex) dest.cards.push({ oi: c.oi, qty: c.qty, board: "main", set: c.set, number: c.number });
+    else if (!ex) dest.cards.push({ oi: c.oi, qty: c.qty, board, set: c.set, number: c.number });
     else { const have = haveFor(dest, c.oi); const listed = dest.cards.filter(x => x.oi === c.oi).reduce((a, x) => a + x.qty, 0); if (have > listed) ex.qty += have - listed; }
     save(); updateDestChip();
   }
-  SC.session.unshift({ key: e.key, qty: c.qty, name: e.name, where: dest ? "Deck: " + dest.name : whereLib(e).text, dest: dest ? dest.id : "" });
+  SC.session.unshift({ key: e.key, qty: c.qty, name: e.name, where: dest ? "Deck: " + dest.name + (c.board === "side" && !c.asCmd ? " (sideboard)" : c.board === "maybe" && !c.asCmd ? " (talvez)" : "") : whereLib(e).text, dest: dest ? dest.id : "" });
   $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
-  toast(`${e.name} → ${dest ? dest.name : whereLib(e).text.replace(/^Caixa /, "Cx ")}`, 1600);
+  toast(`${e.name} → ${dest ? dest.name + (c.board === "side" && !c.asCmd ? " · Sideboard" : c.board === "maybe" && !c.asCmd ? " · Talvez" : "") : whereLib(e).text.replace(/^Caixa /, "Cx ")}`, 1600);
   fillImages([e]);
   SC.lastOi = c.oi; SC.clearSeen = false; resume();
 }
@@ -2720,6 +2759,7 @@ function voiceCommand(raw) {
   if (nm) { const n = /\d/.test(nm[1]) ? +nm[1] : NUM_PT[nm[1]]; if (n && SC.setQ) SC.setQ(n); }
   if (/\bfoil\b|\bfoiu\b|\bfoi o\b/.test(t) && $("rFoil")) { $("rFoil").checked = !$("rFoil").checked; c.foil = $("rFoil").checked; }
   if (/\b(comandante)\b/.test(t) && $("rCmd")) { $("rCmd").checked = true; c.asCmd = true; }
+  if (/\b(side|sideboard|saide|said)\b/.test(t) && SC.setBoard) SC.setBoard("side"); else if (/\b(talvez|maybe)\b/.test(t) && SC.setBoard) SC.setBoard("maybe"); else if (/\b(deck|dek|principal)\b/.test(t) && SC.setBoard) SC.setBoard("main");
   if (/\b(pula|pular|pule|proxima|proximo|nao|errado|errada|cancela)\b/.test(t)) { toast("🎤 pular"); $("rSkip").click(); return; }
   if (/\b(adiciona|adicionar|adicione|sim|ok|okay|confirma|confirmar|salva|salvar|isso|pode|beleza)\b/.test(t)) { toast(`🎤 adicionar ${c.qty}×`); $("rAdd").click(); return; }
   if (nm) toast(`🎤 quantidade ${c.qty}`, 1200);
