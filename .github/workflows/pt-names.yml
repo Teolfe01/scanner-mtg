@@ -1,0 +1,21 @@
+name: Nomes em português
+on:
+  workflow_dispatch:
+  schedule: [{ cron: "17 6 * * 1" }]
+  push:
+    branches: [main]
+    paths: ["tools/build_pt.py", ".github/workflows/pt-names.yml"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gerar data/pt.json.gz
+        run: python3 tools/build_pt.py
+      - name: Salvar se mudou
+        run: |
+          git config user.name "Scanner MTG"; git config user.email "noreply@users.noreply.github.com"
+          git add data/pt.json.gz
+          git diff --cached --quiet || (git commit -m "Atualiza nomes em português" && git push)
