@@ -357,6 +357,32 @@ html.noprices .grid .cardimg .price { display: none; }
 .theme { display: grid; justify-items: center; gap: 6px; background: none; border: 0; color: var(--muted); font: 12px var(--font); cursor: pointer; }
 .theme i { width: 46px; height: 46px; border-radius: 16px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); transition: transform .2s var(--spring); }
 .theme[aria-pressed="true"] { color: var(--ink); } .theme[aria-pressed="true"] i { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px #fff; transform: scale(1.06); }
+.gf { display: flex; flex-direction: column; gap: 10px; }
+.gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
+.gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
+.gf-stat b { font-size: 18px; } .gf-stat span { font-size: 10px; color: var(--muted); }
+.gf-life { flex-direction: row; gap: 8px; position: relative; padding-bottom: 16px; } .gf-life span { position: absolute; bottom: 3px; left: 0; right: 0; text-align: center; }
+.gf-life button { border: 0; background: rgba(255,255,255,.08); color: inherit; border-radius: 8px; width: 26px; height: 26px; font-size: 16px; }
+.gf-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-left: auto; }
+.gf-hint { background: rgba(var(--acc-rgb), .14); color: var(--text); border-radius: 12px; padding: 8px 12px; font-size: 13px; }
+.gf-zone { background: var(--surface); border-radius: 16px; padding: 8px 10px 10px; min-height: 60px; }
+.gf-zone h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; } .gf-zone h4 span { opacity: .7; }
+.gf-row { display: flex; gap: 6px; overflow-x: auto; padding: 4px 2px 6px; min-height: 40px; align-items: flex-start; scrollbar-width: thin; }
+.gf-bf .gf-row { flex-wrap: wrap; overflow: visible; } .gf-lands { border-top: 1px dashed rgba(255,255,255,.08); padding-top: 8px; }
+.gf-c { flex: 0 0 auto; width: 74px; cursor: pointer; transition: transform .15s ease; border-radius: 5%; }
+.gf-c.tap { transform: rotate(90deg) scale(.86); margin: 0 12px; opacity: .85; }
+.gf-c.sel { outline: 3px solid var(--accent); outline-offset: 2px; transform: translateY(-6px); }
+.gf-hand .gf-c { width: 92px; } .gf-hand .gf-c:hover { transform: translateY(-8px); }
+.gf-pick { flex-wrap: wrap; overflow: visible; }
+.gf-empty { color: var(--muted); font-size: 12px; opacity: .6; padding: 10px; }
+.gf-piles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.gf-pile { border: 0; background: var(--surface); color: inherit; border-radius: 14px; padding: 10px; font: inherit; font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+.gf-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.gf-pv { position: fixed; right: 18px; bottom: 18px; width: 250px; z-index: 60; pointer-events: none; filter: drop-shadow(0 12px 30px rgba(0,0,0,.6)); }
+.gf-dist { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; height: 140px; align-items: end; margin-top: 8px; }
+.gf-dist > div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 2px; font-size: 10px; }
+.gf-dist i { display: block; width: 100%; background: rgba(255,255,255,.18); border-radius: 6px 6px 2px 2px; } .gf-dist i.ok { background: var(--grad); }
+@media (min-width: 900px) { .gf-c { width: 96px; } .gf-hand .gf-c { width: 118px; } }
 .edh-head { display: grid; grid-template-columns: 112px 1fr; gap: 14px; align-items: start; background: var(--surface); border-radius: 18px; padding: 12px; margin-bottom: 10px; }
 .edh-cmdimg { border: 0; padding: 0; background: none; border-radius: 6%; }
 .edh-name { font-size: 18px; font-weight: 700; line-height: 1.2; }
@@ -1133,6 +1159,7 @@ function libFor(oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a
 function renderDecks() {
   if (view && view.kind === "deck") return renderDeck(view.id);
   if (view && view.kind === "edit") { ED.id = view.id; return renderEditor(); }
+  if (view && view.kind === "gold") return renderGoldfish(view.id);
   $("title").textContent = "Decks"; $("bars").innerHTML = "";
   setMenu([["Novo deck vazio", () => newDeck()], ["Importar deck precon", preconDialog], ["Importar deck de lista", importDeckDialog]]);
   $("fab").classList.remove("hidden"); $("fab").onclick = () => { openSheet(`<h3 style="margin:0">Novo deck</h3><div class="rows">
@@ -1244,7 +1271,7 @@ function renderDeck(id) {
     return `<button class="row" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fake, { bare: true })}<span><span class="rn">${c.qty > 1 ? c.qty + "× " : ""}${esc(c.o.name)}</span><span class="rs">${manaHTML(c.o.mana)} ${st}</span></span><span class="rr">${c.have}/${c.qty}</span></button>`;
   };
   $("main").innerHTML = `
-    <button class="btn primary" id="openEd" style="width:100%;margin-bottom:10px">✎ Editar deck (busca, categorias e análise)</button>
+    <div class="two" style="margin-bottom:10px"><button class="btn primary" id="openEd">✎ Editar deck</button><button class="btn" id="openGf">▶ Testar (goldfish)</button></div>
     ${(() => { const oiS = [...new Set(d.cards.map(c => c.oi))]; const pull = oiS.reduce((a, oi) => a + Math.min(Math.max(0, d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0) - haveFor(d, oi)), libFor(oi)), 0);
       const mounted = oiS.reduce((a, oi) => a + haveFor(d, oi), 0);
       return pull ? `<button class="btn" id="rebuildDeck" style="width:100%;margin-bottom:10px">↺ ${mounted || /precon/.test(d.source || "") ? "Remontar deck" : "Montar com a coleção"} — pegar ${pull} carta(s) das caixas</button>` : ""; })()}
@@ -1416,7 +1443,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.10e";
+const APP_VERSION = "2026.11.11";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1495,7 +1522,7 @@ function renderCfg() {
     <h2 class="sec">Ajuda</h2><div class="card cfg-card">
       ${btnRow("cfBug", "🐞 Reportar bug ou 💡 sugerir melhoria", "Vai junto um diagnóstico do app")}
       ${btnRow("cfBugs", "Bugs e sugestões", "Lista para o pacote de atualização (a cada 2 dias)")}
-      ${isInstalled() ? "" : btnRow("cfInst", "📲 Instalar o app", "")}
+      ${isInstalled() ? "" : /Android|iPhone|iPad/i.test(navigator.userAgent) ? btnRow("cfInst", "📲 Instalar o app", "") : btnRow("cfInst", "💻 Instalar no computador", "Vira um app do PC: janela própria, ícone na área de trabalho e atualização automática")}
       <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}</div>
     </div></div>`;
   const m = $("main");
@@ -1554,6 +1581,158 @@ async function bugsList() {
     $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
   } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
 }
+// ============ GOLDFISH (testar o deck sozinho) ============
+const GF = { id: null };
+let GFU = 0;
+function gfNew(d) {
+  const lib = []; const cmd = [];
+  for (const c of d.cards) { if (c.board === "side" || c.board === "maybe") continue;
+    for (let i = 0; i < c.qty; i++) { const x = { u: ++GFU, oi: c.oi, set: c.set, number: c.number, t: false }; (c.board === "cmd" && isCmdFormat(d) ? cmd : lib).push(x); } }
+  Object.assign(GF, { id: d.id, lib: gfShuffle(lib), hand: [], bf: [], gy: [], ex: [], cmd, turn: 0, life: isCmdFormat(d) ? 40 : 20, mull: 0, kept: false, landDrop: 0, log: [] });
+  gfDraw(7);
+}
+function gfShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function gfDraw(n = 1) { for (let i = 0; i < n && GF.lib.length; i++) GF.hand.push(GF.lib.shift()); }
+const gfIsLand = (x) => mainTypes(DB.o[x.oi][5]).includes("Land");
+const gfZones = () => ({ hand: GF.hand, bf: GF.bf, gy: GF.gy, ex: GF.ex, cmd: GF.cmd, lib: GF.lib });
+function gfFind(u) { for (const [z, arr] of Object.entries(gfZones())) { const i = arr.findIndex(x => x.u === u); if (i >= 0) return { z, arr, i, x: arr[i] }; } return null; }
+function gfMove(u, to, where = "end") {
+  const f = gfFind(u); if (!f) return; f.arr.splice(f.i, 1); const x = f.x; x.t = false;
+  if (to === "bf" && f.z === "hand" && gfIsLand(x)) GF.landDrop++;
+  const dst = gfZones()[to]; if (where === "top") dst.unshift(x); else dst.push(x);
+}
+function openGoldfish(id) { go("decks", { kind: "gold", id }); }
+function renderGoldfish(id) {
+  const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
+  if (GF.id !== id || !GF.lib) gfNew(d);
+  document.body.classList.add("wide");
+  $("title").textContent = "Goldfish · " + d.name; $("bars").innerHTML = "";
+  setMenu([["Nova partida", () => { gfNew(d); gfDraw0(); }], ["Estatísticas da mão inicial", () => gfStats(d)], ["Voltar ao deck", () => go("decks", { kind: "deck", id })]]);
+  gfDraw0();
+}
+function gfCard(x, z) {
+  return `<div class="gf-c${x.t ? " tap" : ""}" data-u="${x.u}" data-oi="${x.oi}" data-z="${z}" draggable="true">${cardImgHTML({ oi: x.oi, set: x.set || DB.p[defaultPrint(x.oi)]?.[0] || "", number: x.number || DB.p[defaultPrint(x.oi)]?.[1] || "" }, { bare: true })}</div>`;
+}
+function gfDraw0() {
+  if (!GF.lib || tab !== "decks" || !view || view.kind !== "gold") return;
+  const lands = GF.bf.filter(gfIsLand), perms = GF.bf.filter(x => !gfIsLand(x));
+  const mana = lands.filter(x => !x.t).length;
+  const pre = !GF.kept;
+  $("main").innerHTML = `<div class="gf">
+    <div class="gf-top">
+      <div class="gf-stat"><b>${GF.turn || "—"}</b><span>turno</span></div>
+      <div class="gf-stat gf-life"><button data-a="life-">−</button><b>${GF.life}</b><button data-a="life+">+</button><span>vida</span></div>
+      <div class="gf-stat"><b>${mana}</b><span>mana livre</span></div>
+      <div class="gf-stat"><b>${GF.lib.length}</b><span>grimório</span></div>
+      <div class="gf-acts">${pre
+        ? `<button class="btn small" data-a="mull">Mulligan${GF.mull ? " (" + GF.mull + ")" : ""}</button><button class="btn small primary" data-a="keep">Manter mão</button>`
+        : `<button class="btn small" data-a="draw">Comprar</button><button class="btn small primary" data-a="next">Próximo turno ›</button><button class="btn small" data-a="more">⋯</button>`}</div>
+    </div>
+    ${pre ? `<div class="gf-hint">Mão inicial${GF.mull ? ` · mulligan ${GF.mull}: ao manter, escolha ${GF.mull} carta(s) para o fundo` : ""} · ${GF.hand.filter(gfIsLand).length} terreno(s)</div>` : ""}
+    ${GF.cmd.length ? `<div class="gf-zone" data-zone="cmd"><h4>Zona de comando</h4><div class="gf-row">${GF.cmd.map(x => gfCard(x, "cmd")).join("")}</div></div>` : ""}
+    <div class="gf-zone gf-bf" data-zone="bf"><h4>Campo de batalha <span>${GF.bf.length}</span></h4>
+      <div class="gf-row" data-sub="perm">${perms.map(x => gfCard(x, "bf")).join("") || `<div class="gf-empty">Permanentes</div>`}</div>
+      <div class="gf-row gf-lands" data-sub="land">${lands.map(x => gfCard(x, "bf")).join("") || `<div class="gf-empty">Terrenos</div>`}</div></div>
+    <div class="gf-zone gf-hand" data-zone="hand"><h4>Mão <span>${GF.hand.length}</span>${!pre ? ` · terrenos jogados no turno: ${GF.landDrop}` : ""}</h4><div class="gf-row">${GF.hand.map(x => gfCard(x, "hand")).join("") || `<div class="gf-empty">Vazia</div>`}</div></div>
+    <div class="gf-piles"><button class="gf-pile" data-zone="gy" data-a="pile:gy">🪦 Cemitério <b>${GF.gy.length}</b></button><button class="gf-pile" data-zone="ex" data-a="pile:ex">🌀 Exílio <b>${GF.ex.length}</b></button><button class="gf-pile" data-zone="lib" data-a="pile:lib">📚 Grimório <b>${GF.lib.length}</b></button></div>
+    <div class="cfg-s" style="text-align:center;margin-top:8px">${isWide() ? "Arraste as cartas entre as zonas · clique para ver opções · duplo clique no campo vira/desvira" : "Toque numa carta para ver as opções"}</div>
+  </div>`;
+  const m = $("main");
+  m.onclick = (e) => { const a = e.target.closest("[data-a]"); if (a) return gfAct(a.dataset.a);
+    const c = e.target.closest(".gf-c"); if (c) gfMenu(+c.dataset.u, c.dataset.z); };
+  m.ondblclick = (e) => { const c = e.target.closest(".gf-c[data-z=bf]"); if (!c) return; const f = gfFind(+c.dataset.u); f.x.t = !f.x.t; gfDraw0(); };
+  m.ondragstart = (e) => { const c = e.target.closest(".gf-c"); if (c) e.dataTransfer.setData("text/plain", c.dataset.u); };
+  m.ondragover = (e) => { if (e.target.closest("[data-zone]")) e.preventDefault(); };
+  m.ondrop = (e) => { const z = e.target.closest("[data-zone]"); if (!z) return; e.preventDefault(); const u = +e.dataTransfer.getData("text/plain"); if (!u) return; gfMove(u, z.dataset.zone, z.dataset.zone === "lib" ? "top" : "end"); gfDraw0(); };
+  if (isWide()) gfHover(m);
+}
+function gfHover(root) {
+  root.onmouseover = (e) => { const c = e.target.closest(".gf-c"); let pv = $("gfPv"); if (!c) { if (pv) pv.remove(); return; }
+    if (!pv) { pv = document.createElement("div"); pv.id = "gfPv"; pv.className = "gf-pv"; document.body.appendChild(pv); }
+    if (pv.dataset.u !== c.dataset.u) { pv.dataset.u = c.dataset.u; pv.innerHTML = c.innerHTML; } };
+  root.onmouseleave = () => { const pv = $("gfPv"); if (pv) pv.remove(); };
+}
+function gfAct(a) {
+  if (a === "life-") GF.life--; else if (a === "life+") GF.life++;
+  else if (a === "mull") { GF.lib.push(...GF.hand); GF.hand = []; gfShuffle(GF.lib); GF.mull++; gfDraw(7); toast(`Mulligan ${GF.mull} — ao manter, ${GF.mull} carta(s) vão para o fundo`); }
+  else if (a === "keep") { if (GF.mull) return gfBottom(GF.mull); GF.kept = true; GF.turn = 1; GF.landDrop = 0; }
+  else if (a === "draw") gfDraw(1);
+  else if (a === "next") { GF.turn++; GF.landDrop = 0; [...GF.bf, ...GF.cmd].forEach(x => x.t = false); gfDraw(1); }
+  else if (a === "more") return gfMore();
+  else if (a.startsWith("pile:")) return gfPile(a.slice(5));
+  gfDraw0();
+}
+function gfBottom(n) {
+  const pick = new Set();
+  openSheet(`<h3 style="margin:0">Escolha ${n} carta(s) para o fundo do grimório</h3><div class="gf-row gf-pick" id="gbP">${GF.hand.map(x => gfCard(x, "pick")).join("")}</div><div class="meta" id="gbN">0/${n} escolhida(s)</div>`, `<button class="btn" id="gbX">Cancelar</button><button class="btn primary" id="gbOk" disabled>Manter</button>`);
+  $("gbX").onclick = closeSheet;
+  $("gbP").onclick = (e) => { const c = e.target.closest(".gf-c"); if (!c) return; const u = +c.dataset.u; if (pick.has(u)) pick.delete(u); else if (pick.size < n) pick.add(u);
+    $("gbP").querySelectorAll(".gf-c").forEach(el => el.classList.toggle("sel", pick.has(+el.dataset.u))); $("gbN").textContent = `${pick.size}/${n} escolhida(s)`; $("gbOk").disabled = pick.size !== n; };
+  $("gbOk").onclick = () => { for (const u of pick) gfMove(u, "lib"); GF.kept = true; GF.turn = 1; GF.landDrop = 0; closeSheet(); gfDraw0(); };
+}
+function gfMenu(u, z) {
+  const f = gfFind(u); if (!f) return; const x = f.x; const land = gfIsLand(x); const name = DB.o[x.oi][0];
+  const acts = [];
+  if (z === "hand") acts.push([land ? "Jogar terreno" : "Lançar / jogar", "bf"], ["Descartar", "gy"], ["Exilar", "ex"], ["Topo do grimório", "lib:top"], ["Fundo do grimório", "lib"]);
+  if (z === "bf") acts.push([x.t ? "Desvirar" : "Virar (tap)", "tap"], ["Para o cemitério", "gy"], ["Exilar", "ex"], ["Voltar para a mão", "hand"], ["Topo do grimório", "lib:top"]);
+  if (z === "cmd") acts.push(["Lançar comandante", "bf"], ["Para a mão", "hand"]);
+  if (z === "gy" || z === "ex" || z === "lib") acts.push(["Para a mão", "hand"], ["Para o campo", "bf"], ...(z !== "gy" ? [["Para o cemitério", "gy"]] : []), ...(z !== "ex" ? [["Exilar", "ex"]] : []), ...(z !== "lib" ? [["Topo do grimório", "lib:top"]] : []));
+  if (DB.o[x.oi][4] !== undefined && GF.cmd.length === 0 && false) {}
+  openSheet(`<div class="detail">${cardImgHTML({ oi: x.oi, set: x.set || DB.p[defaultPrint(x.oi)]?.[0] || "", number: x.number || DB.p[defaultPrint(x.oi)]?.[1] || "" }, { bare: true })}<div><h3>${esc(name)}</h3>${manaHTML(DB.o[x.oi][1])}<div class="meta">${esc(DB.o[x.oi][5])}</div></div></div>
+    ${DB.o[x.oi][6] ? `<div class="textbox">${esc(DB.o[x.oi][6])}</div>` : ""}
+    <div class="gf-menu">${acts.map(([n, v]) => `<button class="btn${v === "bf" || v === "tap" ? " primary" : ""}" data-v="${v}">${n}</button>`).join("")}</div>`, `<button class="btn" id="gmX">Fechar</button>`);
+  $("gmX").onclick = closeSheet;
+  document.querySelector(".gf-menu").onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) return; const v = b.dataset.v;
+    if (v === "tap") x.t = !x.t; else if (v === "lib:top") gfMove(u, "lib", "top"); else { if (z === "cmd" && v === "bf") toast("Comandante em campo"); gfMove(u, v); }
+    closeSheet(); gfDraw0(); };
+}
+function gfPile(z) {
+  const arr = gfZones()[z]; const title = { gy: "Cemitério", ex: "Exílio", lib: "Grimório (buscar carta)" }[z];
+  const list = z === "lib" ? arr.slice().sort((a, b) => DB.o[a.oi][0].localeCompare(DB.o[b.oi][0])) : arr.slice().reverse();
+  openSheet(`<h3 style="margin:0">${title} · ${arr.length}</h3>${z === "lib" ? `<input type="search" id="gpQ" placeholder="Filtrar por nome">` : ""}<div class="gf-row gf-pick" id="gpL">${list.map(x => gfCard(x, z)).join("") || `<div class="meta">Vazio.</div>`}</div>`,
+    `${z === "lib" ? `<button class="btn" id="gpSh">Embaralhar</button>` : ""}<button class="btn primary" id="gpX">Fechar</button>`);
+  $("gpX").onclick = closeSheet; if ($("gpSh")) $("gpSh").onclick = () => { gfShuffle(GF.lib); toast("Grimório embaralhado"); closeSheet(); gfDraw0(); };
+  if ($("gpQ")) $("gpQ").oninput = (e) => { const q = norm(e.target.value); $("gpL").querySelectorAll(".gf-c").forEach(el => el.classList.toggle("hidden", !!q && !norm(DB.o[+el.dataset.oi][0]).includes(q) && !ptN(+el.dataset.oi).includes(q))); };
+  $("gpL").onclick = (e) => { const c = e.target.closest(".gf-c"); if (c) { closeSheet(); setTimeout(() => gfMenu(+c.dataset.u, z), 50); } };
+}
+function gfMore() {
+  openSheet(`<h3 style="margin:0">Mais ações</h3><div class="gf-menu">
+    <button class="btn" data-m="draw3">Comprar 3</button><button class="btn" data-m="scry">Ver topo (vidência)</button><button class="btn" data-m="untap">Desvirar tudo</button>
+    <button class="btn" data-m="shuffle">Embaralhar grimório</button><button class="btn" data-m="mill">Moer 1 (topo → cemitério)</button><button class="btn" data-m="new">Nova partida</button></div>`, `<button class="btn" id="gmX">Fechar</button>`);
+  $("gmX").onclick = closeSheet;
+  document.querySelector(".gf-menu").onclick = (e) => { const b = e.target.closest("[data-m]"); if (!b) return; const m = b.dataset.m; closeSheet();
+    if (m === "draw3") gfDraw(3); else if (m === "untap") [...GF.bf, ...GF.cmd].forEach(x => x.t = false); else if (m === "shuffle") { gfShuffle(GF.lib); toast("Embaralhado"); }
+    else if (m === "mill") { if (GF.lib.length) GF.gy.push(GF.lib.shift()); } else if (m === "new") { gfNew(S.decks.find(x => x.id === GF.id)); }
+    else if (m === "scry") return setTimeout(gfScry, 50);
+    gfDraw0(); };
+}
+function gfScry() {
+  let n = 3; const draw = () => { const top = GF.lib.slice(0, n);
+    openSheet(`<h3 style="margin:0">Topo do grimório</h3><div class="seg" id="scN">${[1, 2, 3, 4, 5].map(k => `<button data-k="${k}" aria-pressed="${k === n}">${k}</button>`).join("")}</div>
+      <div class="meta">Toque numa carta para mandá-la ao fundo. As que ficarem continuam no topo, nesta ordem.</div><div class="gf-row gf-pick" id="scL">${top.map(x => gfCard(x, "lib")).join("")}</div>`, `<button class="btn primary" id="scOk">Pronto</button>`);
+    $("scN").onclick = (e) => { const b = e.target.closest("[data-k]"); if (b) { n = +b.dataset.k; draw(); } };
+    $("scL").onclick = (e) => { const c = e.target.closest(".gf-c"); if (!c) return; const f = gfFind(+c.dataset.u); f.arr.splice(f.i, 1); GF.lib.push(f.x); n = Math.max(1, n - 1); toast("Para o fundo"); draw(); };
+    $("scOk").onclick = () => { closeSheet(); gfDraw0(); }; };
+  draw();
+}
+// Simula muitas mãos iniciais para ver a chance de ter uma mão jogável
+function gfStats(d) {
+  const deck = []; for (const c of d.cards) { if (c.board !== "main") continue; for (let i = 0; i < c.qty; i++) deck.push(mainTypes(DB.o[c.oi][5]).includes("Land") ? 1 : 0); }
+  if (deck.length < 8) return toast("O deck precisa de mais cartas.");
+  const N = 5000, dist = Array(8).fill(0); let hit3 = 0, hit4 = 0;
+  for (let k = 0; k < N; k++) { const a = gfShuffle(deck.slice()); const h = a.slice(0, 7).reduce((s, x) => s + x, 0); dist[h]++;
+    let l = h; for (let t = 1; t <= 4; t++) { l += a[6 + t] || 0; if (t === 2 && l >= 3) hit3++; if (t === 3 && l >= 4) hit4++; } }
+  const totL = deck.reduce((s, x) => s + x, 0); const pct = (x) => Math.round(x * 1000 / N) / 10;
+  const keep = dist.slice(2, 5).reduce((s, x) => s + x, 0);
+  openSheet(`<h3 style="margin:0">Mão inicial · ${N.toLocaleString("pt-BR")} simulações</h3>
+    <div class="meta">${totL} terrenos em ${deck.length} cartas (sem comandante)</div>
+    <div class="gf-dist">${dist.map((n, i) => `<div><span>${pct(n)}%</span><i style="height:${Math.max(2, n * 100 / Math.max(...dist))}%" class="${i >= 2 && i <= 4 ? "ok" : ""}"></i><b>${i}</b></div>`).join("")}</div>
+    <div class="meta" style="text-align:center">terrenos na mão de 7</div>
+    <div class="edh-stats" style="margin-top:8px"><div><b>${pct(keep)}%</b><span>mãos com 2–4 terrenos</span></div><div><b>${pct(hit3)}%</b><span>3 terrenos até o turno 3*</span></div><div><b>${pct(hit4)}%</b><span>4 terrenos até o turno 4*</span></div></div>
+    <div class="cfg-s">* jogando primeiro, comprando 1 por turno, sem contar ramp nem compra extra.</div>`, `<button class="btn primary" id="gsX">Fechar</button>`);
+  $("gsX").onclick = closeSheet;
+}
+
 // ============ ABA EDH ============
 // Escolhe um comandante e mostra, por bracket (1–5), os decks do EDHREC, a lista média e as cartas de maior sinergia.
 const BRACKETS = [["", "Todos", ""], ["exhibition", "1 · Exibição", "1"], ["core", "2 · Básico", "2"], ["upgraded", "3 · Melhorado", "3"], ["optimized", "4 · Otimizado", "4"], ["cedh", "5 · cEDH", "5"]];
@@ -1949,7 +2128,7 @@ function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) ret
 
 function openEditor(id) { ED.id = id; ED.pane = d0pane(id); go("decks", { kind: "edit", id }); }
 function d0pane(id) { const d = S.decks.find(x => x.id === id); return d && d.cards.length ? "deck" : "busca"; }
-document.addEventListener("click", (e) => { const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); const r = e.target.closest("#rebuildDeck"); if (r && view && view.id) { const d = S.decks.find(x => x.id === view.id); if (d) buildDeck(d); } });
+document.addEventListener("click", (e) => { const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); const gb = e.target.closest("#openGf"); if (gb && view && view.id) openGoldfish(view.id); const r = e.target.closest("#rebuildDeck"); if (r && view && view.id) { const d = S.decks.find(x => x.id === view.id); if (d) buildDeck(d); } });
 function renderEditor() {
   const d = deckOf(); if (!d) return go("decks");
   document.body.classList.add("wide");
