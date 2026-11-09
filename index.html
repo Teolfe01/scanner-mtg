@@ -435,6 +435,8 @@ body.pt-on #main { padding: 0 !important; max-width: none !important; }
 .dragsrc { opacity: .28 !important; transition: opacity .15s ease; }
 html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
 .dropover { outline: 2px dashed rgba(var(--acc-rgb), .7); outline-offset: 3px; }
+.locb { position: absolute; right: 6%; top: 21%; z-index: 3; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: auto; max-width: 88%; }
+.locb i { font-style: normal; font-size: 10.5px; font-weight: 600; line-height: 1.25; background: rgba(12,13,16,.86); color: #fff; padding: 2px 7px; border-radius: 999px; box-shadow: 0 2px 8px rgba(0,0,0,.5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; backdrop-filter: blur(4px); border: 1px solid rgba(var(--acc-rgb), .35); }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -881,6 +883,20 @@ function buildLayout() {
 function boxOfSection(s) {
   if (!S.boxes.layout) buildLayout();
   const b = S.boxes.layout.find(b => b.sections.includes(s)); return b ? b.n : 1;
+}
+// Onde estão as cópias de uma carta (caixas e outros decks) — selo na busca do editor
+function locInfo(oi, exceptDeck) {
+  const boxes = new Map(), decks = new Map();
+  for (const e of S.cards) { if (e.oi !== oi) continue; const f = freeQty(e); if (f) { const w = whereLib(e); boxes.set(w.box, (boxes.get(w.box) || 0) + f); }
+    for (const [did, q] of Object.entries(e.decks || {})) { if (!q || did === exceptDeck) continue; const dd = S.decks.find(x => x.id === did); if (dd) decks.set(dd.name || "Deck", (decks.get(dd.name || "Deck") || 0) + q); } }
+  return { boxes, decks };
+}
+function locBadge(oi, exceptDeck) {
+  const { boxes, decks } = locInfo(oi, exceptDeck); if (!boxes.size && !decks.size) return "";
+  const parts = []; if (boxes.size) parts.push("📦 Cx " + [...boxes.keys()].sort((a, b) => a - b).join(", "));
+  if (decks.size) parts.push("🃏 " + (decks.size === 1 ? [...decks.keys()][0] : decks.size + " decks"));
+  const full = [...[...boxes].map(([b, q]) => `Caixa ${b}: ${q}× livre(s)`), ...[...decks].map(([n, q]) => `Deck ${n}: ${q}×`)].join("\n");
+  return `<span class="locb" title="${esc(full)}">${parts.map(x => `<i>${esc(x)}</i>`).join("")}</span>`;
 }
 function whereLib(e) { const s = sectionOf(e); const t = mainTypes(DB.o[e.oi][5])[0]; const tn = (TYPES.find(x => x[0] === t) || [, "Outros"])[1]; return { box: boxOfSection(s), section: s, text: `Caixa ${boxOfSection(s)} · ${sectionName(s)} · ${tn}` }; }
 
@@ -1711,7 +1727,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.13";
+const APP_VERSION = "2026.11.13b";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2568,7 +2584,7 @@ async function drawEdhRecs(d) {
     if (!cards.length) return ""; shown += cards.length;
     return `<div class="edh-h" style="grid-column:1/-1"><span>${esc(EDH_PT[l.header] || l.header)}</span><span class="meta">${cards.length}</span></div>` + cards.map(({ v, oi }) => {
       const pct = v.potential_decks ? Math.round(v.num_decks * 100 / v.potential_decks) : 0; const lib = libFor(oi); const n = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
-      return `<div class="res" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
+      return `<div class="res" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}${locBadge(oi, ED.id)}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
     }).join("");
   }).join("");
   const deckN = (j.num_decks_avg || (j.container.json_dict.card || {}).num_decks || 0);
@@ -2585,7 +2601,7 @@ function drawResults() {
   $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
   $("edResults").innerHTML = list.map(i => {
     const inD = d.cards.filter(c => c.oi === i).reduce((a, c) => a + c.qty, 0); const lib = libFor(i);
-    return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
+    return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}${locBadge(i, ED.id)}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
   }).join("");
   hoverBind($("edResults"));
 }
