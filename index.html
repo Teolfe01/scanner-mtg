@@ -625,10 +625,22 @@ async function updateRate() {
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // ============ Base de cartas (Scryfall, embutida) ============
-const DB = { o: [], p: [], sets: {}, roles: [], bySetNum: new Map(), byLen: new Map(), byName: new Map(), prints: [], setCodes: new Set() };
+const DB = { o: [], p: [], sets: {}, roles: [], bySetNum: new Map(), byLen: new Map(), byName: new Map(), prints: [], setCodes: new Set(), pt: [], ptN: [] };
 const ROLES = { ramp: "Ramp", fixing: "Correção de mana", draw: "Compra", removal: "Remoção", wipe: "Board wipe", counter: "Contramágica", tutor: "Tutor", tokens: "Fichas", counters: "Marcadores", anthem: "Buff global", pump: "Truque", evasion: "Evasão", protection: "Proteção", recursion: "Recursão", graveyard: "Cemitério", burn: "Dano direto", lifegain: "Ganho de vida", discard: "Descarte", mill: "Mill", sacrifice: "Sacrifício", blink: "Blink", copy: "Cópia", steal: "Roubo", stax: "Taxa/Stax", finisher: "Finalizador" };
 const TYPES = [["Creature", "Criaturas"], ["Planeswalker", "Planeswalkers"], ["Instant", "Instantâneas"], ["Sorcery", "Feitiços"], ["Enchantment", "Encantamentos"], ["Artifact", "Artefatos"], ["Battle", "Batalhas"], ["Land", "Terrenos"]];
 const RAR = { c: "common", u: "uncommon", r: "rare", m: "mythic", s: "special", b: "bonus" };
+// Nomes em português (Brasil): gerados do MTGJSON por tools/build_pt.py
+async function loadPT() {
+  try {
+    const r = await fetch("data/pt.json.gz"); if (!r.ok) return; const blob = await r.blob();
+    const head = new Uint8Array(await blob.slice(0, 2).arrayBuffer());
+    const txt = head[0] === 31 && head[1] === 139 ? await new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).text() : await blob.text();
+    for (const [en, pt] of JSON.parse(txt)) { const k = norm(en); let oi = DB.byName.get(k); if (oi === undefined) oi = DB.byName.get(norm(en.split(" // ")[0])); if (oi === undefined) continue; DB.pt[oi] = pt; DB.ptN[oi] = norm(pt); }
+    if (tab === "col" && F.q) renderCol();
+  } catch (e) {}
+}
+const ptN = (oi) => DB.ptN[oi] || "";
+const ptName = (oi) => DB.pt[oi] || "";
 async function loadDB(progress) {
   const r = await fetch("data/cards.json.gz");
   const total = +r.headers.get("content-length") || 3500000;
@@ -672,8 +684,8 @@ function matchName(text, strict = true) {
 function searchNames(q, limit = 12) {
   const k = norm(q); if (k.length < 2) return [];
   const out = [];
-  for (let i = 0; i < DB.o.length && out.length < limit; i++) if (norm(DB.o[i][0]).startsWith(k)) out.push(i);
-  if (out.length < limit) for (let i = 0; i < DB.o.length && out.length < limit; i++) { const n = norm(DB.o[i][0]); if (!n.startsWith(k) && n.includes(k)) out.push(i); }
+  for (let i = 0; i < DB.o.length && out.length < limit; i++) if (norm(DB.o[i][0]).startsWith(k) || ptN(i).startsWith(k)) out.push(i);
+  if (out.length < limit) for (let i = 0; i < DB.o.length && out.length < limit; i++) { const n = norm(DB.o[i][0]), p = ptN(i); if (!n.startsWith(k) && !p.startsWith(k) && (n.includes(k) || p.includes(k))) out.push(i); }
   return out;
 }
 function defaultPrint(oi) {
@@ -852,7 +864,7 @@ const F = { q: "", colors: new Set(), type: "", role: "", where: "", sort: "name
 function colFiltered() {
   const q = norm(F.q);
   let arr = S.cards.filter(e => e.qty > 0);
-  if (q) arr = arr.filter(e => norm(e.name + " " + DB.o[e.oi][5] + " " + e.set).includes(q));
+  if (q) arr = arr.filter(e => norm(e.name + " " + DB.o[e.oi][5] + " " + e.set).includes(q) || ptN(e.oi).includes(q));
   if (F.colors.size) arr = arr.filter(e => { const b = colorBucket(e.oi); return [...F.colors].every(c => c === b || (b === "M" && DB.o[e.oi][3].includes(c))); });
   if (F.type) arr = arr.filter(e => mainTypes(DB.o[e.oi][5]).includes(F.type));
   if (F.role) arr = arr.filter(e => oInfo(e.oi).roles.includes(F.role));
@@ -1335,7 +1347,7 @@ function addCardToDeck(d) {
   $("aDone").onclick = () => { closeSheet(); renderDeck(d.id); };
   const draw = () => {
     const q = $("aq").value; const owned = $("aOwned").checked;
-    let ois = owned ? [...new Set(S.cards.filter(e => !q || norm(e.name).includes(norm(q))).map(e => e.oi))].slice(0, 40) : searchNames(q, 30);
+    let ois = owned ? [...new Set(S.cards.filter(e => !q || norm(e.name).includes(norm(q)) || ptN(e.oi).includes(norm(q))).map(e => e.oi))].slice(0, 40) : searchNames(q, 30);
     const ci = new Set(d.cards.filter(c => c.board === "cmd").flatMap(c => DB.o[c.oi][4].split("")));
     $("aList").innerHTML = ois.map(oi => { const o = DB.o[oi]; const off = ci.size && o[4].split("").some(x => x && !ci.has(x)); const inD = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
       return `<button class="row" data-oi="${oi}" style="grid-template-columns:1fr auto"><span><span class="rn">${esc(o[0])}</span><span class="rs">${manaHTML(o[1])} ${esc(o[5])}${off ? ` <span class="pill bad">fora da identidade</span>` : ""} · livres: ${libFor(oi)}</span></span><span class="meta">${inD ? inD + " no deck · " : ""}+1</span></button>`; }).join("") || `<p class="meta">Digite um nome.</p>`;
@@ -1345,7 +1357,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.09f";
+const APP_VERSION = "2026.11.09g";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1931,7 +1943,7 @@ function searchCards() {
   const list = ownedSet ? [...ownedSet] : DB.o.map((_, i) => i);
   for (const i of list) {
     const o = DB.o[i];
-    if (q && !norm(o[0]).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
+    if (q && !norm(o[0]).includes(q) && !ptN(i).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
     if (ci && o[4] && o[4].split("").some(c => !ci.has(c))) continue;
     if (ED.colors.size) { const cols = o[3]; if (ED.colors.has("C") ? cols : ![...ED.colors].every(c => cols.includes(c))) continue; }
     if (ED.type && !mainTypes(o[5]).includes(ED.type)) continue;
@@ -1941,7 +1953,7 @@ function searchCards() {
     total++; if (out.length < 600) out.push(i);
   }
   const pr = (i) => { const pi = defaultPrint(i); return pi >= 0 ? DB.p[pi][6] || 0 : 0; };
-  out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : q ? (a, b) => (norm(DB.o[b][0]).startsWith(q) - norm(DB.o[a][0]).startsWith(q)) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
+  out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : q ? (a, b) => ((norm(DB.o[b][0]).startsWith(q) || ptN(b).startsWith(q)) - (norm(DB.o[a][0]).startsWith(q) || ptN(a).startsWith(q))) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
   return { list: out.slice(0, LIM), total };
 }
 async function drawEdhRecs(d) {
@@ -2056,12 +2068,12 @@ function pickCommander(d, partnerOf = null) {
       const o = DB.o[i];
       if (partnerOf !== null ? (i === partnerOf || !canPair(partnerOf, i)) : /Background/.test(o[5])) continue;
       if (own && !own.has(i)) continue;
-      if (q && !norm(o[0]).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
+      if (q && !norm(o[0]).includes(q) && !ptN(i).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
       if (P.colors.size && (o[4].length !== P.colors.size || ![...P.colors].every(c => o[4].includes(c)))) continue;
       out.push(i);
     }
     const pr = (i) => { const pi = defaultPrint(i); return pi >= 0 ? -(DB.p[pi][6] || 0) : 0; };
-    out.sort(q ? (a, b) => (norm(DB.o[b][0]).startsWith(q) - norm(DB.o[a][0]).startsWith(q)) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => pr(a) - pr(b));
+    out.sort(q ? (a, b) => ((norm(DB.o[b][0]).startsWith(q) || ptN(b).startsWith(q)) - (norm(DB.o[a][0]).startsWith(q) || ptN(a).startsWith(q))) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => pr(a) - pr(b));
     $("pcN").textContent = `${out.length} opç${out.length === 1 ? "ão" : "ões"}${out.length > 60 ? " (mostrando 60)" : ""}`;
     $("pcR").innerHTML = out.slice(0, 60).map(i => resHTML(i)).join("");
   };
@@ -2542,13 +2554,13 @@ function parseCode(q) {
 }
 function manualEntry() {
   SC.paused = true;
-  openSheet(`<h3 style="margin:0">Digitar carta</h3><input type="search" id="mnQ" placeholder="Nome (ex.: Sol Ring) ou código (ex.: DSK 150)" autocomplete="off"><div class="meta" id="mnN">O código fica no canto de baixo da carta: coleção + número.</div><div class="rows" id="mnR"></div>`, `<button class="btn" id="mnX">Fechar</button>`);
+  openSheet(`<h3 style="margin:0">Digitar carta</h3><input type="search" id="mnQ" placeholder="Nome em inglês ou português, ou código (DSK 150)" autocomplete="off"><div class="meta" id="mnN">O código fica no canto de baixo da carta: coleção + número.</div><div class="rows" id="mnR"></div>`, `<button class="btn" id="mnX">Fechar</button>`);
   $("mnX").onclick = () => closeSheet();
   const draw = () => { const q = $("mnQ").value; const pi = parseCode(q);
     if (pi !== undefined) { const p = DB.p[pi]; $("mnN").textContent = "Código encontrado:";
       $("mnR").innerHTML = `<button class="row mn-row" data-pi="${pi}"><span><span class="rn">${esc(DB.o[p[3]][0])}</span><span class="rs">${esc(p[0].toUpperCase())} #${esc(p[1])} · ${esc(DB.sets[p[0]] || "")}</span></span><span class="rs">${fmtUSD(brlOf(p[0], p[1], false))}</span></button>`; return; }
     const r = searchNames(q, 25); $("mnN").textContent = q.trim().length < 2 ? "O código fica no canto de baixo da carta: coleção + número." : r.length ? "Toque na carta para escolher a versão:" : "Nada encontrado.";
-    $("mnR").innerHTML = r.map(oi => `<button class="row mn-row" data-oi="${oi}"><span><span class="rn">${esc(DB.o[oi][0])}</span><span class="rs">${esc(DB.o[oi][5])}</span></span><span class="rs">${(DB.prints[oi] || []).length} versões ›</span></button>`).join(""); };
+    $("mnR").innerHTML = r.map(oi => `<button class="row mn-row" data-oi="${oi}"><span><span class="rn">${esc(DB.o[oi][0])}</span><span class="rs">${ptName(oi) ? "🇧🇷 " + esc(ptName(oi)) + " · " : ""}${esc(DB.o[oi][5])}</span></span><span class="rs">${(DB.prints[oi] || []).length} versões ›</span></button>`).join(""); };
   $("mnQ").oninput = () => { clearTimeout(SC.mnT); SC.mnT = setTimeout(draw, 120); };
   $("mnQ").onkeydown = (e) => { if (e.key === "Enter") { const b = $("mnR").querySelector("button"); if (b) b.click(); } };
   $("mnR").onclick = (e) => { const b = e.target.closest("button"); if (!b) return;
@@ -2812,7 +2824,7 @@ function accountMenu() {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
     const old = localStorage.getItem("mtgscan.list");
-    await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%");
+    await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); loadPT();
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden");
