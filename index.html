@@ -1767,7 +1767,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.14c";
+const APP_VERSION = "2026.11.14d";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2584,14 +2584,14 @@ function groupKey(c) {
   if (c.board === "cmd") return "Comandante";
   if (c.board === "side") return "Sideboard";
   if (c.board === "maybe") return "Talvez";
-  if (ED.group === "tpl") return c.cat || tplName(tplCats(c)[0]);
+  if (ED.group === "tpl") { if (c.cat) return c.cat; const k = tplCats(c)[0]; return k === "plan" ? (TYPE_PT[primaryType(c.oi)] || "Outros") : tplName(k); } // como o Archidekt: o que não tem função vai pelo tipo
   if (ED.group === "cat") return c.cat || TYPE_PT[primaryType(c.oi)] || "Outros";
   if (ED.group === "cmc") return mainTypes(DB.o[c.oi][5]).includes("Land") ? "Terrenos" : "CMC " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "");
   if (ED.group === "color") { const b = colorBucket(c.oi); return COLOR_NAME[b]; }
   return TYPE_PT[primaryType(c.oi)] || "Outros";
 }
 function groupOrder(keys) {
-  const fixed = ["Comandante", ...TPL.filter(t => t.k !== "lands").map(t => t.n), ...TYPES.map(t => t[1]), ...COLOR_ORDER.map(x => x[1]), ...Array.from({ length: 8 }, (_, i) => "CMC " + i + (i === 7 ? "+" : "")), "Terrenos"];
+  const fixed = ["Comandante", ...TPL.filter(t => t.k !== "lands" && t.k !== "plan").map(t => t.n), ...TYPES.filter(t => t[1] !== "Terrenos").map(t => t[1]), "Plano", ...COLOR_ORDER.map(x => x[1]), ...Array.from({ length: 8 }, (_, i) => "CMC " + i + (i === 7 ? "+" : "")), "Terrenos"];
   return keys.sort((a, b) => { const ia = fixed.indexOf(a), ib = fixed.indexOf(b); const sa = a === "Sideboard" ? 2 : a === "Talvez" ? 3 : 0, sb = b === "Sideboard" ? 2 : b === "Talvez" ? 3 : 0; return sa - sb || (ia < 0 ? 50 : ia) - (ib < 0 ? 50 : ib) || a.localeCompare(b); });
 }
 function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) return "ok"; return libFor(c.oi) > 0 ? "lib" : "miss"; }
