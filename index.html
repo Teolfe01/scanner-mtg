@@ -458,6 +458,7 @@ html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
 .colh { display: flex; align-items: center; gap: 6px; } .colh > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .colm { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
 .colm:hover { background: rgba(255,255,255,.1); color: var(--text, #fff); }
+.tokcol .colh { border-color: rgba(255,211,107,.25); } .tokstk .cardimg { box-shadow: 0 0 0 1px rgba(255,211,107,.35); }
 .colh .colt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; } .colh .colt b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .colh .colt small { font-size: 11px; color: var(--muted); font-weight: 500; }
 .colh { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 6px 4px 6px 10px; }
 .edsel { display: inline-flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 2px; } .edsel select { font-size: 13px; }
@@ -1770,7 +1771,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.15b";
+const APP_VERSION = "2026.11.16";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2680,6 +2681,57 @@ function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) ret
 function openEditor(id) { ED.id = id; ED.pane = d0pane(id); go("decks", { kind: "edit", id }); }
 function d0pane(id) { const d = S.decks.find(x => x.id === id); return d && d.cards.length ? "deck" : "busca"; }
 document.addEventListener("click", (e) => { const eg = e.target.closest("#edGf"); if (eg && view && view.id) { GF.id = null; return openGoldfish(view.id); } const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); const gb = e.target.closest("#openGf"); if (gb && view && view.id) { GF.id = null; openGoldfish(view.id); } const r = e.target.closest("#rebuildDeck"); if (r && view && view.id) { const d = S.decks.find(x => x.id === view.id); if (d) buildDeck(d); } });
+// ============ FICHAS DO DECK (coluna automática) ============
+// Junta as fichas (tokens/emblemas) que as cartas do deck criam, pelo Scryfall (all_parts). Fica guardado no aparelho.
+const TOKS = { mem: null };
+async function tokCache() { if (!TOKS.mem) { try { TOKS.mem = (await store.get("tokc")) || {}; } catch (e) { TOKS.mem = {}; } } return TOKS.mem; }
+async function deckTokens(d) {
+  const cache = await tokCache();
+  const cands = [...new Set(d.cards.filter(c => c.board === "main" || c.board === "cmd").map(c => c.oi))].filter(oi => /\btoken|emblem/i.test(DB.o[oi][6] || ""));
+  const miss = cands.filter(oi => !cache[oi]);
+  for (let i = 0; i < miss.length; i += 75) {
+    const part = miss.slice(i, i + 75);
+    try {
+      const r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifiers: part.map(oi => ({ name: DB.o[oi][0].split(" // ")[0] })) }) });
+      const j = await r.json(); const byN = new Map(part.map(oi => [norm(DB.o[oi][0].split(" // ")[0]), oi]));
+      for (const c of j.data || []) { const oi = byN.get(norm(c.name.split(" // ")[0])); if (oi === undefined) continue;
+        cache[oi] = (c.all_parts || []).filter(p => p.component === "token" || /^(Token|Emblem)/.test(p.type_line || "")).filter(p => p.name !== c.name).map(p => [p.name, p.type_line || "", p.id]); }
+      for (const oi of part) if (!cache[oi]) cache[oi] = [];
+    } catch (e) { break; }
+    if (i + 75 < miss.length) await new Promise(r => setTimeout(r, 120));
+  }
+  store.set("tokc", cache).catch(() => {});
+  const map = new Map();
+  for (const oi of cands) for (const [name, type, id] of (cache[oi] || [])) { const k = name + "|" + type; if (!map.has(k)) map.set(k, { name, type, id, from: [] }); map.get(k).from.push(oi); }
+  return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+const tokShort = (t) => t.type.replace(/^Token\s*/i, "").replace(/^Legendary\s*/i, "");
+async function fillTokCol(d) {
+  const el = $("edTok"); if (!el) return;
+  const list = await deckTokens(d); if (!$("edTok") || deckOf() !== d) return;
+  ED.toks = list;
+  $("edTokN").textContent = list.length ? `Qtd: ${list.length} tipo${list.length > 1 ? "s" : ""}` : "nenhuma";
+  $("edTokL").innerHTML = list.length ? list.map((t, i) => ED.mode === "list"
+      ? `<div class="li tokli" data-tk="${i}" title="Criada por: ${esc(t.from.map(o => DB.o[o][0]).join(", "))}"><span class="nm">${esc(t.name)}</span><span class="meta">${esc(tokShort(t))}</span></div>`
+      : `<div class="stk tokstk" data-tk="${i}" title="Criada por: ${esc(t.from.map(o => DB.o[o][0]).join(", "))}"><div class="cardimg"><img src="https://api.scryfall.com/cards/${esc(t.id)}?format=image&version=normal" alt="${esc(t.name)}" loading="lazy" draggable="false"></div></div>`).join("")
+    : `<div class="meta" style="padding:8px">Nenhuma carta do deck cria fichas${navigator.onLine ? "" : " (sem internet para conferir)"}.</div>`;
+}
+function tokColMenu(e) {
+  const list = ED.toks || []; if (!list.length) return toast("Nenhuma ficha neste deck.");
+  const copy = (txt, what) => navigator.clipboard.writeText(txt).then(() => toast(`${what} copiada (${list.length} ficha${list.length > 1 ? "s" : ""})`, 2200), () => askText("Copie a lista", txt));
+  ctxMenu(e.clientX, e.clientY, [{ head: `Fichas · ${list.length} tipo${list.length > 1 ? "s" : ""}` },
+    ["📋 Copiar lista", () => copy(list.map(t => `1 ${t.name}`).join("\n"), "Lista"), "pri"],
+    ["📋 Copiar com o tipo", () => copy(list.map(t => `1 ${t.name} (${tokShort(t)})`).join("\n"), "Lista")],
+    ["📋 Copiar com as cartas que criam", () => copy(list.map(t => `${t.name} (${tokShort(t)}) — ${t.from.map(o => DB.o[o][0]).join(", ")}`).join("\n"), "Lista")],
+    ["↻ Atualizar fichas", async () => { const c = await tokCache(); for (const k of Object.keys(c)) delete c[k]; fillTokCol(deckOf()); }]]);
+}
+function tokInfo(i, e) {
+  const t = (ED.toks || [])[i]; if (!t) return;
+  openSheet(`<div class="detail"><div class="cardimg"><img src="https://api.scryfall.com/cards/${esc(t.id)}?format=image&version=normal" alt=""></div><div><h3>${esc(t.name)}</h3><div class="meta">${esc(t.type)}</div>
+    <div class="meta" style="margin-top:8px">Criada por:</div><div class="brlist">${t.from.map(o => `<span class="pill">${esc(DB.o[o][0])}</span>`).join("")}</div></div></div>`, `<button class="btn primary" id="tkX">OK</button>`);
+  $("tkX").onclick = closeSheet;
+}
+
 // Menu ⋮ de cada categoria/coluna do editor
 function colMenu(e, k) {
   const d = deckOf(); const list = d.cards.filter(c => !(c.board === "cmd" && isCmdFormat(d)) && groupKeys(c).includes(k)); if (!list.length) return;
@@ -3022,9 +3074,11 @@ function renderDeckPane() {
           return ED.mode === "list"
             ? `<div class="li" data-oi="${c.oi}" data-b="${c.board}"><span class="q">${c.qty}</span><span class="nm">${esc(o[0])}</span>${manaHTML(o[1])}<span class="st ${st}"></span></div>`
             : `<div class="stk" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fakeEntry(c), { bare: true })}${c.qty > 1 ? `<span class="q">${c.qty}</span>` : ""}<span class="st ${st}" title="${st === "ok" ? "Montada no deck" : st === "lib" ? "Temos na caixa" : "Não temos"}"></span></div>`; }).join("")}</div>`; }).join("")}
+      ${isCmdFormat(d) || d.cards.length ? `<div class="col tokcol" id="edTok"><div class="colh" title="Fichas que as cartas do deck criam (automático)"><span class="colt"><b>🪙 Fichas</b><small id="edTokN">procurando…</small></span><button class="colm" data-tokm="1" title="Opções">⋮</button></div><div id="edTokL"><div class="meta" style="padding:8px">Procurando fichas…</div></div></div>` : ""}
       ${CAT_MODES.includes(ED.group) ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
     </div>
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
+  fillTokCol(d);
   $("edGroup").onchange = (e) => { ED.group = e.target.value; S.settings.edGroup = ED.group; save(true); renderDeckPane(); };
   $("edSort").onchange = (e) => { ED.dsort = e.target.value; S.settings.edSort = ED.dsort; save(true); renderDeckPane(); };
   if ($("cbPick")) $("cbPick").onclick = () => pickCommander(d);
@@ -3032,7 +3086,9 @@ function renderDeckPane() {
   if ($("cbPartner")) $("cbPartner").onclick = () => pickCommander(d, d.cards.find(c => c.board === "cmd").oi);
   $("edMode").onchange = (e) => { ED.mode = e.target.value; renderDeckPane(); };
   const area = $("edDeck");
-  area.onclick = (e) => { const cm = e.target.closest("[data-colm]"); if (cm) { const r = cm.getBoundingClientRect(); return colMenu({ clientX: r.left - 180, clientY: r.bottom + 4 }, cm.dataset.colm); }
+  area.onclick = (e) => { const tm = e.target.closest("[data-tokm]"); if (tm) { const r = tm.getBoundingClientRect(); return tokColMenu({ clientX: r.left - 180, clientY: r.bottom + 4 }); }
+    const tk = e.target.closest("[data-tk]"); if (tk) return tokInfo(+tk.dataset.tk, e);
+    const cm = e.target.closest("[data-colm]"); if (cm) { const r = cm.getBoundingClientRect(); return colMenu({ clientX: r.left - 180, clientY: r.bottom + 4 }, cm.dataset.colm); }
     const it = e.target.closest("[data-oi][data-b]"); if (!it) return;
     if (e.ctrlKey || e.metaKey) { const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) selToggle(c); return; }
     if (e.target.closest(".st")) { const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) return ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); }); }
