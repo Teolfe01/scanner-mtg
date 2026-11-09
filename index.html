@@ -360,7 +360,10 @@ html.noprices .grid .cardimg .price { display: none; }
 .theme { display: grid; justify-items: center; gap: 6px; background: none; border: 0; color: var(--muted); font: 12px var(--font); cursor: pointer; }
 .theme i { width: 46px; height: 46px; border-radius: 16px; box-shadow: inset 0 0 0 2px rgba(255,255,255,.08); transition: transform .2s var(--spring); }
 .theme[aria-pressed="true"] { color: var(--ink); } .theme[aria-pressed="true"] i { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px #fff; transform: scale(1.06); }
-@media (min-width: 1000px) { .edtabs { display: flex; justify-content: flex-end; padding: 0; margin: -4px 0 8px; } .edtabs [data-p] { display: none; } }
+@media (min-width: 1000px) { .edtabs { display: flex; justify-content: flex-end; padding: 0; margin: -4px 0 8px; position: static; background: none; } .edtabs [data-p] { display: none; } }
+/* campo de busca do editor sempre visível ao rolar */
+#edQ { width: 100%; margin-bottom: 8px; position: sticky; top: 0; z-index: 4; box-shadow: 0 -12px 0 var(--bg), 0 10px 14px -8px rgba(0,0,0,.7); }
+@media (max-width: 999px) { #edQ { top: calc(56px + 52px + env(safe-area-inset-top)); } }
 .edgf { margin-left: auto; border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: #1a1205; background: var(--grad); cursor: pointer; white-space: nowrap; }
 .ctxm { position: fixed; z-index: 90; min-width: 220px; max-width: 300px; max-height: 80vh; overflow: auto; background: rgba(28,30,35,.97); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 5px; box-shadow: 0 14px 40px rgba(0,0,0,.55); animation: fadeIn .12s ease both; }
 .ctxm button { display: block; width: 100%; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
@@ -374,6 +377,10 @@ html.noprices .grid .cardimg .price { display: none; }
 .selbar { position: fixed; left: 50%; bottom: calc(var(--nav-h, 70px) + 18px); transform: translateX(-50%); z-index: 70; background: rgba(28,30,35,.96); border: 1px solid rgba(var(--acc-rgb), .4); border-radius: 999px; padding: 8px 8px 8px 16px; display: flex; gap: 10px; align-items: center; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
 .selbar button { border: 0; border-radius: 999px; padding: 5px 12px; background: rgba(255,255,255,.1); color: inherit; font: inherit; cursor: pointer; }
 .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; } .cmpc { display: flex; flex-direction: column; gap: 6px; } .cmpc h3 { margin: 4px 0 0; font-size: 15px; }
+.undobtn { position: fixed; left: 16px; bottom: calc(var(--nav-h, 70px) + 22px + env(safe-area-inset-bottom)); z-index: 75; border: 1px solid rgba(var(--acc-rgb), .45); background: rgba(28,30,35,.96); color: inherit; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 9px 14px; display: flex; gap: 8px; align-items: center; box-shadow: 0 10px 28px rgba(0,0,0,.5); cursor: pointer; opacity: 0; transform: translateY(14px); pointer-events: none; transition: opacity .2s ease, transform .2s ease; backdrop-filter: blur(10px); }
+.undobtn.on { opacity: 1; transform: none; pointer-events: auto; }
+.undobtn kbd { font: inherit; font-size: 11px; font-weight: 400; color: var(--muted); }
+.edtabs .edgf, .edtabs .edgf:not([aria-pressed]) { background: var(--grad) !important; color: #1a1205 !important; flex: 0 0 auto; }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -776,7 +783,7 @@ const store = {
 };
 const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {} };
 let saveT = 0;
-function save(silent) { setTimeout(pushCloud, 300); clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+function save(silent) { undoTrack(); setTimeout(pushCloud, 300); clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
 // Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
 const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
@@ -1342,6 +1349,40 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
   $("dcOk").onclick = () => { closeSheet(); renderDeck(d.id); };
   bindMoveChips(d, c, () => { closeSheet(); renderDeck(d.id); });
 }
+// ============ DESFAZER (botão + Ctrl+Z) ============
+// Guarda o estado da coleção e dos decks antes de cada alteração; "Desfazer" volta um passo.
+const UNDO = { stack: [], last: null, lock: false };
+const snapState = () => JSON.stringify({ c: S.cards, d: S.decks });
+function undoTrack() {
+  if (UNDO.lock) return; let now; try { now = snapState(); } catch (e) { return; }
+  if (UNDO.last !== null && now !== UNDO.last) { UNDO.stack.push(UNDO.last); if (UNDO.stack.length > 25) UNDO.stack.shift(); showUndo(); }
+  UNDO.last = now;
+}
+function undoBaseline() { try { UNDO.last = snapState(); } catch (e) {} }
+function showUndo() {
+  let b = $("undoBtn"); if (!b) { b = document.createElement("button"); b.id = "undoBtn"; b.className = "undobtn"; b.innerHTML = `↶ Desfazer<kbd>Ctrl+Z</kbd>`; b.onclick = undoLast; document.body.appendChild(b); }
+  b.querySelector("kbd").style.display = isWide() ? "" : "none";
+  b.classList.add("on"); clearTimeout(UNDO.t); UNDO.t = setTimeout(() => b.classList.remove("on"), 7000);
+}
+function undoLast() {
+  if (!UNDO.stack.length) { toast("Nada para desfazer"); return; }
+  const prev = JSON.parse(UNDO.stack.pop());
+  UNDO.lock = true;
+  S.cards.splice(0, S.cards.length, ...prev.c); S.decks.splice(0, S.decks.length, ...prev.d);
+  save(); UNDO.lock = false; UNDO.last = JSON.stringify(prev);
+  if (SEL.size) SEL.clear();
+  if (!$("sheet").classList.contains("hidden")) closeSheet();
+  try { if (tab === "scan") updateDestChip(); else if (!(tab === "decks" && view && view.kind === "gold")) views[tab](); } catch (e) {}
+  toast("↶ Desfeito" + (UNDO.stack.length ? ` · mais ${UNDO.stack.length} passo(s)` : ""), 1600);
+  const b = $("undoBtn"); if (b) { if (UNDO.stack.length) showUndo(); else b.classList.remove("on"); }
+}
+document.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
+    const t = e.target; if (t && (t.matches("input, textarea, select") || t.isContentEditable)) return; // dentro de um campo de texto, Ctrl+Z desfaz o texto
+    if (tab === "decks" && view && view.kind === "gold") return;
+    e.preventDefault(); undoLast();
+  }
+});
 // ---- Menu do botão direito (PC) ----
 function ctxMenu(x, y, items) {
   let m = $("ctxm"); if (m) m.remove();
@@ -1568,7 +1609,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.11i";
+const APP_VERSION = "2026.11.12";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2275,8 +2316,8 @@ function renderEditor() {
 function renderSearchPane() {
   const d = deckOf(); const ci = deckCI(d);
   $("edSearch").innerHTML = `
+    <input type="search" id="edQ" class="edq" placeholder="Buscar carta — vazio mostra sugestões do EDHREC" value="${esc(ED.q)}">
     <div class="ed-sbox">
-      <input type="search" id="edQ" placeholder="Buscar carta — vazio mostra sugestões do EDHREC" value="${esc(ED.q)}">
       <div class="chips">${["W", "U", "B", "R", "G"].map(c => `<button class="chip color" data-c="${c}" aria-pressed="${ED.colors.has(c)}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="C" aria-pressed="${ED.colors.has("C")}">Incolor</button></div>
       <div class="two"><select id="edType"><option value="">Tipo</option>${TYPES.map(t => `<option value="${t[0]}"${ED.type === t[0] ? " selected" : ""}>${t[1]}</option>`).join("")}</select>
         <select id="edRole"><option value="">Função</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${ED.role === k ? " selected" : ""}>${v}</option>`).join("")}</select></div>
@@ -3160,7 +3201,7 @@ async function signIn() {
   try { const r = await CLOUD.auth.signInWithPopup(p); CLOUD.user = r.user; return r.user; }
   catch (e) { if (/popup|operation-not-supported/i.test(e.code || "")) { await CLOUD.auth.signInWithRedirect(p); return null; } throw e; }
 }
-function rerenderSoon() { clearTimeout(rerenderSoon.t); rerenderSoon.t = setTimeout(() => { if ($("sheet").classList.contains("hidden") && tab !== "scan") views[tab](); }, 250); }
+function rerenderSoon() { undoBaseline(); clearTimeout(rerenderSoon.t); rerenderSoon.t = setTimeout(() => { if ($("sheet").classList.contains("hidden") && tab !== "scan") views[tab](); }, 250); }
 function applyDoc(list, id, data, idField) {
   const i = list.findIndex(x => docId(x[idField]) === id);
   if (data === null) { if (i >= 0) list.splice(i, 1); return; }
@@ -3254,7 +3295,7 @@ function accountMenu() {
     await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; });
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
-    $("splash").classList.add("hidden");
+    $("splash").classList.add("hidden"); undoBaseline();
     applyPrefs();
     const startTab = new URLSearchParams(location.search).get("tab") || (P().startTab !== "last" && !(S.settings.resume && S.settings.resume.fromLink) ? P().startTab : null); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
