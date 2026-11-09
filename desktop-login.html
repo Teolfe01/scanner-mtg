@@ -18,8 +18,8 @@ const back = (p) => { if (!(port > 1023 && port < 65536) || !/^[a-f0-9]{32}$/.te
 firebase.initializeApp({ apiKey: "AIzaSyADR0knFdWx8P2X6zip8pWaKIK_BNr19F8", authDomain: "mtg-biblioteca.firebaseapp.com", projectId: "mtg-biblioteca", appId: "1:329365500470:web:8cc1fa52bdcc1e30115e97" });
 document.getElementById("go").onclick = async () => {
   const p = new firebase.auth.GoogleAuthProvider(); p.setCustomParameters({ prompt: "select_account" });
-  try { const r = await firebase.auth().signInWithPopup(p); const c = firebase.auth.GoogleAuthProvider.credentialFromResult(r);
-    if (!c || !c.idToken) throw new Error("sem credencial"); back({ id: c.idToken, at: c.accessToken || "" }); }
-  catch (e) { document.getElementById("msg").textContent = "Não deu certo: " + (e.message || e); if (!/popup-closed|cancelled/.test(e.code || "")) back({ error: e.code || "erro" }); }
+  try { const r = await firebase.auth().signInWithPopup(p); const c = r.credential || (firebase.auth.GoogleAuthProvider.credentialFromResult ? firebase.auth.GoogleAuthProvider.credentialFromResult(r) : null);
+    if (!c || !c.idToken) throw new Error("sem credencial"); document.getElementById("msg").textContent = "✓ Pronto! Voltando para o app…"; back({ id: c.idToken, at: c.accessToken || "" }); }
+  catch (e) { document.getElementById("msg").textContent = "Não deu certo: " + (e.message || e); if (!/popup-closed|cancelled/.test(e.code || "")) back({ error: e.code || e.message || "erro" }); }
 };
 </script></body></html>
