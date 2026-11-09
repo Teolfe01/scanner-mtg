@@ -183,8 +183,10 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 @keyframes ring { from { transform: scale(1.5); opacity: 1; } to { transform: scale(1); opacity: .2; } }
 .mf { position: absolute; left: 12px; right: 12px; bottom: 140px; display: flex; align-items: center; gap: 10px; background: rgba(20,22,26,.75); padding: 8px 12px; border-radius: 14px; color: #fff; font-size: 11px; }
 .mf input { flex: 1; accent-color: var(--accent); }
-#dbg canvas { max-width: 100%; height: auto; background: #fff; border-radius: 4px; }
-#dbg pre { margin: 0; color: #fff; font: 12px/1.35 ui-monospace, monospace; white-space: pre-wrap; max-height: 90px; overflow: auto; }
+#dbg { position: absolute; left: 12px; right: 12px; bottom: calc(196px + env(safe-area-inset-bottom)); background: rgba(10,11,14,.72); padding: 6px 8px; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; z-index: 3; pointer-events: none; backdrop-filter: blur(6px); }
+#dbg.hidden { display: none; }
+#dbg canvas { height: 26px; width: auto; max-width: 48%; background: #fff; border-radius: 4px; opacity: .85; }
+#dbg pre { flex: 0 0 100%; margin: 0; color: #fff; font: 11px/1.3 ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .via { display: inline-block; font-size: 12px; padding: 3px 8px; border-radius: 6px; }
 .via.ok { color: var(--ok); background: rgba(85,208,141,.1); } .via.warn { color: var(--warn); background: rgba(240,176,74,.1); }
 @media (max-width: 380px) { .tile .tname { font-size: 12.5px; } .kpis { grid-template-columns: repeat(2, 1fr); } }
@@ -276,7 +278,7 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
 .scanmore { flex: 0 0 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin-top: 2px; background: rgba(20,22,26,.85); border-radius: 16px; backdrop-filter: blur(10px); animation: riseIn .18s ease both; }
 .scanmore.hidden { display: none; }
 #moreBtn[aria-expanded="true"] { background: rgba(var(--acc-rgb), .25); }
-.typebtn { margin-left: auto; margin-right: 4px; }
+.typebtn { margin-left: auto; margin-right: 4px; white-space: nowrap; flex: 0 0 auto; max-width: none; }
 .pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
 .pv { border: 0; background: none; color: inherit; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 3px; font: inherit; }
 .pv .pvt { font-size: 11px; color: var(--muted); line-height: 1.3; }
@@ -532,7 +534,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
     <button class="chipbtn" id="moreBtn" aria-expanded="false">⚙ <span id="moreLbl">Opções</span></button>
     <div class="scanmore hidden" id="scanMore">
       <button class="chipbtn" id="autoBtn" aria-pressed="false">Auto</button>
-    <select id="langSel" class="chipbtn" aria-label="Idioma" style="width:auto;min-height:0;padding:7px 10px"><option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option></select>
+    <select id="langSel" class="chipbtn" aria-label="Idioma" style="width:auto;min-height:0;padding:7px 10px"><option value="">Idioma: auto</option><option value="en">EN</option><option value="pt">PT</option><option value="es">ES</option><option value="ja">JA (japonês)</option><option value="ko">KO</option><option value="ru">RU</option><option value="zhs">ZH</option><option value="fr">FR</option><option value="de">DE</option><option value="it">IT</option></select>
       <button class="chipbtn hidden" id="camSwitch">Lente</button>
       <button class="chipbtn hidden" id="voiceBtn" aria-pressed="false">🎤 Voz</button>
       <button class="chipbtn" id="infoBtn" aria-label="Informações da câmera">ⓘ Câmera</button>
@@ -542,7 +544,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   </div>
   <div class="mf zoomwrap hidden" id="zoomWrap"><span>1×</span><input type="range" id="zoomRange" aria-label="Zoom da câmera" step="0.05"><b id="zoomVal">1.0×</b></div>
   <div class="scanstatus" id="scanStatus">Abrindo a câmera…</div>
-  <div id="dbg" class="hidden" style="position:absolute;left:8px;right:8px;top:110px;background:rgba(0,0,0,.8);padding:6px;border-radius:10px;display:grid;gap:4px;z-index:3"></div>
+  <div id="dbg" class="hidden"></div>
   <div class="scanbottom">
     <button class="lastscan" id="lastScan">Escaneadas <b id="sessCount">0</b></button>
     <button class="lastscan typebtn" id="typeBtn">⌨ Digitar</button>
@@ -1343,7 +1345,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.09e";
+const APP_VERSION = "2026.11.09f";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2469,9 +2471,10 @@ async function tick() {
     let t1, t2;
     if (worker2) { await psm(worker, SC.alt ? "7" : "6"); const [a, b] = await Promise.all([worker.recognize(c1), worker2.recognize(c2)]); t1 = a.data.text.replace(/\n/g, " ").trim(); t2 = b.data.text; }
     else { await psm(worker, SC.alt ? "7" : "6"); t1 = (await worker.recognize(c1)).data.text.replace(/\n/g, " ").trim(); await psm(worker, "6"); t2 = (await worker.recognize(c2)).data.text; }
-    if (SC.debug) { const dbg = $("dbg"); dbg.innerHTML = ""; dbg.append(c1, c2); const p = document.createElement("pre"); p.textContent = "NOME: " + t1 + "\nRODAPÉ: " + t2.trim(); dbg.append(p); }
-    const hit = decide(t1, parseFoot(t2)); const g = $("guide");
-    if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide"; $("scanStatus").textContent = t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; }
+    if (SC.debug) { const dbg = $("dbg"); dbg.innerHTML = ""; dbg.append(c1, c2); const p = document.createElement("pre"); p.textContent = "Nome: " + (t1 || "—") + "\nCódigo: " + (t2.trim().replace(/\s+/g, " ") || "—"); dbg.append(p); }
+    const nonLatin = /^(ja|ko|ru|zh)/.test($("langSel").value); // carta em japonês etc.: o nome não é legível, vale só o código do rodapé
+    const hit = decide(nonLatin ? "" : t1, parseFoot(t2)); const g = $("guide");
+    if (!hit) { SC.streak = 0; SC.last = null; SC.clearSeen = true; g.className = "guide"; $("scanStatus").textContent = nonLatin ? "Mostre bem o rodapé (coleção + número)" : t1.length > 2 ? "Ajuste a carta na moldura…" : "Aponte para uma carta"; }
     else {
       const key = hit.pi; SC.streak = SC.last === key ? SC.streak + 1 : 1; SC.last = key; g.className = "guide seen";
       $("scanStatus").textContent = "Lendo: " + DB.o[hit.oi][0];
@@ -2497,7 +2500,7 @@ async function scanPhoto(file) {
     await onLocked(hit, true);
   } catch (e) { toast("Erro ao ler a foto."); SC.paused = false; }
 }
-$("dbgBtn").onclick = () => { SC.debug = !SC.debug; $("dbgBtn").setAttribute("aria-pressed", SC.debug); $("dbg").classList.toggle("hidden", !SC.debug); };
+$("dbgBtn").onclick = () => { setTimeout(() => { try { closeMore(); } catch (e) {} }, 150); SC.debug = !SC.debug; $("dbgBtn").setAttribute("aria-pressed", SC.debug); $("dbg").classList.toggle("hidden", !SC.debug); };
 $("photoInput").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanPhoto(f); };
 for (const id of ["autoBtn", "foilBtn"]) $(id).onclick = () => { const b = $(id); const v = b.getAttribute("aria-pressed") !== "true"; b.setAttribute("aria-pressed", v); S.settings[id] = v; save(true); };
 // ---- Som por faixa de preço (scanner) ----
@@ -2521,6 +2524,8 @@ function priceSound(cents, force) {
 
 // ---- Opções do scanner (menu recolhido) ----
 function moreLabel() { const on = []; if ($("autoBtn").getAttribute("aria-pressed") === "true") on.push("Auto"); if (VOICE.on) on.push("Voz"); if ($("langSel").value) on.push($("langSel").value.toUpperCase()); $("moreLbl").textContent = on.length ? on.join(" · ") : "Opções"; }
+const closeMore = () => { $("scanMore").classList.add("hidden"); $("moreBtn").setAttribute("aria-expanded", "false"); };
+document.addEventListener("pointerdown", (e) => { if (!$("scanMore").classList.contains("hidden") && !e.target.closest("#scanMore, #moreBtn")) closeMore(); }, true);
 $("moreBtn").onclick = () => { const open = $("scanMore").classList.toggle("hidden") === false; $("moreBtn").setAttribute("aria-expanded", open); };
 $("scanMore").addEventListener("click", () => setTimeout(moreLabel, 0)); $("langSel").addEventListener("change", moreLabel);
 // ---- Digitar nome ou código ----
@@ -2577,7 +2582,7 @@ async function pickVersion(oi) {
 }
 $("typeBtn").onclick = manualEntry;
 async function onLocked(hit, fromPhoto) {
-  SC.paused = true; if (navigator.vibrate && P().vibrate) navigator.vibrate(40);
+  SC.paused = true; if (navigator.vibrate && P().vibrate) navigator.vibrate(40); try { closeMore(); } catch (e) {}
   const p = DB.p[hit.pi];
   try { priceSound(priceOf({ oi: hit.oi, set: p[0], number: p[1], foil: $("foilBtn").getAttribute("aria-pressed") === "true", lang: "en" })); } catch (e) {}
   const cur = { oi: hit.oi, set: p[0], number: p[1], lang: $("langSel").value || hit.lang || p[4] || "en", foil: $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1, via: hit.via, img: "" };
