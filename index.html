@@ -1132,6 +1132,11 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
     ${o.roles.length ? `<div class="roles">${o.roles.map(r => `<span class="pill">${esc(ROLES[r])}</span>`).join("")}</div>` : ""}
     <div class="actions" style="align-items:center"><span class="meta">Quantidade</span><span class="stepper"><button id="cMinus">−</button><span id="cQty">${e.qty}</span><button id="cPlus">+</button></span>
       <label class="meta" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="cFoil" ${e.foil ? "checked" : ""}> foil</label></div>
+    <div class="cedit"><h2 class="sec" style="margin-top:0">Editar</h2>
+      <div class="two"><label class="meta">Idioma<select id="cLang">${LANG_OPTS.map(([v, n]) => `<option value="${v}"${(e.lang || "en") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+        <button class="btn" id="cVer" style="align-self:end">🎨 Edição / tratamento</button></div>
+      ${e.qty > 1 ? `<div class="seg" id="cScope" style="margin-top:8px"><button data-v="all" aria-pressed="true">Mudar as ${e.qty} cópias</button><button data-v="one" aria-pressed="false">Só 1 cópia</button></div>` : ""}
+    </div>
     <a class="btn small" style="justify-self:start;text-decoration:none" target="_blank" rel="noopener" href="https://scryfall.com/card/${esc(e.set)}/${esc(e.number)}">Ver no Scryfall ↗</a>`,
     `<button class="btn danger" id="cDel">Remover</button><button class="btn primary" id="cOk">Fechar</button>`);
   $("cMinus").onclick = () => { if (e.qty > Math.max(1, inDecks(e))) { e.qty--; $("cQty").textContent = e.qty; save(); } else toast(inDecks(e) ? "Essa cópia está em um deck. Tire do deck primeiro." : "Para apagar, use Remover."); };
@@ -1144,6 +1149,29 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
     S.cards = S.cards.filter(x => x !== e); save(); closeSheet(); drawCol(); toast(`${e.name} removida.`);
   };
   $("cOk").onclick = () => { closeSheet(); if (tab === "col") drawCol(); };
+  let scope = "all";
+  if ($("cScope")) $("cScope").onclick = (ev) => { const b = ev.target.closest("[data-v]"); if (!b) return; scope = b.dataset.v; $("cScope").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
+  const apply = (patch) => { const nk = changeEntry(e, patch, scope === "one" ? 1 : e.qty); if (nk) { if (tab === "col") drawCol(); openCard(nk); } };
+  $("cLang").onchange = (ev) => apply({ lang: ev.target.value });
+  $("cVer").onclick = () => pickVersion(e.oi, "", (r) => apply({ set: r.set, number: normNum(r.number), ...(r.foilOnly ? { foil: true } : {}) }), { set: e.set, number: e.number });
+}
+const LANG_OPTS = [["en", "Inglês"], ["pt", "Português"], ["es", "Espanhol"], ["fr", "Francês"], ["de", "Alemão"], ["it", "Italiano"], ["ja", "Japonês"], ["ko", "Coreano"], ["ru", "Russo"], ["zhs", "Chinês simpl."], ["zht", "Chinês trad."], ["ph", "Phyrexiano"]];
+// Muda edição/idioma/foil de uma entrada da coleção (todas as cópias ou só algumas); junta com outra entrada igual se existir
+function changeEntry(e, patch, count) {
+  const nx = { set: patch.set ?? e.set, number: patch.number ?? e.number, foil: patch.foil ?? e.foil, lang: patch.lang ?? e.lang };
+  const nk = entryKey(nx.set, nx.number, nx.foil, nx.lang); if (nk === e.key) return null;
+  const tgt = S.cards.find(x => x.key === nk);
+  if (count >= e.qty) {
+    if (tgt) { tgt.qty += e.qty; for (const [did, q] of Object.entries(e.decks || {})) tgt.decks[did] = (tgt.decks[did] || 0) + q; const i = S.cards.indexOf(e); if (i >= 0) S.cards.splice(i, 1); }
+    else { Object.assign(e, { set: nx.set, number: normNum(nx.number), foil: !!nx.foil, lang: nx.lang, key: nk }); }
+  } else {
+    if (freeQty(e) < count) { toast("Essa cópia está montada num deck. Tire do deck primeiro ou mude todas."); return null; }
+    e.qty -= count; addToCollection({ oi: e.oi, set: nx.set, number: nx.number, lang: nx.lang, foil: nx.foil, qty: count });
+  }
+  // decks que apontam para a edição antiga continuam valendo (a carta é a mesma)
+  save(); const p = DB.p[DB.bySetNum.get(nx.set + "|" + normNum(nx.number))];
+  toast(`${e.name}: ${nx.set.toUpperCase()} #${nx.number} · ${(nx.lang || "en").toUpperCase()}${nx.foil ? " · foil" : ""}${count < (e.qty + count) && count === 1 ? " (1 cópia)" : ""}`, 2000);
+  return nk;
 }
 
 // ============ Importar / exportar ============
@@ -1786,7 +1814,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.16c";
+const APP_VERSION = "2026.11.16d";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
