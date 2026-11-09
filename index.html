@@ -233,7 +233,9 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
 .cols.stack .stk:last-child:hover { transform: none; }
 .stk .q { position: absolute; right: 6%; top: 3%; background: rgba(20,22,26,.9); color: #fff; border-radius: 999px; min-width: 24px; height: 24px; font: 700 13px/24px var(--font); text-align: center; z-index: 2; }
 .st { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.stk .st { position: absolute; left: 6%; top: 3.5%; z-index: 2; box-shadow: 0 0 0 2px rgba(20,22,26,.9); }
+.stk .st { position: absolute; left: 6%; top: 3.5%; z-index: 2; box-shadow: 0 0 0 2px rgba(20,22,26,.9); cursor: pointer; }
+.st { position: relative; cursor: pointer; } .st::after { content: ""; position: absolute; inset: -9px; }
+.stk .st:hover, .li .st:hover { transform: scale(1.35); }
 .st.ok { background: #3fae63; } .st.lib { background: #e0b14a; } .st.miss { background: #d9534f; }
 .li { display: flex; gap: 8px; align-items: center; padding: 5px 4px; border-radius: 6px; cursor: grab; font-size: 14px; }
 .li:hover { background: rgba(255,255,255,.06); }
@@ -1316,13 +1318,34 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
     <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>
     <div><h2 class="sec" style="margin-top:4px">Mover para</h2>${moveChipsHTML(d, c)}</div>`,
-    `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
+    `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcHave">✓ Tenho</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
+  $("dcHave").onclick = () => ownQuick(d, c, () => renderDeck(d.id));
   $("dcM").onclick = () => { if (c.qty > 1) { c.qty--; $("dcQ").textContent = c.qty; releaseExtra(d, oi); save(); } };
   $("dcP").onclick = () => { c.qty++; $("dcQ").textContent = c.qty; save(); };
   $("dcDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); save(); closeSheet(); renderDeck(d.id); };
   $("dcPull").onclick = () => { const r = allocate(d, oi, c.qty); save(); closeSheet(); renderDeck(d.id); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas."); };
   $("dcOk").onclick = () => { closeSheet(); renderDeck(d.id); };
   bindMoveChips(d, c, () => { closeSheet(); renderDeck(d.id); });
+}
+// ---- Bolinha de posse: tocar para marcar "tenho" / pegar da caixa ----
+function ownQuick(d, c, after) {
+  const st = ownStatus(d, c); const name = DB.o[c.oi][0]; const falta = Math.max(1, c.qty - haveFor(d, c.oi));
+  const pi = c.set ? DB.bySetNum.get(c.set + "|" + normNum(c.number)) : undefined; const dp = pi !== undefined ? pi : defaultPrint(c.oi);
+  const pr = dp >= 0 ? { set: DB.p[dp][0], number: DB.p[dp][1] } : { set: c.set || "", number: c.number || "" };
+  const add = (mount) => { const e = addToCollection({ oi: c.oi, set: pr.set, number: pr.number, lang: "en", foil: !!c.foil, qty: falta });
+    if (mount) { e.decks[d.id] = (e.decks[d.id] || 0) + falta; } save(); closeSheet(); after && after();
+    toast(mount ? `${name}: marcada como na coleção e montada no deck` : `${name}: adicionada à coleção (${whereLib(e).text})`, 2200); };
+  if (st === "ok") return openSheet(`<h3 style="margin:0">${esc(name)}</h3><p class="meta" style="margin:0">🟢 Já está montada neste deck.</p>`, `<button class="btn" id="oqU">Devolver para a caixa</button><button class="btn primary" id="oqX">OK</button>`),
+    $("oqX").onclick = closeSheet, $("oqU").onclick = () => { for (const e of S.cards.filter(x => x.oi === c.oi)) delete e.decks[d.id]; save(); closeSheet(); after && after(); toast("Devolvida para a caixa"); };
+  openSheet(`<h3 style="margin:0">${esc(name)}</h3>
+    <p class="meta" style="margin:0">${st === "lib" ? "🟡 Vocês têm essa carta numa caixa." : "🔴 Marcada como “não temos”."}</p>
+    <div class="rows">
+      ${st === "lib" ? `<button class="row" id="oqPull" style="grid-template-columns:1fr"><span><span class="rn">Pegar da caixa para o deck</span><span class="rs">Mostra de qual caixa tirar</span></span></button>` : ""}
+      <button class="row" id="oqMount" style="grid-template-columns:1fr"><span><span class="rn">✓ Tenho ${falta > 1 ? falta + " cópias" : "essa carta"} — já está no deck</span><span class="rs">Entra na coleção como montada neste deck</span></span></button>
+      <button class="row" id="oqBox" style="grid-template-columns:1fr"><span><span class="rn">Tenho, mas está guardada</span><span class="rs">Entra na coleção numa caixa (${esc(pr.set.toUpperCase())} #${esc(pr.number)})</span></span></button>
+    </div>`, `<button class="btn" id="oqX">Cancelar</button>`);
+  $("oqX").onclick = closeSheet; $("oqMount").onclick = () => add(true); $("oqBox").onclick = () => add(false);
+  if ($("oqPull")) $("oqPull").onclick = () => { const r = allocate(d, c.oi, c.qty); save(); closeSheet(); after && after(); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas.", 3000); };
 }
 // ---- Mover carta entre deck / categorias / sideboard / talvez (como no Archidekt) ----
 function moveChipsHTML(d, c) {
@@ -1445,7 +1468,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.11c";
+const APP_VERSION = "2026.11.11d";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2406,7 +2429,9 @@ function renderDeckPane() {
   if ($("cbPartner")) $("cbPartner").onclick = () => pickCommander(d, d.cards.find(c => c.board === "cmd").oi);
   $("edMode").onchange = (e) => { ED.mode = e.target.value; renderDeckPane(); };
   const area = $("edDeck");
-  area.onclick = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (it) deckCardMenu(+it.dataset.oi, it.dataset.b); };
+  area.onclick = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (!it) return;
+    if (e.target.closest(".st")) { const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) return ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); }); }
+    deckCardMenu(+it.dataset.oi, it.dataset.b); };
   // arrastar e soltar
   area.ondragstart = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (!it) return; e.dataTransfer.setData("text/plain", it.dataset.oi + "|" + it.dataset.b); area.classList.add("dragging"); };
   area.ondragend = () => area.classList.remove("dragging");
@@ -2441,8 +2466,9 @@ function deckCardMenu(oi, board) { setTimeout(() => { if (!$("sheet").classList.
     <div class="two"><select id="mBoard">${Object.entries(BOARD_NAME).map(([k, v]) => `<option value="${k}"${k === c.board ? " selected" : ""}>${v}</option>`).join("")}</select>
       <select id="mCat"><option value="">Categoria: automática (${esc(tplName(tplCats({ oi })[0]))})</option>${[...new Set([...TPL.map(t => t.n), ...cats])].map(x => `<option${x === c.cat ? " selected" : ""}>${esc(x)}</option>`).join("")}<option value="__new">+ Nova…</option></select></div>
     <select id="mPrint">${(DB.prints[oi] || []).slice().reverse().map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}${brlOf(DB.p[pi][0], DB.p[pi][1]) ? " · " + fmtUSD(brlOf(DB.p[pi][0], DB.p[pi][1])) : ""}</option>`).join("")}</select>`,
-    `<button class="btn danger" id="mDel">Remover</button><button class="btn primary" id="mOk">OK</button>`);
+    `<button class="btn danger" id="mDel">Remover</button>${st !== "ok" ? `<button class="btn" id="mHave">✓ Tenho</button>` : ""}<button class="btn primary" id="mOk">OK</button>`);
   const done = () => { save(); renderDeckPane(); renderStatsPane(); };
+  if ($("mHave")) $("mHave").onclick = () => ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); });
   $("mM").onclick = () => { if (c.qty > 1) { c.qty--; $("mQ").textContent = c.qty; releaseExtra(d, oi); done(); } };
   $("mP").onclick = () => { c.qty++; $("mQ").textContent = c.qty; done(); };
   $("mBoard").onchange = (e) => { c.board = e.target.value; done(); };
