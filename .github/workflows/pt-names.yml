@@ -13,7 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Gerar data/pt.json.gz
-        run: python3 tools/build_pt.py
+        run: |
+          curl -fsSL -A "Mozilla/5.0 (BibliotecaMTG build)" -o /tmp/atomic.json.gz https://mtgjson.com/api/v5/AtomicCards.json.gz
+          python3 tools/build_pt.py /tmp/atomic.json.gz
       - name: Salvar se mudou
         run: |
           git config user.name "Scanner MTG"; git config user.email "noreply@users.noreply.github.com"
