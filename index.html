@@ -1560,7 +1560,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.11f";
+const APP_VERSION = "2026.11.11g";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2324,7 +2324,7 @@ async function drawEdhRecs(d) {
     if (!cards.length) return ""; shown += cards.length;
     return `<div class="edh-h" style="grid-column:1/-1"><span>${esc(EDH_PT[l.header] || l.header)}</span><span class="meta">${cards.length}</span></div>` + cards.map(({ v, oi }) => {
       const pct = v.potential_decks ? Math.round(v.num_decks * 100 / v.potential_decks) : 0; const lib = libFor(oi); const n = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
-      return `<div class="res" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
+      return `<div class="res" draggable="true" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
     }).join("");
   }).join("");
   const deckN = (j.num_decks_avg || (j.container.json_dict.card || {}).num_decks || 0);
@@ -2341,11 +2341,20 @@ function drawResults() {
   $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
   $("edResults").innerHTML = list.map(i => {
     const inD = d.cards.filter(c => c.oi === i).reduce((a, c) => a + c.qty, 0); const lib = libFor(i);
-    return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
+    return `<div class="res" draggable="true" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
   }).join("");
   hoverBind($("edResults"));
 }
 // ---- Deck ----
+function dropNew(oi, g) {
+  const d = deckOf(); if (!d || g === "__del") return;
+  if (g === "Comandante") { if (isCmdFormat(d) && cmdCandidates().includes(oi)) return setCommander(d, oi, d.cards.some(c => c.board === "cmd")); return toast("Essa carta não pode ser comandante."); }
+  const board = g === "Sideboard" ? "side" : g === "Talvez" ? "maybe" : "main";
+  let cat = "";
+  if (board === "main" && (ED.group === "cat" || ED.group === "tpl")) { cat = g; if (g === "__new") { cat = prompt("Nome da nova categoria (ex.: Ramp, Remoção, Combo)") || ""; if (!cat.trim()) return; cat = cat.trim(); } }
+  addToDeck(oi, board);
+  if (cat) { const c = d.cards.find(x => x.oi === oi && x.board === "main"); if (c) { c.cat = cat; save(); renderDeckPane(); renderStatsPane(); } }
+}
 function addToDeck(oi, board) {
   const d = deckOf(); if (!d) return;
   const isBasic = /Basic Land/.test(DB.o[oi][5]);
@@ -2532,8 +2541,14 @@ function renderDeckPane() {
   area.ondragover = (e) => { if (e.target.closest("[data-g]")) e.preventDefault(); };
   area.ondrop = (e) => {
     const tgt = e.target.closest("[data-g]"); if (!tgt) return; e.preventDefault(); area.classList.remove("dragging");
-    const [oi, b] = e.dataTransfer.getData("text/plain").split("|"); moveCard(+oi, b, tgt.dataset.g);
+    const [oi, b] = e.dataTransfer.getData("text/plain").split("|");
+    if (oi === "add") return dropNew(+b, tgt.dataset.g);
+    moveCard(+oi, b, tgt.dataset.g);
   };
+  // arrastar das cartas da busca (à esquerda) direto para uma coluna/categoria do deck
+  const sr = $("edSearch");
+  if (sr) { sr.ondragstart = (e) => { const it = e.target.closest(".res[data-oi]"); if (!it) return; e.dataTransfer.setData("text/plain", "add|" + it.dataset.oi); e.dataTransfer.effectAllowed = "copy"; area.classList.add("dragging"); };
+    sr.ondragend = () => area.classList.remove("dragging"); }
   hoverBind(area);
 }
 function moveCard(oi, board, g) {
