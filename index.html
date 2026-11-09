@@ -287,6 +287,7 @@ body.wide main { padding-left: 10px; padding-right: 10px; }
 .typebtn { margin-left: auto; margin-right: 4px; white-space: nowrap; flex: 0 0 auto; max-width: none; }
 .pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
 .pv { border: 0; background: none; color: inherit; padding: 0; text-align: left; display: flex; flex-direction: column; gap: 3px; font: inherit; }
+.pv.cur { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
 .pv .pvt { font-size: 11px; color: var(--muted); line-height: 1.3; }
 .pv .pvl { font-size: 11px; font-weight: 700; color: var(--accent); }
 .mn-row { grid-template-columns: 1fr auto; }
@@ -1331,8 +1332,9 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
     <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>
     <div><h2 class="sec" style="margin-top:4px">Mover para</h2>${moveChipsHTML(d, c)}</div>`,
-    `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcHave">✓ Tenho</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
+    `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcPrint">🎨 Edição</button><button class="btn" id="dcHave">✓ Tenho</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
   $("dcHave").onclick = () => ownQuick(d, c, () => renderDeck(d.id));
+  $("dcPrint").onclick = () => changePrint(d, c, () => renderDeck(d.id));
   $("dcM").onclick = () => { if (c.qty > 1) { c.qty--; $("dcQ").textContent = c.qty; releaseExtra(d, oi); save(); } };
   $("dcP").onclick = () => { c.qty++; $("dcQ").textContent = c.qty; save(); };
   $("dcDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); save(); closeSheet(); renderDeck(d.id); };
@@ -1384,6 +1386,10 @@ function comparePick(c) {
   $("cpR").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (b) compareCards(c, { oi: +b.dataset.oi }); };
   setTimeout(() => $("cpQ") && $("cpQ").focus(), 60);
 }
+function changePrint(d, c, after) {
+  const id = d.id, oi = c.oi, board = c.board;
+  pickVersion(c.oi, "", (r) => { const dd = S.decks.find(x => x.id === id) || d; c = dd.cards.find(x => x.oi === oi && x.board === board) || c; c.set = r.set; c.number = r.number; if (r.foilOnly) c.foil = true; save(); after && after(); toast(`${DB.o[c.oi][0]} → ${r.set.toUpperCase()} #${r.number}${r.t && r.t.length ? " · " + r.t.join(" · ") : ""}`, 2200); }, (() => { const pi = printFor(c); return pi >= 0 ? { set: DB.p[pi][0], number: DB.p[pi][1] } : null; })());
+}
 function cardCtx(e, d, c, after, openFn) {
   if (e.ctrlKey || e.metaKey) return; // Ctrl + botão direito: menu padrão do navegador
   e.preventDefault();
@@ -1396,6 +1402,8 @@ function cardCtx(e, d, c, after, openFn) {
     ["→ Abrir detalhes", () => openFn ? openFn() : null, "", "Clique"],
     ["🔍 Ampliar", () => { const t = document.createElement("div"); t.innerHTML = cardImgHTML(fakeEntry(c), { bare: true }); zoomImg(t); }],
     ["☑ Selecionar várias", () => selToggle(c), "", "Ctrl + Clique"],
+    ["🎨 Trocar edição / tratamento…", () => changePrint(d, c, after)],
+    [c.foil ? "✨ Foil: sim (tirar)" : "✨ Marcar como foil", () => { c.foil = !c.foil; save(); after(); }],
     ["👁 Comparar com…", () => comparePick(c)],
     ["↗ Ver página da carta", () => window.open(sfURL, "_blank")],
     ["↗ Ver na LigaMagic", () => window.open(ligaURL(c.oi), "_blank")],
@@ -1420,7 +1428,7 @@ function ownMark(d, c, mount, after) {
   toast(mount ? `${DB.o[c.oi][0]}: na coleção e montada no deck` : `${DB.o[c.oi][0]}: na coleção (${whereLib(e).text})`, 2200);
 }
 // ---- Bolinha de posse: tocar para marcar "tenho" / pegar da caixa ----
-function ownQuick(d, c, after) {
+function ownQuick(d, c, after, asking = false) {
   const st = ownStatus(d, c); const name = DB.o[c.oi][0]; const falta = Math.max(1, c.qty - haveFor(d, c.oi));
   const pi = c.set ? DB.bySetNum.get(c.set + "|" + normNum(c.number)) : undefined; const dp = pi !== undefined ? pi : defaultPrint(c.oi);
   const pr = dp >= 0 ? { set: DB.p[dp][0], number: DB.p[dp][1] } : { set: c.set || "", number: c.number || "" };
@@ -1430,12 +1438,12 @@ function ownQuick(d, c, after) {
   if (st === "ok") return openSheet(`<h3 style="margin:0">${esc(name)}</h3><p class="meta" style="margin:0">🟢 Já está montada neste deck.</p>`, `<button class="btn" id="oqU">Devolver para a caixa</button><button class="btn primary" id="oqX">OK</button>`),
     $("oqX").onclick = closeSheet, $("oqU").onclick = () => { for (const e of S.cards.filter(x => x.oi === c.oi)) delete e.decks[d.id]; save(); closeSheet(); after && after(); toast("Devolvida para a caixa"); };
   openSheet(`<h3 style="margin:0">${esc(name)}</h3>
-    <p class="meta" style="margin:0">${st === "lib" ? "🟡 Vocês têm essa carta numa caixa." : "🔴 Marcada como “não temos”."}</p>
+    <p class="meta" style="margin:0">${asking ? (st === "lib" ? "Adicionada ao deck. 🟡 Vocês têm essa carta numa caixa — já está no deck físico?" : "Adicionada ao deck. Vocês já têm essa carta?") : st === "lib" ? "🟡 Vocês têm essa carta numa caixa." : "🔴 Marcada como “não temos”."}</p>
     <div class="rows">
       ${st === "lib" ? `<button class="row" id="oqPull" style="grid-template-columns:1fr"><span><span class="rn">Pegar da caixa para o deck</span><span class="rs">Mostra de qual caixa tirar</span></span></button>` : ""}
       <button class="row" id="oqMount" style="grid-template-columns:1fr"><span><span class="rn">✓ Tenho ${falta > 1 ? falta + " cópias" : "essa carta"} — já está no deck</span><span class="rs">Entra na coleção como montada neste deck</span></span></button>
       <button class="row" id="oqBox" style="grid-template-columns:1fr"><span><span class="rn">Tenho, mas está guardada</span><span class="rs">Entra na coleção numa caixa (${esc(pr.set.toUpperCase())} #${esc(pr.number)})</span></span></button>
-    </div>`, `<button class="btn" id="oqX">Cancelar</button>`);
+    </div>`, `<button class="btn" id="oqX">${asking ? (st === "lib" ? "Ainda não" : "Não tenho") : "Cancelar"}</button>`);
   $("oqX").onclick = closeSheet; $("oqMount").onclick = () => add(true); $("oqBox").onclick = () => add(false);
   if ($("oqPull")) $("oqPull").onclick = () => { const r = allocate(d, c.oi, c.qty); save(); closeSheet(); after && after(); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas.", 3000); };
 }
@@ -1560,7 +1568,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.11g";
+const APP_VERSION = "2026.11.11i";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2352,8 +2360,12 @@ function dropNew(oi, g) {
   const board = g === "Sideboard" ? "side" : g === "Talvez" ? "maybe" : "main";
   let cat = "";
   if (board === "main" && (ED.group === "cat" || ED.group === "tpl")) { cat = g; if (g === "__new") { cat = prompt("Nome da nova categoria (ex.: Ramp, Remoção, Combo)") || ""; if (!cat.trim()) return; cat = cat.trim(); } }
+  const before = d.cards.find(x => x.oi === oi && x.board === board); const q0 = before ? before.qty : 0;
   addToDeck(oi, board);
-  if (cat) { const c = d.cards.find(x => x.oi === oi && x.board === "main"); if (c) { c.cat = cat; save(); renderDeckPane(); renderStatsPane(); } }
+  const c = d.cards.find(x => x.oi === oi && x.board === board);
+  if (cat && c && board === "main") { c.cat = cat; save(); renderDeckPane(); renderStatsPane(); }
+  // pergunta se já temos a carta (e se ela já está fisicamente no deck)
+  if (c && c.qty > q0 && ownStatus(d, c) !== "ok") setTimeout(() => ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); }, true), 120);
 }
 function addToDeck(oi, board) {
   const d = deckOf(); if (!d) return;
@@ -2575,9 +2587,10 @@ function deckCardMenu(oi, board) { setTimeout(() => { if (!$("sheet").classList.
     <div class="two"><select id="mBoard">${Object.entries(BOARD_NAME).map(([k, v]) => `<option value="${k}"${k === c.board ? " selected" : ""}>${v}</option>`).join("")}</select>
       <select id="mCat"><option value="">Categoria: automática (${esc(tplName(tplCats({ oi })[0]))})</option>${[...new Set([...TPL.map(t => t.n), ...cats])].map(x => `<option${x === c.cat ? " selected" : ""}>${esc(x)}</option>`).join("")}<option value="__new">+ Nova…</option></select></div>
     <select id="mPrint">${(DB.prints[oi] || []).slice().reverse().map(pi => `<option value="${pi}"${DB.p[pi][0] === c.set && DB.p[pi][1] === c.number ? " selected" : ""}>${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])} · ${esc(DB.sets[DB.p[pi][0]] || "")}${brlOf(DB.p[pi][0], DB.p[pi][1]) ? " · " + fmtUSD(brlOf(DB.p[pi][0], DB.p[pi][1])) : ""}</option>`).join("")}</select>`,
-    `<button class="btn danger" id="mDel">Remover</button>${st !== "ok" ? `<button class="btn" id="mHave">✓ Tenho</button>` : ""}<button class="btn primary" id="mOk">OK</button>`);
+    `<button class="btn danger" id="mDel">Remover</button><button class="btn" id="mVer">🎨 Versões</button>${st !== "ok" ? `<button class="btn" id="mHave">✓ Tenho</button>` : ""}<button class="btn primary" id="mOk">OK</button>`);
   const done = () => { save(); renderDeckPane(); renderStatsPane(); };
   if ($("mHave")) $("mHave").onclick = () => ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); });
+  $("mVer").onclick = () => changePrint(d, c, () => { renderDeckPane(); renderStatsPane(); });
   $("mM").onclick = () => { if (c.qty > 1) { c.qty--; $("mQ").textContent = c.qty; releaseExtra(d, oi); done(); } };
   $("mP").onclick = () => { c.qty++; $("mQ").textContent = c.qty; done(); };
   $("mBoard").onchange = (e) => { c.board = e.target.value; done(); };
@@ -2972,18 +2985,18 @@ function openManual({ oi, set, number, foil, lang }) {
   const p = DB.p[DB.bySetNum.get(set + "|" + normNum(number))] || [];
   resultSheet({ oi, set, number, lang: lang || $("langSel").value || p[4] || "en", foil: foil !== undefined ? foil : $("foilBtn").getAttribute("aria-pressed") === "true", qty: 1, via: "manual", img: "" });
 }
-async function pickVersion(oi, plang = "") {
+async function pickVersion(oi, plang = "", onPick = null, cur = null) {
   const local = (DB.prints[oi] || []).slice().reverse();
   const F = { f: "" }; let items = local.map(pi => ({ pi, t: [], foilOnly: false }));
-  openSheet(`<h3 style="margin:0">${esc(DB.o[oi][0])}</h3><div class="meta" id="pvN">${local.length} versões · carregando tratamentos…</div><div class="chips" id="pvF"></div><div class="pv-grid" id="pvG"></div>`, `<button class="btn" id="pvB">Voltar</button>`);
-  $("pvB").onclick = () => manualEntry();
+  openSheet(`<h3 style="margin:0">${esc(DB.o[oi][0])}</h3><div class="meta" id="pvN">${local.length} versões · carregando tratamentos…</div><div class="chips" id="pvF"></div><div class="pv-grid" id="pvG"></div>`, `<button class="btn" id="pvB">${onPick ? "Cancelar" : "Voltar"}</button>`);
+  $("pvB").onclick = () => onPick ? closeSheet() : manualEntry();
   const draw = () => { if (!$("pvG")) return;
     const tags = [...new Set(items.flatMap(x => x.t.length ? x.t : ["Normal"]))];
     $("pvF").innerHTML = tags.length > 1 ? [`<button class="chip" data-f="" aria-pressed="${!F.f}">Todas</button>`, ...tags.map(t => `<button class="chip" data-f="${esc(t)}" aria-pressed="${F.f === t}">${esc(t)}</button>`)].join("") : "";
     const list = items.filter(x => !F.f || (x.t.length ? x.t : ["Normal"]).includes(F.f));
-    $("pvG").innerHTML = list.map(x => { const p = DB.p[x.pi]; return `<button class="pv" data-pi="${x.pi}">${cardImgHTML({ oi, set: p[0], number: p[1], foil: false, lang: "en" }, { bare: true })}<span class="pvl">${esc(x.t.join(" · ") || "Normal")}${x.foilOnly ? " · só foil" : ""}</span><span class="pvt">${esc(p[0].toUpperCase())} #${esc(p[1])} · ${esc(DB.sets[p[0]] || "")}<br>${fmtUSD(brlOf(p[0], p[1], x.foilOnly)) || "—"}</span></button>`; }).join(""); };
+    $("pvG").innerHTML = list.map(x => { const p = DB.p[x.pi]; return `<button class="pv${cur && cur.set === p[0] && normNum(cur.number) === normNum(p[1]) ? " cur" : ""}" data-pi="${x.pi}">${cardImgHTML({ oi, set: p[0], number: p[1], foil: false, lang: "en" }, { bare: true })}<span class="pvl">${esc(x.t.join(" · ") || "Normal")}${x.foilOnly ? " · só foil" : ""}</span><span class="pvt">${esc(p[0].toUpperCase())} #${esc(p[1])} · ${esc(DB.sets[p[0]] || "")}<br>${fmtUSD(brlOf(p[0], p[1], x.foilOnly)) || "—"}</span></button>`; }).join(""); };
   $("pvF").onclick = (e) => { const b = e.target.closest("[data-f]"); if (b) { F.f = b.dataset.f; draw(); } };
-  $("pvG").onclick = (e) => { const b = e.target.closest("[data-pi]"); if (!b) return; const x = items.find(i => i.pi === +b.dataset.pi); const p = DB.p[x.pi]; openManual({ oi, set: p[0], number: p[1], foil: x.foilOnly || undefined, lang: plang && plang !== "en" ? ({ ph: "pt", zhs: "zhs", zht: "zht" }[plang] || plang) : "" }); };
+  $("pvG").onclick = (e) => { const b = e.target.closest("[data-pi]"); if (!b) return; const x = items.find(i => i.pi === +b.dataset.pi); const p = DB.p[x.pi]; if (onPick) { closeSheet(); return onPick({ set: p[0], number: p[1], foilOnly: x.foilOnly, t: x.t }); } openManual({ oi, set: p[0], number: p[1], foil: x.foilOnly || undefined, lang: plang && plang !== "en" ? ({ ph: "pt", zhs: "zhs", zht: "zht" }[plang] || plang) : "" }); };
   draw();
   try {
     let url = `https://api.scryfall.com/cards/search?unique=prints&order=released&dir=desc&q=${encodeURIComponent(`!"${DB.o[oi][0]}" include:extras game:paper`)}`; const sf = new Map();
