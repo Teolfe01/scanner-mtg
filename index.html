@@ -458,6 +458,9 @@ html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
 .colh { display: flex; align-items: center; gap: 6px; } .colh > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .colm { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
 .colm:hover { background: rgba(255,255,255,.1); color: var(--text, #fff); }
+.colh .colt { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; } .colh .colt b { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .colh .colt small { font-size: 11px; color: var(--muted); font-weight: 500; }
+.colh { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 6px 4px 6px 10px; }
+.edsel { display: inline-flex; flex-direction: column; font-size: 10px; color: var(--muted); gap: 2px; } .edsel select { font-size: 13px; }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -1767,7 +1770,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.14d";
+const APP_VERSION = "2026.11.15";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2552,7 +2555,7 @@ $("zoom").onclick = () => closeZoom();
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeZoom(); });
 document.addEventListener("click", (e) => { const c = e.target.closest(".detail .cardimg, .ed-preview .cardimg"); if (c) { e.stopPropagation(); zoomImg(c); } }, true);
 // ============ EDITOR DE DECKS (estilo Archidekt) ============
-const ED = { id: null, pane: "deck", group: "tpl", asked: new Set(), mode: "stack", q: "", colors: new Set(), useCI: true, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
+const ED = { id: null, pane: "deck", group: "func", dsort: "cmc", asked: new Set(), mode: "stack", q: "", colors: new Set(), useCI: true, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
 const BOARD_NAME = { cmd: "Comandante", main: "Principal", side: "Sideboard", maybe: "Talvez" };
 const isWide = () => window.innerWidth >= 1000;
 const deckOf = () => S.decks.find(d => d.id === ED.id);
@@ -2580,18 +2583,46 @@ function tplCats(c) {
 }
 const tplName = (k) => TPL.find(t => t.k === k).n;
 const isCmdFormat = (d) => /commander|edh/i.test(d.format || "Commander");
+// Categorias por função (como o Archidekt): o que não tem função clara vai pelo tipo
+const FUNC = [
+  { k: "ramp", n: "Ramp", roles: ["ramp", "fixing"], tip: "Aceleram mana: pedras, criaturas e feitiços que buscam terreno" },
+  { k: "draw", n: "Compra", roles: ["draw"], tip: "Compram cartas ou geram vantagem de cartas" },
+  { k: "tutor", n: "Tutor", roles: ["tutor"], tip: "Buscam cartas específicas no grimório" },
+  { k: "wipe", n: "Board Wipe", roles: ["wipe"], tip: "Removem várias permanentes de uma vez" },
+  { k: "inter", n: "Interação", roles: ["removal", "counter"], tip: "Remoção pontual e contramágicas" },
+  { k: "prot", n: "Proteção", roles: ["protection"], tip: "Protegem suas peças (indestrutível, hexproof, anulam remoção)" },
+  { k: "rec", n: "Recursão", roles: ["recursion"], tip: "Trazem cartas de volta do cemitério" },
+  { k: "fin", n: "Finalizador", roles: ["finisher"], tip: "Fecham o jogo: dano em massa, combate extra, vitória alternativa" },
+  { k: "tok", n: "Tokens", roles: ["tokens"], tip: "Criam fichas" },
+];
+const FUNC_NAMES = FUNC.map(f => f.n);
+function funcKeys(oi) { const o = oInfo(oi); if (mainTypes(o.type).includes("Land")) return ["Terrenos"]; return FUNC.filter(f => f.roles.some(r => o.roles.includes(r))).map(f => f.n); }
+const CAT_MODES = ["func", "multi", "cat", "tpl"]; // modos em que arrastar para uma coluna define a categoria da carta
+function groupKeys(c) {
+  if (c.board === "cmd") return ["Comandante"]; if (c.board === "side") return ["Sideboard"]; if (c.board === "maybe") return ["Talvez"];
+  const isLand = mainTypes(DB.o[c.oi][5]).includes("Land");
+  if (ED.group === "func") { if (c.cat) return [c.cat]; const f = funcKeys(c.oi); return [f[0] || TYPE_PT[primaryType(c.oi)] || "Outros"]; }
+  if (ED.group === "multi") { const f = funcKeys(c.oi); const all = [...new Set([...(c.cat ? [c.cat] : []), ...f])]; return all.length ? all : [TYPE_PT[primaryType(c.oi)] || "Outros"]; }
+  if (ED.group === "cmcs") return isLand ? ["Terrenos"] : ["Valor " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "")];
+  if (ED.group === "cmc") return ["Valor " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "")];
+  if (ED.group === "full") return ["Deck"];
+  if (ED.group === "bracket") { if (!BR.ready) return ["Carregando…"]; const d = deckOf(); const r = d.__br || (d.__br = evalBracket(d));
+    if (r.gcs.includes(c.oi)) return ["Game Changers"]; if (r.combos.some(x => x.a === c.oi || x.b === c.oi)) return ["Peças de combo"]; if (r.mld.includes(c.oi)) return ["Terrenos em massa"]; if (r.turns.includes(c.oi)) return ["Turnos extras"]; return ["Demais cartas"]; }
+  return [groupKey(c)];
+}
+function cardPriceC(c) { const pi = printFor(c); return pi >= 0 ? brlOf(DB.p[pi][0], DB.p[pi][1], !!c.foil) || 0 : 0; }
 function groupKey(c) {
   if (c.board === "cmd") return "Comandante";
   if (c.board === "side") return "Sideboard";
   if (c.board === "maybe") return "Talvez";
   if (ED.group === "tpl") { if (c.cat) return c.cat; const k = tplCats(c)[0]; return k === "plan" ? (TYPE_PT[primaryType(c.oi)] || "Outros") : tplName(k); } // como o Archidekt: o que não tem função vai pelo tipo
   if (ED.group === "cat") return c.cat || TYPE_PT[primaryType(c.oi)] || "Outros";
-  if (ED.group === "cmc") return mainTypes(DB.o[c.oi][5]).includes("Land") ? "Terrenos" : "CMC " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "");
+  if (ED.group === "cmc" || ED.group === "cmcs") return groupKeys(c)[0];
   if (ED.group === "color") { const b = colorBucket(c.oi); return COLOR_NAME[b]; }
   return TYPE_PT[primaryType(c.oi)] || "Outros";
 }
 function groupOrder(keys) {
-  const fixed = ["Comandante", ...TPL.filter(t => t.k !== "lands" && t.k !== "plan").map(t => t.n), ...TYPES.filter(t => t[1] !== "Terrenos").map(t => t[1]), "Plano", ...COLOR_ORDER.map(x => x[1]), ...Array.from({ length: 8 }, (_, i) => "CMC " + i + (i === 7 ? "+" : "")), "Terrenos"];
+  const fixed = ["Comandante", ...FUNC_NAMES, ...TPL.filter(t => t.k !== "lands" && t.k !== "plan").map(t => t.n), ...TYPES.filter(t => t[1] !== "Terrenos").map(t => t[1]), "Plano", "Game Changers", "Peças de combo", "Terrenos em massa", "Turnos extras", "Demais cartas", ...Array.from({ length: 8 }, (_, i) => "Valor " + i + (i === 7 ? "+" : "")), ...COLOR_ORDER.map(x => x[1]), ...Array.from({ length: 8 }, (_, i) => "CMC " + i + (i === 7 ? "+" : "")), "Terrenos"];
   return keys.sort((a, b) => { const ia = fixed.indexOf(a), ib = fixed.indexOf(b); const sa = a === "Sideboard" ? 2 : a === "Talvez" ? 3 : 0, sb = b === "Sideboard" ? 2 : b === "Talvez" ? 3 : 0; return sa - sb || (ia < 0 ? 50 : ia) - (ib < 0 ? 50 : ib) || a.localeCompare(b); });
 }
 function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) return "ok"; return libFor(c.oi) > 0 ? "lib" : "miss"; }
@@ -2601,11 +2632,11 @@ function d0pane(id) { const d = S.decks.find(x => x.id === id); return d && d.ca
 document.addEventListener("click", (e) => { const eg = e.target.closest("#edGf"); if (eg && view && view.id) { GF.id = null; return openGoldfish(view.id); } const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); const gb = e.target.closest("#openGf"); if (gb && view && view.id) { GF.id = null; openGoldfish(view.id); } const r = e.target.closest("#rebuildDeck"); if (r && view && view.id) { const d = S.decks.find(x => x.id === view.id); if (d) buildDeck(d); } });
 // Menu ⋮ de cada categoria/coluna do editor
 function colMenu(e, k) {
-  const d = deckOf(); const list = d.cards.filter(c => !(c.board === "cmd" && isCmdFormat(d)) && groupKey(c) === k); if (!list.length) return;
+  const d = deckOf(); const list = d.cards.filter(c => !(c.board === "cmd" && isCmdFormat(d)) && groupKeys(c).includes(k)); if (!list.length) return;
   const n = list.reduce((a, c) => a + c.qty, 0); const after = () => { renderDeckPane(); renderStatsPane(); };
   const copy = (arr, what) => { const txt = arr.map(([q, oi]) => `${q} ${DB.o[oi][0]}`).join("\n"); if (!txt) return toast("Nada para copiar."); navigator.clipboard.writeText(txt).then(() => toast(`${what} copiada (${arr.length} linha${arr.length > 1 ? "s" : ""}) — cole na busca por lista da LigaMagic`, 3200), () => askText("Copie a lista", txt)); };
   const missing = list.map(c => [Math.max(0, c.qty - haveFor(d, c.oi)), c.oi]).filter(([q]) => q > 0);
-  const custom = list.some(c => c.cat === k) || ED.group === "tpl" || ED.group === "cat";
+  const custom = list.some(c => c.cat === k) || CAT_MODES.includes(ED.group);
   const fixedBoard = k === "Sideboard" || k === "Talvez" || k === "Comandante";
   const cats = [...new Set(d.cards.filter(x => x.board === "main" && x.cat && x.cat !== k).map(x => x.cat))].sort((a, b) => a.localeCompare(b));
   const mvAll = (to) => { list.slice().forEach(c => moveDeckCard(d, c, to)); after(); };
@@ -2614,7 +2645,7 @@ function colMenu(e, k) {
     ["📋 Copiar só o que falta" + (missing.length ? ` (${missing.reduce((a, [q]) => a + q, 0)})` : ""), () => copy(missing, "Lista do que falta")],
     ["↗ Abrir a LigaMagic", () => window.open("https://www.ligamagic.com.br/", "_blank")],
     "-",
-    ...(custom && !fixedBoard ? [["✏ Renomear categoria", async () => { const nn = await askText("Renomear categoria", k); if (!nn || !nn.trim() || nn.trim() === k) return; list.forEach(c => { if (c.board === "main") c.cat = nn.trim(); }); if (ED.group !== "tpl") ED.group = "cat"; save(); after(); }]] : []),
+    ...(custom && !fixedBoard ? [["✏ Renomear categoria", async () => { const nn = await askText("Renomear categoria", k); if (!nn || !nn.trim() || nn.trim() === k) return; list.forEach(c => { if (c.board === "main") c.cat = nn.trim(); }); save(); after(); }]] : []),
     ["✓ Tenho todas — já estão no deck", () => { list.forEach(c => { if (ownStatus(d, c) !== "ok") ownMark(d, c, true, () => {}); }); save(); after(); toast("Marcadas como no deck"); }],
     ["📦 Pegar da caixa (as que tivermos)", () => { list.forEach(c => allocate(d, c.oi, c.qty)); save(); after(); toast("Reservadas das caixas"); }],
     ["☑ Selecionar todas", () => { list.forEach(c => SEL.add(selKey(c))); selPaint(); }],
@@ -2763,7 +2794,7 @@ async function dropNew(oi, g) {
   if (g === "Comandante") { if (isCmdFormat(d) && cmdCandidates().includes(oi)) return setCommander(d, oi, d.cards.some(c => c.board === "cmd")); return toast("Essa carta não pode ser comandante."); }
   const board = g === "Sideboard" ? "side" : g === "Talvez" ? "maybe" : "main";
   let cat = "";
-  if (board === "main" && (ED.group === "cat" || ED.group === "tpl")) { cat = g; if (g === "__new") { cat = (await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo, Wincons" })) || ""; if (!cat.trim()) return; cat = cat.trim(); } }
+  if (board === "main" && CAT_MODES.includes(ED.group)) { cat = g; if (g === "__new") { cat = (await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo, Wincons" })) || ""; if (!cat.trim()) return; cat = cat.trim(); } }
   const before = d.cards.find(x => x.oi === oi && x.board === board); const q0 = before ? before.qty : 0;
   addToDeck(oi, board);
   const c = d.cards.find(x => x.oi === oi && x.board === board);
@@ -2921,26 +2952,31 @@ function commanderBanner(d) {
 }
 function renderDeckPane() {
   const d = deckOf(); if (!d || !$("edDeck")) return;
-  const groups = {}; d.cards.forEach(c => { if (c.board === "cmd" && isCmdFormat(d)) return; const k = groupKey(c); (groups[k] = groups[k] || []).push(c); });
+  d.__br = null; const groups = {}; d.cards.forEach(c => { if (c.board === "cmd" && isCmdFormat(d)) return; for (const k of groupKeys(c)) (groups[k] = groups[k] || []).push(c); });
   const keys = groupOrder(Object.keys(groups));
-  const sortIn = (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]);
+  const byName = (a, b) => DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]);
+  const sortIn = ED.dsort === "name" ? byName : ED.dsort === "price" ? (a, b) => cardPriceC(b) - cardPriceC(a) || byName(a, b) : ED.dsort === "type" ? (a, b) => (primaryType(a.oi) || "").localeCompare(primaryType(b.oi) || "") || byName(a, b) : (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || byName(a, b);
+  const fdesc = Object.fromEntries(FUNC.map(f => [f.n, f.tip]));
   const main = d.cards.filter(c => c.board === "main" || c.board === "cmd").reduce((a, c) => a + c.qty, 0);
   $("edDeck").innerHTML = `
     <div class="ed-dbar"><b>${main} cartas</b><span class="meta">${d.format || "Commander"}</span>
-      <select id="edGroup"><option value="tpl">Agrupar: template</option><option value="type"${ED.group === "type" ? " selected" : ""}>Agrupar: tipo</option><option value="cat"${ED.group === "cat" ? " selected" : ""}>Agrupar: categorias</option><option value="cmc"${ED.group === "cmc" ? " selected" : ""}>Agrupar: CMC</option><option value="color"${ED.group === "color" ? " selected" : ""}>Agrupar: cor</option></select>
+      <label class="edsel">Agrupar por <select id="edGroup">${[["func", "Categorias (funções)"], ["multi", "Categorias (múltiplas)"], ["cat", "Minhas categorias"], ["type", "Tipo"], ["cmc", "Valor de mana"], ["cmcs", "Valor de mana (mágicas)"], ["full", "Deck inteiro"], ["color", "Cor"], ["bracket", "Info de bracket"], ["tpl", "Template Command Zone"]].map(([v, n]) => `<option value="${v}"${ED.group === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label class="edsel">Ordenar <select id="edSort">${[["cmc", "Valor de mana"], ["name", "Nome"], ["price", "Preço"], ["type", "Tipo"]].map(([v, n]) => `<option value="${v}"${(ED.dsort || "cmc") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
       <select id="edMode"><option value="stack">Pilhas</option><option value="list"${ED.mode === "list" ? " selected" : ""}>Lista</option></select></div>
     ${commanderBanner(d)}
     ${d.cards.some(c => c.board !== "cmd") ? "" : `<div class="empty">Deck vazio. Use a busca para adicionar cartas${isWide() ? " (painel da esquerda)" : ""}.</div>`}
     <div class="cols ${ED.mode}">${keys.map(k => { const list = groups[k].sort(sortIn); const n = list.reduce((a, c) => a + c.qty, 0);
-      return `<div class="col" data-g="${esc(k)}"><div class="colh"><span>${esc(k)}</span><span class="meta">${n}</span><button class="colm" data-colm="${esc(k)}" title="Opções da categoria">⋮</button></div>
+      const pr = list.reduce((a, c) => a + cardPriceC(c) * c.qty, 0);
+      return `<div class="col" data-g="${esc(k)}"><div class="colh"${fdesc[k] ? ` title="${esc(fdesc[k])}"` : ""}><span class="colt"><b>${k === "Comandante" ? "♛ " : ""}${esc(k)}</b><small>Qtd: ${n}${pr ? " · " + fmt0(pr) : ""}</small></span><button class="colm" data-colm="${esc(k)}" title="Opções da categoria">⋮</button></div>
         ${list.map(c => { const st = ownStatus(d, c); const o = DB.o[c.oi];
           return ED.mode === "list"
             ? `<div class="li" data-oi="${c.oi}" data-b="${c.board}"><span class="q">${c.qty}</span><span class="nm">${esc(o[0])}</span>${manaHTML(o[1])}<span class="st ${st}"></span></div>`
             : `<div class="stk" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fakeEntry(c), { bare: true })}${c.qty > 1 ? `<span class="q">${c.qty}</span>` : ""}<span class="st ${st}" title="${st === "ok" ? "Montada no deck" : st === "lib" ? "Temos na caixa" : "Não temos"}"></span></div>`; }).join("")}</div>`; }).join("")}
-      ${ED.group === "cat" || ED.group === "tpl" ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
+      ${CAT_MODES.includes(ED.group) ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
     </div>
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
-  $("edGroup").onchange = (e) => { ED.group = e.target.value; renderDeckPane(); };
+  $("edGroup").onchange = (e) => { ED.group = e.target.value; S.settings.edGroup = ED.group; save(true); renderDeckPane(); };
+  $("edSort").onchange = (e) => { ED.dsort = e.target.value; S.settings.edSort = ED.dsort; save(true); renderDeckPane(); };
   if ($("cbPick")) $("cbPick").onclick = () => pickCommander(d);
   if ($("cbAvg")) $("cbAvg").onclick = () => loadAverageDeck(d, true);
   if ($("cbPartner")) $("cbPartner").onclick = () => pickCommander(d, d.cards.find(c => c.board === "cmd").oi);
@@ -2972,7 +3008,7 @@ async function moveCard(oi, board, g) {
   else if (g === "Comandante") c.board = "cmd";
   else {
     if (c.board !== "main") c.board = "main";
-    if (ED.group === "cat" || ED.group === "tpl") { let name = g; if (g === "__new") { name = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo, Wincons" }); if (!name) return; } c.cat = name; }
+    if (CAT_MODES.includes(ED.group)) { let name = g; if (g === "__new") { name = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo, Wincons" }); if (!name) return; } c.cat = name; }
   }
   save(); renderDeckPane(); renderStatsPane();
 }
@@ -2996,7 +3032,7 @@ function deckCardMenu(oi, board) { setTimeout(() => { if (!$("sheet").classList.
   $("mM").onclick = () => { if (c.qty > 1) { c.qty--; $("mQ").textContent = c.qty; releaseExtra(d, oi); done(); } };
   $("mP").onclick = () => { c.qty++; $("mQ").textContent = c.qty; done(); };
   $("mBoard").onchange = (e) => { c.board = e.target.value; done(); };
-  $("mCat").onchange = async (e) => { let v = e.target.value; if (v === "__new") v = (await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" })) || ""; c.cat = v || undefined; if (!c.cat) delete c.cat; if (c.cat && ED.group !== "tpl") ED.group = "cat"; done(); };
+  $("mCat").onchange = async (e) => { let v = e.target.value; if (v === "__new") v = (await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" })) || ""; c.cat = v || undefined; if (!c.cat) delete c.cat; if (c.cat && !CAT_MODES.includes(ED.group)) ED.group = "func"; done(); };
   $("mPrint").onchange = (e) => { const p = DB.p[+e.target.value]; c.set = p[0]; c.number = p[1]; done(); deckCardMenu(oi, c.board); };
   $("mDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); closeSheet(); done(); };
   $("mOk").onclick = closeSheet;
@@ -3657,7 +3693,7 @@ function accountMenu() {
     await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; }); loadBrackets();
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
-    $("splash").classList.add("hidden"); undoBaseline();
+    $("splash").classList.add("hidden"); undoBaseline(); if (S.settings.edGroup) ED.group = S.settings.edGroup; if (S.settings.edSort) ED.dsort = S.settings.edSort;
     applyPrefs();
     const startTab = new URLSearchParams(location.search).get("tab") || (P().startTab !== "last" && !(S.settings.resume && S.settings.resume.fromLink) ? P().startTab : null); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
