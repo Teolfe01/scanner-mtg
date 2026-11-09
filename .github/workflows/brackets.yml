@@ -1,0 +1,26 @@
+name: Dados de bracket
+on:
+  workflow_dispatch:
+  schedule: [{ cron: "41 6 * * 2" }]
+  push:
+    branches: [main]
+    paths: ["tools/build_brackets.py", ".github/workflows/brackets.yml"]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Baixar combos do Commander Spellbook
+        run: |
+          pip install ijson
+          curl -fsSL -A "BibliotecaMTG/1.0" -o /tmp/variants.json https://json.commanderspellbook.com/variants.json
+          head -c 600 /tmp/variants.json; echo
+      - name: Gerar data/brackets.json.gz
+        run: python3 tools/build_brackets.py /tmp/variants.json
+      - name: Salvar se mudou
+        run: |
+          git config user.name "Scanner MTG"; git config user.email "noreply@users.noreply.github.com"
+          git add data/brackets.json.gz
+          git diff --cached --quiet || (git commit -m "Atualiza dados de bracket" && git pull --rebase && git push)
