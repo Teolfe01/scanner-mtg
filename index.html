@@ -443,6 +443,15 @@ html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
   .editor.fit > .ed-search, .editor.fit > .ed-deck, .editor.fit > .ed-stats { position: static; max-height: none; height: 100%; overflow: auto; padding-bottom: 96px; overscroll-behavior: contain; }
   .editor.fit > .ed-deck { scrollbar-width: thin; }
 }
+.gcb { position: absolute; left: 17%; top: 3%; z-index: 3; font-size: 9.5px; font-weight: 800; letter-spacing: .04em; color: #1a1205; background: linear-gradient(135deg, #ffd36b, #ff9a3c); padding: 1px 6px; border-radius: 6px; box-shadow: 0 2px 6px rgba(0,0,0,.5); pointer-events: auto; }
+.row .gcb, .deckcard .gcb, .li .gcb { font-size: 7px; padding: 0 3px; left: 3%; top: 3%; border-radius: 3px; }
+.brchip { display: inline-block; font-size: 11px; font-weight: 800; padding: 1px 7px; border-radius: 6px; margin-left: 4px; vertical-align: 1px; }
+.b1, .b2 { background: rgba(110,200,140,.2); color: #7ee2a0; } .b3 { background: rgba(255,200,90,.2); color: #ffd36b; } .b4 { background: rgba(255,120,80,.22); color: #ff9a7a; } .b5 { background: rgba(230,80,120,.25); color: #ff8fb0; }
+.brcard { display: grid; gap: 10px; margin-bottom: 10px; }
+.brhead { display: flex; gap: 12px; align-items: center; }
+.brbig { font-size: 22px; font-weight: 800; min-width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; flex: none; }
+.brlist { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.brcombo { font-size: 13px; margin: 3px 0; }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -949,7 +958,8 @@ function cardImgHTML(e, opts = {}) {
   const inner = e.set ? `<img ${src ? `src="${esc(src)}"` : ""} data-ik="${esc(imgKey(e.set, e.number))}" alt="${esc(o[0])}" loading="lazy" onload="this.style.opacity=1;this.parentNode.classList.add('ok')" onerror="this.removeAttribute('src');if(this.dataset.fail)this.parentNode.classList.add('noimg');this.dataset.fail=1" style="position:absolute;inset:0;opacity:0;transition:opacity .45s ease">` : "";
   const drawn = `<div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i><span class="skn">${esc(o[0])}</span></div>`;
   const cls = e.set && IMGS[imgKey(e.set, e.number)] !== "" ? "cardimg" : "cardimg noimg";
-  if (opts.bare) return `<div class="${cls}">${drawn}${inner}</div>`;
+  const gc = BR.gc.has(e.oi) ? `<span class="gcb" title="Game Changer (Commander Brackets)">GC</span>` : "";
+  if (opts.bare) return `<div class="${cls}">${drawn}${inner}${gc}</div>`;
   const price = priceOf(e); const dq = inDecks(e);
   const deckName = dq ? (S.decks.find(d => e.decks[d.id]) || {}).name : "";
   return `<div class="${cls}">${drawn}${inner}
@@ -1275,7 +1285,7 @@ function renderDecks() {
     const fake = cmd ? { oi: cmd.oi, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" } : null;
     const ci = [...new Set(d.cards.flatMap(c => DB.o[c.oi][4].split("")))].filter(Boolean);
     return `<button class="deckcard" data-d="${esc(d.id)}">${fake ? cardImgHTML(fake, { bare: true }) : `<div class="cardimg"></div>`}
-      <span><b>${esc(d.name)}</b><br><span class="meta">${esc(d.format || "")} · ${total} cartas</span><br>${ci.map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ")}
+      <span><b>${esc(d.name)}</b> ${bracketChip(d)}<br><span class="meta">${esc(d.format || "")} · ${total} cartas</span><br>${ci.map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join(" ")}
       <div class="bar ${have >= total ? "ok" : ""}" style="margin-top:6px"><i style="width:${total ? Math.round(have * 100 / total) : 0}%"></i></div><span class="meta">${have}/${total} montadas${d.built ? " · na caixa do deck" : ""}</span></span>
       <span class="dkdel" role="button" tabindex="0" title="Excluir deck" data-del="${esc(d.id)}">🗑</span></button>`; }).join("")}</div>`;
   $("main").onclick = (ev) => { const x = ev.target.closest("[data-del]"); if (x) { ev.stopPropagation(); const dd = S.decks.find(k => k.id === x.dataset.del); if (dd) deleteDeck(dd); return; } const b = ev.target.closest("[data-d]"); if (b) go("decks", { kind: isWide() ? "edit" : "deck", id: b.dataset.d }); };
@@ -1375,6 +1385,7 @@ function renderDeck(id) {
     ${(() => { const oiS = [...new Set(d.cards.map(c => c.oi))]; const pull = oiS.reduce((a, oi) => a + Math.min(Math.max(0, d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0) - haveFor(d, oi)), libFor(oi)), 0);
       const mounted = oiS.reduce((a, oi) => a + haveFor(d, oi), 0);
       return pull ? `<button class="btn" id="rebuildDeck" style="width:100%;margin-bottom:10px">↺ ${mounted || /precon/.test(d.source || "") ? "Remontar deck" : "Montar com a coleção"} — pegar ${pull} carta(s) das caixas</button>` : ""; })()}
+    ${bracketHTML(d, true)}
     <div class="card">
       <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi fbtn" data-f="land"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi fbtn" data-f="miss"><b>${missing}</b><span>faltam</span></div></div>
       <div><div class="meta" style="margin-bottom:4px">Curva de mana (sem terrenos) · toque para filtrar</div><div class="curve">${curve.map((n, i) => `<div class="fbtn" data-f="cmc:${i}"><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
@@ -1400,6 +1411,7 @@ function renderDeck(id) {
   if (window.__dfH) $("main").removeEventListener("click", window.__dfH, true);
   window.__dfH = (ev) => { if (!$("dlist")) return; const fb = ev.target.closest(".fbtn, #fClear"); if (!fb) return; ev.stopPropagation(); DF.f = fb.id === "fClear" || DF.f === fb.dataset.f ? null : fb.dataset.f; drawList(); if (DF.f) $("dlist").scrollIntoView({ behavior: "smooth", block: "start" }); };
   $("main").addEventListener("click", window.__dfH, true);
+  if (document.querySelector("[data-brdet]")) document.querySelector("[data-brdet]").onclick = (e) => { e.stopPropagation(); bracketSheet(d); };
   $("bBuild").onclick = () => buildDeck(d); $("bUnbuild").onclick = () => unbuildDeck(d); $("bMiss").onclick = () => copyMissing(d);
   $("main").onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (!b) return; if ((ev.ctrlKey || ev.metaKey) && b.dataset.b) { const c = d.cards.find(x => x.oi === +b.dataset.oi && x.board === b.dataset.b); if (c) selToggle(c); return; } deckCardSheet(d, +b.dataset.oi, b.dataset.b); };
   $("main").oncontextmenu = (ev) => { const b = ev.target.closest("[data-oi][data-b]"); if (!b) return; const c = d.cards.find(x => x.oi === +b.dataset.oi && x.board === b.dataset.b); if (c) cardCtx(ev, d, c, () => renderDeck(d.id), () => deckCardSheet(d, c.oi, c.board)); };
@@ -1733,7 +1745,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.13d";
+const APP_VERSION = "2026.11.14";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2115,6 +2127,59 @@ document.addEventListener("keydown", (e) => {
   if (k === "v") gfScry();
   if (k === "r") { gfPush(); gfNew(S.decks.find(x => x.id === GF.id)); gfDraw0(); }
 });
+
+// ============ AVALIADOR DE BRACKET (Commander Brackets, beta) ============
+// Regras: Game Changers (0 → 1–2 · até 3 → 3 · 4+ → 4), destruição de terrenos em massa, turnos extras em cadeia
+// e combos de 2 cartas (cedo → 4; tardio → 3). Dados: Scryfall (is:gamechanger) + Commander Spellbook (data/brackets.json.gz).
+const BR = { gc: new Set(), combos: new Map(), ready: false, updated: "" };
+const MLD = ["Armageddon", "Ravages of War", "Catastrophe", "Decree of Annihilation", "Jokulhaups", "Obliterate", "Ruination", "Sunder", "Wildfire", "Destructive Force", "Impending Disaster", "Boom // Bust", "Global Ruin", "Raze the Effigy", "Apocalypse", "Devastation", "Upheaval", "Winter Orb", "Static Orb", "Rising Waters", "Hokori, Dust Drinker", "Blood Moon", "Back to Basics", "Magus of the Moon", "Contamination", "Epicenter", "Myojin of Infinite Rage", "Burning of Xinye", "Wake of Destruction", "Desolation Angel", "Keldon Firebombers", "Numot, the Devastator", "Tectonic Break", "Thoughts of Ruin", "Bearer of the Heavens", "Mana Vortex", "Cleansing", "Acid Rain", "Flashfires", "Tsunami", "Boil", "Choke", "Ruination Rioter", "Stasis", "Hallowed Burial"];
+const MLD_SET = new Set(MLD);
+async function loadBrackets() {
+  try {
+    const j = await gunzipJSON("data/brackets.json.gz"); BR.updated = j.updated || "";
+    const oiOf = (n) => { let o = DB.byName.get(norm(n)); if (o === undefined) o = DB.byName.get(norm(n.split(" // ")[0])); return o; };
+    for (const n of j.gc) { const o = oiOf(n); if (o !== undefined) BR.gc.add(o); }
+    for (const [a, b, res, mv, tag] of j.combos) { const oa = oiOf(a), ob = oiOf(b); if (oa === undefined || ob === undefined) continue;
+      for (const [x, y] of [[oa, ob], [ob, oa]]) { if (!BR.combos.has(x)) BR.combos.set(x, []); BR.combos.get(x).push([y, res, mv, tag]); } }
+    BR.ready = true;
+    if (tab === "decks" && !(view && view.kind === "gold")) { try { views.decks(); } catch (e) {} }
+  } catch (e) {}
+}
+const isGC = (oi) => BR.gc.has(oi);
+const BR_NAME = { 1: "Exibição", 2: "Básico", 3: "Melhorado", 4: "Otimizado", 5: "cEDH" };
+function evalBracket(d) {
+  const cards = d.cards.filter(c => c.board === "main" || c.board === "cmd"); const set = new Set(cards.map(c => c.oi));
+  const gcs = [...set].filter(isGC);
+  const mld = [...set].filter(oi => MLD_SET.has(DB.o[oi][0]) || /destroy all lands|destroy all nonbasic lands|each player sacrifices (all|five|four) lands|exile all lands/i.test(DB.o[oi][6] || ""));
+  const turns = [...set].filter(oi => /takes? an extra turn|take (an|two) extra turns/i.test(DB.o[oi][6] || ""));
+  const combos = []; const seen = new Set();
+  for (const oi of set) for (const [o2, res, mv] of (BR.combos.get(oi) || [])) { if (!set.has(o2)) continue; const k = [oi, o2].sort((a, b) => a - b).join("|"); if (seen.has(k)) continue; seen.add(k); combos.push({ a: oi, b: o2, res, mv, early: mv <= 6 }); }
+  const early = combos.filter(c => c.early);
+  let b = 1; const why = [];
+  if (gcs.length) { if (gcs.length <= 3) { b = Math.max(b, 3); why.push(`${gcs.length} Game Changer(s) — até 3 é bracket 3`); } else { b = 4; why.push(`${gcs.length} Game Changers — mais de 3 é bracket 4`); } }
+  if (mld.length) { b = 4; why.push(`Destruição/negação de terrenos em massa (${mld.length})`); }
+  if (early.length) { b = 4; why.push(`${early.length} combo(s) de 2 cartas que podem sair cedo`); }
+  else if (combos.length) { b = Math.max(b, 3); why.push(`${combos.length} combo(s) de 2 cartas de fim de jogo — permitidos a partir do 3`); }
+  if (turns.length >= 3) { b = 4; why.push(`${turns.length} cartas de turno extra — risco de encadear turnos`); }
+  else if (turns.length) why.push(`${turns.length} carta(s) de turno extra — ok se não encadear`);
+  const cedh = b === 4 && (gcs.length >= 8 || (early.length >= 2 && gcs.length >= 5));
+  if (!why.length) why.push("Sem Game Changers, combos de 2 cartas, destruição de terrenos em massa nem turnos extras em cadeia");
+  return { b, label: b === 1 ? "1–2" : cedh ? "4–5" : String(b), name: b === 1 ? "Exibição / Básico" : cedh ? "Otimizado (pode ser cEDH)" : BR_NAME[b], why, gcs, mld, turns, combos, early };
+}
+function bracketChip(d) { if (!BR.ready || !d.cards.length || !isCmdFormat(d)) return ""; const r = evalBracket(d); return `<span class="brchip b${r.b}" title="Bracket estimado: ${esc(r.name)}">B${r.label}</span>`; }
+function bracketHTML(d, compact) {
+  if (!isCmdFormat(d)) return "";
+  if (!BR.ready) return `<div class="card brcard"><div class="meta">Carregando dados de bracket…</div></div>`;
+  const r = evalBracket(d); const nm = (oi) => esc(DB.o[oi][0]);
+  return `<div class="card brcard" data-brk="1"><div class="brhead"><span class="brbig b${r.b}">${r.label}</span><div><b>Bracket estimado: ${esc(r.name)}</b><div class="meta">${r.why.map(esc).join(" · ")}</div></div></div>
+    ${compact ? `<button class="btn small" data-brdet="1">Ver detalhes</button>` : `
+    ${r.gcs.length ? `<div><div class="meta">Game Changers (${r.gcs.length})</div><div class="brlist">${r.gcs.map(o => `<span class="pill">${nm(o)}</span>`).join("")}</div></div>` : ""}
+    ${r.combos.length ? `<div><div class="meta">Combos de 2 cartas (${r.combos.length})</div>${r.combos.slice(0, 12).map(c => `<div class="brcombo">${c.early ? "⚡" : "⏳"} <b>${nm(c.a)}</b> + <b>${nm(c.b)}</b><span class="meta"> → ${esc(c.res)}${c.mv ? " · " + c.mv + " de mana" : ""}</span></div>`).join("")}</div>` : ""}
+    ${r.mld.length ? `<div><div class="meta">Terrenos em massa</div><div class="brlist">${r.mld.map(o => `<span class="pill bad">${nm(o)}</span>`).join("")}</div></div>` : ""}
+    ${r.turns.length ? `<div><div class="meta">Turnos extras</div><div class="brlist">${r.turns.map(o => `<span class="pill">${nm(o)}</span>`).join("")}</div></div>` : ""}
+    <div class="cfg-s">Estimativa automática pelas regras oficiais (beta). Bracket 1 e 2 dependem da intenção do deck, e a conversa antes do jogo vale mais que o número. ⚡ combo que pode sair cedo · ⏳ de fim de jogo. Dados: Scryfall e Commander Spellbook${BR.updated ? " (" + BR.updated + ")" : ""}.</div>`}</div>`;
+}
+function bracketSheet(d) { openSheet(bracketHTML(d, false), `<button class="btn primary" id="brX">OK</button>`); $("brX").onclick = closeSheet; }
 
 // ============ ABA EDH ============
 // Escolhe um comandante e mostra, por bracket (1–5), os decks do EDHREC, a lista média e as cartas de maior sinergia.
@@ -2939,6 +3004,7 @@ function renderStatsPane() {
   const GUIDE = {};
   $("edStats").innerHTML = `
     <div class="ed-preview hidden-mobile" id="edPreview"><div class="meta" style="text-align:center;padding:20px 0">Passe o mouse numa carta</div></div>
+    ${bracketHTML(d, false)}
     <div class="card">
       <div class="kpis"><div class="kpi"><b>${total}</b><span>cartas</span></div><div class="kpi"><b>${lands}</b><span>terrenos</span></div><div class="kpi"><b>${avg}</b><span>CMC médio</span></div><div class="kpi"><b>${missing}</b><span>faltam</span></div></div>
       ${tplHTML}
@@ -3539,7 +3605,7 @@ function accountMenu() {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
     const old = localStorage.getItem("mtgscan.list");
-    await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; });
+    await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; }); loadBrackets();
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     $("splash").classList.add("hidden"); undoBaseline();
