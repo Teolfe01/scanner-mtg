@@ -364,7 +364,7 @@ html.noprices .grid .cardimg .price { display: none; }
 /* campo de busca do editor sempre visível ao rolar */
 #edQ { width: 100%; margin-bottom: 8px; position: sticky; top: 0; z-index: 4; box-shadow: 0 -12px 0 var(--bg), 0 10px 14px -8px rgba(0,0,0,.7); }
 @media (max-width: 999px) { #edQ { top: calc(56px + 52px + env(safe-area-inset-top)); } }
-.edgf { margin-left: auto; border: 0; border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 13px; font-weight: 600; color: #1a1205; background: var(--grad); cursor: pointer; white-space: nowrap; }
+.edgf { margin-left: auto; border: 0; border-radius: 999px; padding: 9px 18px; font: inherit; font-size: 14px; font-weight: 700; box-shadow: 0 6px 18px rgba(var(--acc-rgb), .35); color: #1a1205; background: var(--grad); cursor: pointer; white-space: nowrap; }
 .ctxm { position: fixed; z-index: 90; min-width: 220px; max-width: 300px; max-height: 80vh; overflow: auto; background: rgba(28,30,35,.97); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 5px; box-shadow: 0 14px 40px rgba(0,0,0,.55); animation: fadeIn .12s ease both; }
 .ctxm button { display: block; width: 100%; text-align: left; border: 0; background: none; color: inherit; font: inherit; font-size: 13px; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
 .ctxm button:hover { background: rgba(var(--acc-rgb), .18); } .ctxm button.pri { color: var(--accent); font-weight: 600; } .ctxm button.danger { color: #ef7a76; }
@@ -381,6 +381,60 @@ html.noprices .grid .cardimg .price { display: none; }
 .undobtn.on { opacity: 1; transform: none; pointer-events: auto; }
 .undobtn kbd { font: inherit; font-size: 11px; font-weight: 400; color: var(--muted); }
 .edtabs .edgf, .edtabs .edgf:not([aria-pressed]) { background: var(--grad) !important; color: #1a1205 !important; flex: 0 0 auto; }
+/* ---- Playtest ---- */
+body.pt-on nav.bottom, body.pt-on .appbar, body.pt-on #undoBtn { display: none !important; }
+body.pt-on #main { padding: 0 !important; max-width: none !important; }
+.pt { position: fixed; inset: 0; z-index: 20; display: grid; grid-template-rows: auto 1fr auto; background-color: #1b1b1c;
+  background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px); background-size: 34px 34px; user-select: none; -webkit-user-select: none; }
+.pt-top { display: flex; align-items: center; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 6px; flex-wrap: wrap; }
+.pt-tb { border: 0; background: rgba(255,255,255,.06); color: #d9dbe0; font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 999px; cursor: pointer; }
+.pt-tb:hover { background: rgba(255,255,255,.12); } .pt-tb.pri { background: var(--grad); color: #1a1205; font-weight: 700; }
+.pt-stats { display: flex; gap: 6px; margin: 0 auto; flex-wrap: wrap; justify-content: center; }
+.pt-chip { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.06); border-radius: 999px; padding: 5px 12px; font-size: 13px; color: #c8cad0; display: inline-flex; align-items: center; gap: 6px; }
+.pt-life button { border: 0; background: rgba(255,255,255,.1); color: inherit; width: 22px; height: 22px; border-radius: 6px; cursor: pointer; } .pt-life b { font-size: 16px; color: #fff; } .pt-life span { font-size: 11px; opacity: .7; }
+.pt-tr { display: flex; gap: 6px; }
+.pt-board { position: relative; overflow: hidden; margin: 0 8px; border-radius: 10px; }
+.pt-board.dropover, .pt-hand.dropover, .pt-slot.dropover, .pt-pile.dropover .pt-slot { box-shadow: inset 0 0 0 2px rgba(var(--acc-rgb), .6); background: rgba(var(--acc-rgb), .06); }
+.pt-empty { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255,255,255,.25); font-size: 14px; pointer-events: none; }
+.pt-c { width: clamp(64px, 7.2vw, 130px); border-radius: 5%; cursor: pointer; touch-action: manipulation; }
+.pt-c .cardimg { box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+.pt-bf { position: absolute; transition: transform .22s cubic-bezier(.2,.9,.3,1.1), left .2s ease, top .2s ease; }
+.pt-bf.tap { transform: rotate(90deg); } .pt-bf:hover { filter: brightness(1.1); z-index: 3; }
+.pt-bottom { display: grid; grid-template-columns: 1fr auto 1fr; align-items: end; gap: 10px; padding: 4px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid rgba(255,255,255,.05); background: linear-gradient(transparent, rgba(0,0,0,.25)); }
+.pt-bl { align-self: start; padding-top: 6px; }
+.pt-menu { border: 0; background: none; color: #e6e7ea; font: inherit; font-weight: 600; font-size: 14px; cursor: pointer; padding: 4px 6px; border-radius: 8px; } .pt-menu:hover { background: rgba(255,255,255,.07); }
+.pt-handw { display: flex; flex-direction: column; align-items: center; }
+.pt-hh { align-self: flex-end; margin-right: 54px; }
+.pt-handrow { display: flex; align-items: center; gap: 10px; }
+.pt-ur { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #ddd; font-size: 20px; cursor: pointer; flex: none; } .pt-ur:hover { background: rgba(255,255,255,.12); }
+.pt-hand { display: flex; align-items: flex-end; justify-content: center; min-height: clamp(120px, 15vw, 210px); min-width: 200px; padding: 18px calc(20px + 2.4vw) 4px; border-radius: 14px; }
+.pt-hc { margin: 0 -1.2vw; transform: rotate(var(--r)) translateY(var(--y)); transform-origin: 50% 120%; transition: transform .18s ease, margin .18s ease; width: clamp(70px, 8.6vw, 150px); }
+.pt-hc:hover { transform: rotate(0) translateY(-26px) scale(1.12); z-index: 50 !important; margin: 0 .6vw; }
+.pt-piles { display: grid; grid-template-columns: repeat(4, clamp(70px, 7.4vw, 124px)); gap: 10px; justify-content: end; align-items: end; }
+.pt-pile { display: flex; flex-direction: column; gap: 4px; }
+.pt-ph { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: 600; color: #d6d8dc; white-space: nowrap; } .pt-ph span { overflow: hidden; text-overflow: ellipsis; }
+.pt-dots { border: 0; background: none; color: #aaa; cursor: pointer; font-size: 15px; padding: 0 2px; }
+.pt-slot { aspect-ratio: 63/88; border-radius: 6px; border: 1px dashed rgba(255,255,255,.08); display: grid; place-items: center; position: relative; cursor: pointer; }
+.pt-slot .pt-c { width: 100%; }
+.pt-none { color: rgba(255,255,255,.3); font-size: 12px; text-align: center; }
+.pt-back { width: 100%; height: 100%; border-radius: 6px; background: radial-gradient(circle at 50% 40%, #3a2416, #120c08 75%); border: 3px solid #2a1a10; box-shadow: inset 0 0 0 2px rgba(255,170,90,.18), 0 4px 14px rgba(0,0,0,.5); display: grid; place-items: center; position: relative; cursor: grab; }
+.pt-back img { width: 54%; border-radius: 18%; opacity: .9; filter: saturate(1.1); } .pt-back b { position: absolute; bottom: 6px; right: 8px; font-size: 12px; color: #f3c9a0; }
+.pt-keys { display: grid; gap: 6px; } .pt-keys div { display: flex; gap: 12px; align-items: center; font-size: 14px; } .pt-keys kbd { min-width: 92px; text-align: center; background: rgba(255,255,255,.08); border-radius: 6px; padding: 3px 8px; font: inherit; font-size: 12px; font-weight: 600; }
+.gf-pv { right: 18px; top: 70px; bottom: auto; }
+@media (max-width: 760px) {
+  .pt-bottom { grid-template-columns: 1fr; gap: 4px; } .pt-bl { order: 3; padding: 0; } .pt-piles { grid-template-columns: repeat(4, 62px); justify-content: center; order: 1; gap: 8px; } .pt-handw { order: 2; min-width: 0; }
+  .pt-pile { min-width: 0; } .pt-ph { font-size: 9.5px; } .pt-ph span { max-width: 50px; }
+  .pt-hh { margin-right: 0; } .pt-ur { width: 32px; height: 32px; font-size: 15px; } .pt-hc { width: 62px; margin: 0 -9px; } .pt-hc:hover { transform: rotate(var(--r)) translateY(var(--y)); margin: 0 -9px; }
+  .pt-hand { min-height: 96px; padding: 12px 10px 2px; min-width: 0; } .pt-c { width: 56px; } .pt-top { gap: 6px; } .pt-chip { padding: 4px 9px; font-size: 12px; } .pt-stats { order: 3; width: 100%; } .pt-tr { margin-left: auto; }
+  .pt-stats .pt-chip:nth-child(4) { display: none; }
+}
+/* ---- Fantasma do arrastar ---- */
+.dragghost { position: fixed; left: 0; top: 0; z-index: 200; pointer-events: none; will-change: transform; filter: drop-shadow(0 18px 28px rgba(0,0,0,.55)); transform-origin: 50% 30%; }
+.dragghost .cardimg, .dragghost > * { width: 100% !important; }
+.pt img, .ed-deck img, .ed-search img { -webkit-user-drag: none; user-drag: none; }
+.dragsrc { opacity: .28 !important; transition: opacity .15s ease; }
+html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
+.dropover { outline: 2px dashed rgba(var(--acc-rgb), .7); outline-offset: 3px; }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -892,7 +946,7 @@ const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
 function go(t, v = null, o = {}) {
   if (t !== "scan" && tab === "scan") stopCamera();
-  tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide"); if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null;
+  tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide", "pt-on"); { const pv = $("gfPv"); if (pv) pv.remove(); } if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null; $("main").onclick = null; $("main").onmouseover = null;
   document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
   const scan = t === "scan";
   $("scanView").classList.toggle("hidden", !scan); $("appbar").classList.toggle("hidden", scan); $("main").classList.toggle("hidden", scan);
@@ -1349,6 +1403,54 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
   $("dcOk").onclick = () => { closeSheet(); renderDeck(d.id); };
   bindMoveChips(d, c, () => { closeSheet(); renderDeck(d.id); });
 }
+// ============ ARRASTAR COM ANIMAÇÃO SUAVE ============
+// A carta segue o ponteiro com inércia e inclina conforme a velocidade. Mouse: arrasta direto. Toque: segure ~0,25 s e arraste.
+const DRAG = { on: false, suppress: 0 };
+function smoothDrag(root, o) {
+  if (!root) return; root.__sdo = o; if (root.__sd) return; root.__sd = true;
+  root.addEventListener("dragstart", (e) => e.preventDefault());
+  root.addEventListener("pointerdown", (ev) => { const o = root.__sdo;
+    if (ev.button !== 0 || DRAG.on) return; const el = ev.target.closest(o.sel); if (!el || !root.contains(el) || ev.target.closest("button:not(.resimg), select, input, .st")) return;
+    const touch = ev.pointerType !== "mouse"; const sx = ev.clientX, sy = ev.clientY; let started = false, lp = null, last = ev;
+    const begin = () => { started = true; startDrag(el, last, o); };
+    if (touch) lp = setTimeout(() => { lp = null; if (navigator.vibrate) navigator.vibrate(15); begin(); }, 230);
+    const mv = (e) => { last = e; if (started) return; const d = Math.hypot(e.clientX - sx, e.clientY - sy);
+      if (touch) { if (d > 9) cleanup(); } else if (d > 6) { cleanup(true); begin(); DRAG.moveTo(e); } };
+    const up = () => cleanup();
+    const cleanup = (keep) => { clearTimeout(lp); window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", up); window.removeEventListener("pointercancel", up); };
+    window.addEventListener("pointermove", mv); window.addEventListener("pointerup", up); window.addEventListener("pointercancel", up);
+  });
+}
+function startDrag(el, ev, o) {
+  const r = el.getBoundingClientRect(); const data = o.data(el);
+  const g = document.createElement("div"); g.className = "dragghost"; g.style.width = r.width + "px"; g.style.height = r.height + "px";
+  g.innerHTML = o.ghost ? o.ghost(el) : el.innerHTML; document.body.appendChild(g); document.documentElement.classList.add("dragging-now");
+  el.classList.add("dragsrc"); o.onStart && o.onStart(data, el);
+  const off = { x: ev.clientX - r.left, y: ev.clientY - r.top };
+  let tx = r.left, ty = r.top, cx = r.left, cy = r.top, rot = 0, raf = 0, over = null, alive = true, px = ev.clientX, py = ev.clientY;
+  DRAG.on = true; DRAG.moveTo = (e) => { px = e.clientX; py = e.clientY; tx = px - off.x; ty = py - off.y; };
+  DRAG.moveTo(ev);
+  const loop = () => { if (!alive) return; const vx = tx - cx; cx += (tx - cx) * .32; cy += (ty - cy) * .32; rot += (Math.max(-16, Math.min(16, vx * .5)) - rot) * .2;
+    g.style.transform = `translate(${cx}px, ${cy}px) rotate(${rot}deg) scale(1.07)`; raf = requestAnimationFrame(loop); };
+  loop();
+  const findT = () => { g.style.display = "none"; const t = document.elementFromPoint(px, py); g.style.display = ""; return t && t.closest(o.targets); };
+  const mv = (e) => { DRAG.moveTo(e); const t = findT(); if (t !== over) { if (over) over.classList.remove("dropover"); over = t; if (over) over.classList.add("dropover"); } };
+  const tm = (e) => { if (DRAG.on) e.preventDefault(); };
+  const end = (e) => {
+    window.removeEventListener("pointermove", mv); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", end); window.removeEventListener("touchmove", tm);
+    if (over) over.classList.remove("dropover"); const t = e.type === "pointercancel" ? null : findT();
+    DRAG.on = false; DRAG.suppress = Date.now(); document.documentElement.classList.remove("dragging-now"); o.onEnd && o.onEnd();
+    alive = false; cancelAnimationFrame(raf);
+    const ok = t && o.drop(data, t, px, py, el) !== false;
+    const fin = () => { g.remove(); el.classList.remove("dragsrc"); };
+    if (ok) { g.style.transition = "transform .16s ease-out, opacity .16s ease-out"; g.style.transform = `translate(${tx}px, ${ty}px) rotate(0deg) scale(1)`; g.style.opacity = "0"; setTimeout(fin, 170); }
+    else { const b = el.isConnected ? el.getBoundingClientRect() : r; g.style.transition = "transform .3s cubic-bezier(.2,.9,.3,1.2)"; g.style.transform = `translate(${b.left}px, ${b.top}px) rotate(0deg) scale(1)`; setTimeout(fin, 310); }
+  };
+  window.addEventListener("pointermove", mv); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", end); window.addEventListener("touchmove", tm, { passive: false });
+}
+// depois de arrastar, ignora o "clique" que o navegador dispara ao soltar
+document.addEventListener("click", (e) => { if (Date.now() - DRAG.suppress < 250) { e.stopPropagation(); e.preventDefault(); } }, true);
+
 // ============ DESFAZER (botão + Ctrl+Z) ============
 // Guarda o estado da coleção e dos decks antes de cada alteração; "Desfazer" volta um passo.
 const UNDO = { stack: [], last: null, lock: false };
@@ -1609,7 +1711,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.12";
+const APP_VERSION = "2026.11.13";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1754,7 +1856,7 @@ function gfNew(d) {
   const lib = []; const cmd = [];
   for (const c of d.cards) { if (c.board === "side" || c.board === "maybe") continue;
     for (let i = 0; i < c.qty; i++) { const x = { u: ++GFU, oi: c.oi, set: c.set, number: c.number, t: false }; (c.board === "cmd" && isCmdFormat(d) ? cmd : lib).push(x); } }
-  Object.assign(GF, { id: d.id, lib: gfShuffle(lib), hand: [], bf: [], gy: [], ex: [], cmd, turn: 0, life: isCmdFormat(d) ? 40 : 20, mull: 0, kept: false, landDrop: 0, log: [] });
+  Object.assign(GF, { hist: GF.id === d.id ? GF.hist || [] : [], fut: [], id: d.id, lib: gfShuffle(lib), hand: [], bf: [], gy: [], ex: [], cmd, turn: 0, life: isCmdFormat(d) ? 40 : 20, mull: 0, kept: false, landDrop: 0, log: [] });
   gfDraw(7);
 }
 function gfShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -1768,57 +1870,11 @@ function gfMove(u, to, where = "end") {
   const dst = gfZones()[to]; if (where === "top") dst.unshift(x); else dst.push(x);
 }
 function openGoldfish(id) { go("decks", { kind: "gold", id }); }
-function renderGoldfish(id) {
-  const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
-  if (GF.id !== id || !GF.lib) gfNew(d);
-  document.body.classList.add("wide");
-  $("title").textContent = "Goldfish · " + d.name; $("bars").innerHTML = "";
-  setMenu([["Nova partida", () => { gfNew(d); gfDraw0(); }], ["Estatísticas da mão inicial", () => gfStats(d)], ["Voltar ao deck", () => go("decks", { kind: "deck", id })]]);
-  gfDraw0();
-}
 function gfCard(x, z) {
   return `<div class="gf-c${x.t ? " tap" : ""}" data-u="${x.u}" data-oi="${x.oi}" data-z="${z}" draggable="true">${cardImgHTML({ oi: x.oi, set: x.set || DB.p[defaultPrint(x.oi)]?.[0] || "", number: x.number || DB.p[defaultPrint(x.oi)]?.[1] || "" }, { bare: true })}</div>`;
 }
-function gfDraw0() {
-  if (!GF.lib || tab !== "decks" || !view || view.kind !== "gold") return;
-  const lands = GF.bf.filter(gfIsLand), perms = GF.bf.filter(x => !gfIsLand(x));
-  const mana = lands.filter(x => !x.t).length;
-  const pre = !GF.kept;
-  $("main").innerHTML = `<div class="gf">
-    <div class="gf-top">
-      <div class="gf-stat"><b>${GF.turn || "—"}</b><span>turno</span></div>
-      <div class="gf-stat gf-life"><button data-a="life-">−</button><b>${GF.life}</b><button data-a="life+">+</button><span>vida</span></div>
-      <div class="gf-stat"><b>${mana}</b><span>mana livre</span></div>
-      <div class="gf-stat"><b>${GF.lib.length}</b><span>grimório</span></div>
-      <div class="gf-acts">${pre
-        ? `<button class="btn small" data-a="mull">Mulligan${GF.mull ? " (" + GF.mull + ")" : ""}</button><button class="btn small primary" data-a="keep">Manter mão</button>`
-        : `<button class="btn small" data-a="draw">Comprar</button><button class="btn small primary" data-a="next">Próximo turno ›</button><button class="btn small" data-a="more">⋯</button>`}</div>
-    </div>
-    ${pre ? `<div class="gf-hint">Mão inicial${GF.mull ? ` · mulligan ${GF.mull}: ao manter, escolha ${GF.mull} carta(s) para o fundo` : ""} · ${GF.hand.filter(gfIsLand).length} terreno(s)</div>` : ""}
-    ${GF.cmd.length ? `<div class="gf-zone" data-zone="cmd"><h4>Zona de comando</h4><div class="gf-row">${GF.cmd.map(x => gfCard(x, "cmd")).join("")}</div></div>` : ""}
-    <div class="gf-zone gf-bf" data-zone="bf"><h4>Campo de batalha <span>${GF.bf.length}</span></h4>
-      <div class="gf-row" data-sub="perm">${perms.map(x => gfCard(x, "bf")).join("") || `<div class="gf-empty">Permanentes</div>`}</div>
-      <div class="gf-row gf-lands" data-sub="land">${lands.map(x => gfCard(x, "bf")).join("") || `<div class="gf-empty">Terrenos</div>`}</div></div>
-    <div class="gf-zone gf-hand" data-zone="hand"><h4>Mão <span>${GF.hand.length}</span>${!pre ? ` · terrenos jogados no turno: ${GF.landDrop}` : ""}</h4><div class="gf-row">${GF.hand.map(x => gfCard(x, "hand")).join("") || `<div class="gf-empty">Vazia</div>`}</div></div>
-    <div class="gf-piles"><button class="gf-pile" data-zone="gy" data-a="pile:gy">🪦 Cemitério <b>${GF.gy.length}</b></button><button class="gf-pile" data-zone="ex" data-a="pile:ex">🌀 Exílio <b>${GF.ex.length}</b></button><button class="gf-pile" data-zone="lib" data-a="pile:lib">📚 Grimório <b>${GF.lib.length}</b></button></div>
-    <div class="cfg-s" style="text-align:center;margin-top:8px">${isWide() ? "Arraste as cartas entre as zonas · clique para ver opções · duplo clique no campo vira/desvira" : "Toque numa carta para ver as opções"}</div>
-  </div>`;
-  const m = $("main");
-  m.onclick = (e) => { const a = e.target.closest("[data-a]"); if (a) return gfAct(a.dataset.a);
-    const c = e.target.closest(".gf-c"); if (c) gfMenu(+c.dataset.u, c.dataset.z); };
-  m.ondblclick = (e) => { const c = e.target.closest(".gf-c[data-z=bf]"); if (!c) return; const f = gfFind(+c.dataset.u); f.x.t = !f.x.t; gfDraw0(); };
-  m.ondragstart = (e) => { const c = e.target.closest(".gf-c"); if (c) e.dataTransfer.setData("text/plain", c.dataset.u); };
-  m.ondragover = (e) => { if (e.target.closest("[data-zone]")) e.preventDefault(); };
-  m.ondrop = (e) => { const z = e.target.closest("[data-zone]"); if (!z) return; e.preventDefault(); const u = +e.dataTransfer.getData("text/plain"); if (!u) return; gfMove(u, z.dataset.zone, z.dataset.zone === "lib" ? "top" : "end"); gfDraw0(); };
-  if (isWide()) gfHover(m);
-}
-function gfHover(root) {
-  root.onmouseover = (e) => { const c = e.target.closest(".gf-c"); let pv = $("gfPv"); if (!c) { if (pv) pv.remove(); return; }
-    if (!pv) { pv = document.createElement("div"); pv.id = "gfPv"; pv.className = "gf-pv"; document.body.appendChild(pv); }
-    if (pv.dataset.u !== c.dataset.u) { pv.dataset.u = c.dataset.u; pv.innerHTML = c.innerHTML; } };
-  root.onmouseleave = () => { const pv = $("gfPv"); if (pv) pv.remove(); };
-}
 function gfAct(a) {
+  if (!["keep"].includes(a) || !GF.mull) gfPush();
   if (a === "life-") GF.life--; else if (a === "life+") GF.life++;
   else if (a === "mull") { GF.lib.push(...GF.hand); GF.hand = []; gfShuffle(GF.lib); GF.mull++; gfDraw(7); toast(`Mulligan ${GF.mull} — ao manter, ${GF.mull} carta(s) vão para o fundo`); }
   else if (a === "keep") { if (GF.mull) return gfBottom(GF.mull); GF.kept = true; GF.turn = 1; GF.landDrop = 0; }
@@ -1834,7 +1890,7 @@ function gfBottom(n) {
   $("gbX").onclick = closeSheet;
   $("gbP").onclick = (e) => { const c = e.target.closest(".gf-c"); if (!c) return; const u = +c.dataset.u; if (pick.has(u)) pick.delete(u); else if (pick.size < n) pick.add(u);
     $("gbP").querySelectorAll(".gf-c").forEach(el => el.classList.toggle("sel", pick.has(+el.dataset.u))); $("gbN").textContent = `${pick.size}/${n} escolhida(s)`; $("gbOk").disabled = pick.size !== n; };
-  $("gbOk").onclick = () => { for (const u of pick) gfMove(u, "lib"); GF.kept = true; GF.turn = 1; GF.landDrop = 0; closeSheet(); gfDraw0(); };
+  $("gbOk").onclick = () => { gfPush(); for (const u of pick) gfMove(u, "lib"); GF.kept = true; GF.turn = 1; GF.landDrop = 0; closeSheet(); gfDraw0(); };
 }
 function gfMenu(u, z) {
   const f = gfFind(u); if (!f) return; const x = f.x; const land = gfIsLand(x); const name = DB.o[x.oi][0];
@@ -1859,7 +1915,7 @@ function gfPile(z) {
     `${z === "lib" ? `<button class="btn" id="gpSh">Embaralhar</button>` : ""}<button class="btn primary" id="gpX">Fechar</button>`);
   $("gpX").onclick = closeSheet; if ($("gpSh")) $("gpSh").onclick = () => { gfShuffle(GF.lib); toast("Grimório embaralhado"); closeSheet(); gfDraw0(); };
   if ($("gpQ")) $("gpQ").oninput = (e) => { const q = norm(e.target.value); $("gpL").querySelectorAll(".gf-c").forEach(el => el.classList.toggle("hidden", !!q && !norm(DB.o[+el.dataset.oi][0]).includes(q) && !ptN(+el.dataset.oi).includes(q))); };
-  $("gpL").onclick = (e) => { const c = e.target.closest(".gf-c"); if (c) { closeSheet(); setTimeout(() => gfMenu(+c.dataset.u, z), 50); } };
+  $("gpL").onclick = (e) => { const c = e.target.closest(".gf-c"); if (c) { const ev = { clientX: e.clientX, clientY: e.clientY }; closeSheet(); setTimeout(() => gfCtx(ev, +c.dataset.u), 50); } };
 }
 function gfMore() {
   openSheet(`<h3 style="margin:0">Mais ações</h3><div class="gf-menu">
@@ -1877,7 +1933,7 @@ function gfScry() {
     openSheet(`<h3 style="margin:0">Topo do grimório</h3><div class="seg" id="scN">${[1, 2, 3, 4, 5].map(k => `<button data-k="${k}" aria-pressed="${k === n}">${k}</button>`).join("")}</div>
       <div class="meta">Toque numa carta para mandá-la ao fundo. As que ficarem continuam no topo, nesta ordem.</div><div class="gf-row gf-pick" id="scL">${top.map(x => gfCard(x, "lib")).join("")}</div>`, `<button class="btn primary" id="scOk">Pronto</button>`);
     $("scN").onclick = (e) => { const b = e.target.closest("[data-k]"); if (b) { n = +b.dataset.k; draw(); } };
-    $("scL").onclick = (e) => { const c = e.target.closest(".gf-c"); if (!c) return; const f = gfFind(+c.dataset.u); f.arr.splice(f.i, 1); GF.lib.push(f.x); n = Math.max(1, n - 1); toast("Para o fundo"); draw(); };
+    $("scL").onclick = (e) => { const c = e.target.closest(".gf-c"); if (!c) return; gfPush(); const f = gfFind(+c.dataset.u); f.arr.splice(f.i, 1); GF.lib.push(f.x); n = Math.max(1, n - 1); toast("Para o fundo"); draw(); };
     $("scOk").onclick = () => { closeSheet(); gfDraw0(); }; };
   draw();
 }
@@ -1898,6 +1954,145 @@ function gfStats(d) {
     <div class="cfg-s">* jogando primeiro, comprando 1 por turno, sem contar ramp nem compra extra.</div>`, `<button class="btn primary" id="gsX">Fechar</button>`);
   $("gsX").onclick = closeSheet;
 }
+
+// ============ PLAYTEST (estilo Archidekt) ============
+const gfSnap = () => JSON.stringify({ lib: GF.lib, hand: GF.hand, bf: GF.bf, gy: GF.gy, ex: GF.ex, cmd: GF.cmd, turn: GF.turn, life: GF.life, mull: GF.mull, kept: GF.kept, landDrop: GF.landDrop });
+function gfPush() { GF.hist = GF.hist || []; GF.hist.push(gfSnap()); if (GF.hist.length > 80) GF.hist.shift(); GF.fut = []; }
+function gfUndo() { if (!GF.hist || !GF.hist.length) return toast("Nada para desfazer", 900); (GF.fut = GF.fut || []).push(gfSnap()); Object.assign(GF, JSON.parse(GF.hist.pop())); gfDraw0(); }
+function gfRedo() { if (!GF.fut || !GF.fut.length) return toast("Nada para refazer", 900); GF.hist.push(gfSnap()); Object.assign(GF, JSON.parse(GF.fut.pop())); gfDraw0(); }
+const gfImg = (x) => cardImgHTML({ oi: x.oi, set: x.set || DB.p[defaultPrint(x.oi)]?.[0] || "", number: x.number || DB.p[defaultPrint(x.oi)]?.[1] || "" }, { bare: true });
+function gfAutoPos(x) { const land = gfIsLand(x); const row = GF.bf.filter(y => y !== x && gfIsLand(y) === land); const n = row.length;
+  x.x = 3 + (n % 11) * 8.6; x.y = land ? 58 + Math.floor(n / 11) * 6 : 6 + Math.floor(n / 11) * 22; }
+function gfMoveTo(u, to, where, pos) {
+  gfMove(u, to, where); const f = gfFind(u); if (!f) return;
+  if (to === "bf") { if (pos) { f.x.x = pos.x; f.x.y = pos.y; } else gfAutoPos(f.x); }
+}
+function renderGoldfish(id) {
+  const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
+  if (GF.id !== id || !GF.lib) gfNew(d);
+  document.body.classList.add("wide", "pt-on");
+  $("title").textContent = "Playtest · " + d.name; $("bars").innerHTML = "";
+  setMenu([["Nova partida", () => { gfPush(); gfNew(d); gfDraw0(); }], ["Estatísticas da mão inicial", () => gfStats(d)], ["Voltar ao deck", () => history.back()]]);
+  gfDraw0();
+}
+function gfDraw0() {
+  if (!GF.lib || tab !== "decks" || !view || view.kind !== "gold") return;
+  const d = S.decks.find(x => x.id === GF.id); const pre = !GF.kept;
+  const mana = GF.bf.filter(x => gfIsLand(x) && !x.t).length;
+  const n = GF.hand.length, mid = (n - 1) / 2;
+  const pile = (z, label, arr, show) => `<div class="pt-pile" data-zone="${z}"><div class="pt-ph"><span>${label} (${arr.length})</span><button class="pt-dots" data-pm="${z}" title="Opções">⋮</button></div>
+    <div class="pt-slot" data-open="${z}">${arr.length ? show : `<span class="pt-none">Sem cartas</span>`}</div></div>`;
+  const top = (arr) => arr.length ? `<div class="pt-c" data-u="${arr[arr.length - 1].u}" data-oi="${arr[arr.length - 1].oi}" data-z="?">${gfImg(arr[arr.length - 1])}</div>` : "";
+  $("main").innerHTML = `<div class="pt" id="pt">
+    <div class="pt-top">
+      <button class="pt-tb" id="ptExit">← Sair</button><button class="pt-tb" id="ptKeys">⌨ Atalhos</button>
+      <div class="pt-stats"><span class="pt-chip"><b>Turno ${GF.turn || "—"}</b></span>
+        <span class="pt-chip pt-life"><button data-a="life-">−</button><b>${GF.life}</b><span>vida</span><button data-a="life+">+</button></span>
+        <span class="pt-chip"><b>${mana}</b> mana livre</span><span class="pt-chip">${GF.landDrop ? "✓ terreno jogado" : "terreno: 0"}</span></div>
+      <div class="pt-tr">${pre ? `<button class="pt-tb" data-a="mull">Mulligan${GF.mull ? " (" + GF.mull + ")" : ""}</button><button class="pt-tb pri" data-a="keep">Manter mão ↵</button>`
+        : `<button class="pt-tb" data-a="draw">Comprar</button><button class="pt-tb pri" data-a="next">Próximo turno ›</button>`}</div>
+    </div>
+    <div class="pt-board" data-zone="bf" id="ptBoard">${GF.bf.map(x => `<div class="pt-c pt-bf${x.t ? " tap" : ""}" data-u="${x.u}" data-oi="${x.oi}" data-z="bf" style="left:${x.x}%;top:${x.y}%">${gfImg(x)}</div>`).join("")}
+      ${!GF.bf.length ? `<div class="pt-empty">${pre ? `Mão inicial com ${GF.hand.filter(gfIsLand).length} terreno(s)${GF.mull ? ` · ao manter, ${GF.mull} carta(s) vão para o fundo` : ""}` : "Arraste cartas da mão para cá"}</div>` : ""}</div>
+    <div class="pt-bottom">
+      <div class="pt-bl"><button class="pt-menu" id="ptAct">⋮ Ações do playtest</button></div>
+      <div class="pt-handw">
+        <div class="pt-hh"><button class="pt-menu" id="ptHand">Mão (${n}) opções ⋮</button></div>
+        <div class="pt-handrow"><button class="pt-ur" id="ptUndo" title="Desfazer (Ctrl+Z)">↶</button>
+          <div class="pt-hand" data-zone="hand" id="ptHandZ">${GF.hand.map((x, i) => { const k = i - mid; return `<div class="pt-c pt-hc" data-u="${x.u}" data-oi="${x.oi}" data-z="hand" style="--r:${(k * Math.min(5, 34 / Math.max(n, 1))).toFixed(2)}deg;--y:${(k * k * Math.min(2.6, 40 / Math.max(n * n, 1))).toFixed(1)}px;z-index:${i + 1}">${gfImg(x)}</div>`; }).join("") || `<div class="pt-none">Mão vazia</div>`}</div>
+          <button class="pt-ur" id="ptRedo" title="Refazer (Ctrl+Y)">↷</button></div>
+      </div>
+      <div class="pt-piles">
+        ${pile("lib", "Grimório", GF.lib, `<div class="pt-back" data-zone="lib"><img src="icon-v2-192.png" alt=""><b>${GF.lib.length}</b></div>`)}
+        ${pile("gy", "Cemitério", GF.gy, top(GF.gy))}${pile("ex", "Exílio", GF.ex, top(GF.ex))}
+        ${pile("cmd", "Comando", GF.cmd, GF.cmd.map(x => `<div class="pt-c" data-u="${x.u}" data-oi="${x.oi}" data-z="cmd">${gfImg(x)}</div>`).join(""))}
+      </div>
+    </div></div>`;
+  const pt = $("pt");
+  pt.onclick = (e) => {
+    const a = e.target.closest("[data-a]"); if (a) return gfAct(a.dataset.a);
+    if (e.target.closest("#ptExit")) return history.back();
+    if (e.target.closest("#ptKeys")) return gfKeys();
+    if (e.target.closest("#ptUndo")) return gfUndo(); if (e.target.closest("#ptRedo")) return gfRedo();
+    if (e.target.closest("#ptAct")) return gfActMenu(e); if (e.target.closest("#ptHand")) return gfHandMenu(e);
+    const pm = e.target.closest("[data-pm]"); if (pm) return gfPileMenu(e, pm.dataset.pm);
+    const c = e.target.closest(".pt-c");
+    if (c && c.dataset.z === "bf") { const f = gfFind(+c.dataset.u); if (!f) return; if (e.pointerType === "touch" || !isWide()) return gfCtx(e, +c.dataset.u); gfPush(); f.x.t = !f.x.t; return gfDraw0(); }
+    if (c && c.dataset.z === "hand") { if (!isWide()) return gfCtx(e, +c.dataset.u); gfPush(); gfMoveTo(+c.dataset.u, "bf"); return gfDraw0(); }
+    if (c && c.dataset.z === "cmd") return gfCtx(e, +c.dataset.u);
+    const op = e.target.closest("[data-open]"); if (op) return gfPile(op.dataset.open === "lib" ? "lib" : op.dataset.open);
+  };
+  pt.oncontextmenu = (e) => { const c = e.target.closest(".pt-c[data-u]"); if (!c) return; if (e.ctrlKey) return; e.preventDefault(); gfCtx(e, +c.dataset.u); };
+  pt.onmouseover = (e) => { const c = e.target.closest(".pt-c[data-u]"); let pv = $("gfPv"); if (!c || DRAG.on || !isWide()) { if (pv) pv.remove(); return; }
+    if (!pv) { pv = document.createElement("div"); pv.id = "gfPv"; pv.className = "gf-pv"; document.body.appendChild(pv); } if (pv.dataset.u !== c.dataset.u) { pv.dataset.u = c.dataset.u; pv.innerHTML = c.innerHTML; } };
+  pt.onmouseleave = () => { const pv = $("gfPv"); if (pv) pv.remove(); };
+  smoothDrag(pt, { sel: ".pt-c[data-u], .pt-back", targets: "[data-zone]",
+    data: (el) => el.classList.contains("pt-back") ? { lib: true } : { u: +el.dataset.u },
+    ghost: (el) => el.classList.contains("pt-back") ? (GF.lib[0] ? gfImg(GF.lib[0]) : "") : el.innerHTML,
+    onStart: () => { const pv = $("gfPv"); if (pv) pv.remove(); },
+    drop: (dt, t, x, y) => { const z = t.dataset.zone; let u = dt.u;
+      if (dt.lib) { if (!GF.lib.length) return false; u = GF.lib[0].u; if (z === "lib") return false; }
+      gfPush();
+      if (z === "bf") { const b = $("ptBoard").getBoundingClientRect(); const cw = 100 * ($("ptBoard").querySelector(".pt-c")?.offsetWidth || 110) / b.width;
+        const pos = { x: Math.max(0, Math.min(100 - cw, (x - b.left) / b.width * 100 - cw / 2)), y: Math.max(0, Math.min(80, (y - b.top) / b.height * 100 - 12)) };
+        const f = gfFind(u); if (f && f.z === "bf") { f.x.x = pos.x; f.x.y = pos.y; } else gfMoveTo(u, "bf", "end", pos); }
+      else if (z === "lib") gfMove(u, "lib", "top"); else gfMove(u, z);
+      gfDraw0(); } });
+}
+function gfCtx(e, u) {
+  const f = gfFind(u); if (!f) return; const x = f.x, z = f.z, land = gfIsLand(x); const name = DB.o[x.oi][0];
+  const mv = (to, w) => () => { gfPush(); if (to === "tap") x.t = !x.t; else if (to === "bf") gfMoveTo(u, "bf"); else gfMove(u, to, w); gfDraw0(); };
+  const items = [{ head: name }];
+  if (z === "hand") items.push([land ? "Jogar terreno" : "Lançar / jogar", mv("bf"), "pri", isWide() ? "Clique" : ""], ["Descartar", mv("gy")], ["Exilar", mv("ex")], "-", ["Topo do grimório", mv("lib", "top")], ["Fundo do grimório", mv("lib")]);
+  else if (z === "bf") items.push([x.t ? "Desvirar" : "Virar (tap)", mv("tap"), "pri", isWide() ? "Clique" : ""], ["Para o cemitério", mv("gy")], ["Exilar", mv("ex")], ["Voltar para a mão", mv("hand")], "-", ["Topo do grimório", mv("lib", "top")], ["Fundo do grimório", mv("lib")]);
+  else if (z === "cmd") items.push(["Lançar comandante", mv("bf"), "pri"], ["Para a mão", mv("hand")]);
+  else items.push(["Para a mão", mv("hand")], ["Para o campo", mv("bf")], ...(z !== "gy" ? [["Para o cemitério", mv("gy")]] : []), ...(z !== "ex" ? [["Exilar", mv("ex")]] : []), ...(z !== "lib" ? [["Topo do grimório", mv("lib", "top")]] : []));
+  items.push("-", ["🔍 Ampliar", () => { const t = document.createElement("div"); t.innerHTML = gfImg(x); zoomImg(t); }]);
+  ctxMenu(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2, items);
+}
+function gfActMenu(e) {
+  const r = e.target.getBoundingClientRect(); const d = S.decks.find(x => x.id === GF.id);
+  ctxMenu(r.left, r.top - 330, [{ head: "Ações do playtest" },
+    ["Comprar 1", () => gfAct("draw"), "", "D"], ["Comprar 3", () => { gfPush(); gfDraw(3); gfDraw0(); }], ["Próximo turno", () => gfAct("next"), "", "N"],
+    ["Desvirar tudo", () => { gfPush(); [...GF.bf, ...GF.cmd].forEach(x => x.t = false); gfDraw0(); }, "", "U"],
+    ["Ver topo (vidência)", () => gfScry(), "", "V"], ["Moer 1", () => { gfPush(); if (GF.lib.length) GF.gy.push(GF.lib.shift()); gfDraw0(); }],
+    ["Embaralhar grimório", () => { gfPush(); gfShuffle(GF.lib); toast("Embaralhado"); gfDraw0(); }, "", "S"],
+    "-", ["Estatísticas da mão inicial", () => gfStats(d)], ["Nova partida", () => { gfPush(); gfNew(d); gfDraw0(); }, "", "R"]]);
+}
+function gfHandMenu(e) {
+  const r = e.target.getBoundingClientRect();
+  ctxMenu(r.left, r.top - 200, [{ head: `Mão (${GF.hand.length})` },
+    ...(!GF.kept ? [["Manter mão", () => gfAct("keep"), "pri", "Enter"], ["Mulligan", () => gfAct("mull"), "", "M"]] : []),
+    ["Descartar a mão", () => { gfPush(); GF.gy.push(...GF.hand); GF.hand = []; gfDraw0(); }],
+    ["Embaralhar a mão no grimório", () => { gfPush(); GF.lib.push(...GF.hand); GF.hand = []; gfShuffle(GF.lib); gfDraw0(); }],
+    ["Ordenar por custo", () => { gfPush(); GF.hand.sort((a, b) => gfIsLand(b) - gfIsLand(a) || DB.o[a.oi][2] - DB.o[b.oi][2]); gfDraw0(); }]]);
+}
+function gfPileMenu(e, z) {
+  const r = e.target.getBoundingClientRect(); const arr = gfZones()[z];
+  const items = [{ head: { lib: "Grimório", gy: "Cemitério", ex: "Exílio", cmd: "Zona de comando" }[z] }, ["Ver todas", () => gfPile(z)]];
+  if (z === "lib") items.push(["Comprar 1", () => gfAct("draw")], ["Buscar carta (tutor)", () => gfPile("lib")], ["Ver topo (vidência)", () => gfScry()], ["Embaralhar", () => { gfPush(); gfShuffle(GF.lib); toast("Embaralhado"); gfDraw0(); }]);
+  if ((z === "gy" || z === "ex") && arr.length) items.push(["Tudo de volta para o grimório", () => { gfPush(); GF.lib.push(...arr.splice(0)); gfShuffle(GF.lib); gfDraw0(); }]);
+  ctxMenu(r.left - 120, r.top - 40, items);
+}
+function gfKeys() {
+  openSheet(`<h3 style="margin:0">Atalhos do playtest</h3><div class="pt-keys">${[["D", "Comprar"], ["N", "Próximo turno (desvira e compra)"], ["U", "Desvirar tudo"], ["S", "Embaralhar grimório"], ["V", "Ver topo (vidência)"], ["M", "Mulligan"], ["Enter", "Manter mão"], ["R", "Nova partida"], ["Ctrl+Z", "Desfazer"], ["Ctrl+Y", "Refazer"], ["Clique", "Mão: jogar · Campo: virar/desvirar"], ["Botão direito", "Todas as opções da carta"], ["Arrastar", "Mover entre campo, mão, grimório, cemitério, exílio"]].map(([k, t]) => `<div><kbd>${k}</kbd><span>${t}</span></div>`).join("")}</div>`, `<button class="btn primary" id="kX">OK</button>`);
+  $("kX").onclick = closeSheet;
+}
+document.addEventListener("keydown", (e) => {
+  if (!(tab === "decks" && view && view.kind === "gold") || !$("pt")) return; const t = e.target; if (t && t.matches("input, textarea, select")) return;
+  if (!$("sheet").classList.contains("hidden")) return;
+  const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); return gfUndo(); }
+  if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); return gfRedo(); }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const map = { d: "draw", n: "next", m: "mull" };
+  if (map[k]) { if (k === "m" && GF.kept) return; if ((k === "d" || k === "n") && !GF.kept) return; e.preventDefault(); return gfAct(map[k]); }
+  if (k === "enter" && !GF.kept) { e.preventDefault(); return gfAct("keep"); }
+  if (k === "u") { gfPush(); [...GF.bf, ...GF.cmd].forEach(x => x.t = false); gfDraw0(); }
+  if (k === "s") { gfPush(); gfShuffle(GF.lib); toast("Embaralhado", 900); gfDraw0(); }
+  if (k === "v") gfScry();
+  if (k === "r") { gfPush(); gfNew(S.decks.find(x => x.id === GF.id)); gfDraw0(); }
+});
 
 // ============ ABA EDH ============
 // Escolhe um comandante e mostra, por bracket (1–5), os decks do EDHREC, a lista média e as cartas de maior sinergia.
@@ -2302,7 +2497,7 @@ function renderEditor() {
   setMenu([["▶ Testar (goldfish)", () => openGoldfish(d.id)], ["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.add("hidden"); $("main").onclick = null; $("main").oncontextmenu = null;
   $("main").innerHTML = `
-    <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}<button class="edgf" id="edGf" title="Testar o deck sozinho">▶ Testar</button></div>
+    <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}<button class="edgf" id="edGf" title="Testar o deck sozinho">▶ Testar (playtest)</button></div>
     <div class="editor" data-pane="${ED.pane}">
       <section class="ed-search" id="edSearch"></section>
       <section class="ed-deck" id="edDeck"></section>
@@ -2373,7 +2568,7 @@ async function drawEdhRecs(d) {
     if (!cards.length) return ""; shown += cards.length;
     return `<div class="edh-h" style="grid-column:1/-1"><span>${esc(EDH_PT[l.header] || l.header)}</span><span class="meta">${cards.length}</span></div>` + cards.map(({ v, oi }) => {
       const pct = v.potential_decks ? Math.round(v.num_decks * 100 / v.potential_decks) : 0; const lib = libFor(oi); const n = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
-      return `<div class="res" draggable="true" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
+      return `<div class="res" data-oi="${oi}"><button class="resimg" data-add="${oi}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi }), { bare: true })}${pct ? `<span class="edh-pct" title="Presente em ${pct}% dos decks desse comandante">${pct}%</span>` : ""}${n ? `<span class="inb">${n}</span>` : ""}${lib ? `<span class="ownb">✓</span>` : ""}</button><button class="resname" data-info="${oi}">${esc(v.name)}</button></div>`;
     }).join("");
   }).join("");
   const deckN = (j.num_decks_avg || (j.container.json_dict.card || {}).num_decks || 0);
@@ -2390,7 +2585,7 @@ function drawResults() {
   $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
   $("edResults").innerHTML = list.map(i => {
     const inD = d.cards.filter(c => c.oi === i).reduce((a, c) => a + c.qty, 0); const lib = libFor(i);
-    return `<div class="res" draggable="true" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
+    return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
   }).join("");
   hoverBind($("edResults"));
 }
@@ -2572,8 +2767,8 @@ function renderDeckPane() {
       return `<div class="col" data-g="${esc(k)}"><div class="colh"><span>${esc(k)}</span><span class="meta">${n}</span></div>
         ${list.map(c => { const st = ownStatus(d, c); const o = DB.o[c.oi];
           return ED.mode === "list"
-            ? `<div class="li" draggable="true" data-oi="${c.oi}" data-b="${c.board}"><span class="q">${c.qty}</span><span class="nm">${esc(o[0])}</span>${manaHTML(o[1])}<span class="st ${st}"></span></div>`
-            : `<div class="stk" draggable="true" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fakeEntry(c), { bare: true })}${c.qty > 1 ? `<span class="q">${c.qty}</span>` : ""}<span class="st ${st}" title="${st === "ok" ? "Montada no deck" : st === "lib" ? "Temos na caixa" : "Não temos"}"></span></div>`; }).join("")}</div>`; }).join("")}
+            ? `<div class="li" data-oi="${c.oi}" data-b="${c.board}"><span class="q">${c.qty}</span><span class="nm">${esc(o[0])}</span>${manaHTML(o[1])}<span class="st ${st}"></span></div>`
+            : `<div class="stk" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fakeEntry(c), { bare: true })}${c.qty > 1 ? `<span class="q">${c.qty}</span>` : ""}<span class="st ${st}" title="${st === "ok" ? "Montada no deck" : st === "lib" ? "Temos na caixa" : "Não temos"}"></span></div>`; }).join("")}</div>`; }).join("")}
       ${ED.group === "cat" || ED.group === "tpl" ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
     </div>
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
@@ -2588,20 +2783,17 @@ function renderDeckPane() {
     if (e.target.closest(".st")) { const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) return ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); }); }
     deckCardMenu(+it.dataset.oi, it.dataset.b); };
   area.oncontextmenu = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (!it) return; e.stopPropagation(); const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) cardCtx(e, d, c, () => { renderDeckPane(); renderStatsPane(); }, () => deckCardMenu(c.oi, c.board)); };
-  // arrastar e soltar
-  area.ondragstart = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (!it) return; e.dataTransfer.setData("text/plain", it.dataset.oi + "|" + it.dataset.b); area.classList.add("dragging"); };
-  area.ondragend = () => area.classList.remove("dragging");
-  area.ondragover = (e) => { if (e.target.closest("[data-g]")) e.preventDefault(); };
-  area.ondrop = (e) => {
-    const tgt = e.target.closest("[data-g]"); if (!tgt) return; e.preventDefault(); area.classList.remove("dragging");
-    const [oi, b] = e.dataTransfer.getData("text/plain").split("|");
-    if (oi === "add") return dropNew(+b, tgt.dataset.g);
-    moveCard(+oi, b, tgt.dataset.g);
-  };
-  // arrastar das cartas da busca (à esquerda) direto para uma coluna/categoria do deck
+  // arrastar e soltar (com animação): cartas do deck entre colunas, e cartas da busca para o deck
+  smoothDrag(area, { sel: "[data-oi][data-b]", targets: "[data-g]",
+    data: (el) => ({ oi: +el.dataset.oi, b: el.dataset.b }),
+    ghost: (el) => { const c = deckOf().cards.find(x => x.oi === +el.dataset.oi && x.board === el.dataset.b); return cardImgHTML(fakeEntry(c || { oi: +el.dataset.oi }), { bare: true }); },
+    onStart: () => area.classList.add("dragging"), onEnd: () => area.classList.remove("dragging"),
+    drop: (d, t) => { moveCard(d.oi, d.b, t.dataset.g); } });
   const sr = $("edSearch");
-  if (sr) { sr.ondragstart = (e) => { const it = e.target.closest(".res[data-oi]"); if (!it) return; e.dataTransfer.setData("text/plain", "add|" + it.dataset.oi); e.dataTransfer.effectAllowed = "copy"; area.classList.add("dragging"); };
-    sr.ondragend = () => area.classList.remove("dragging"); }
+  if (sr) { smoothDrag(sr, { sel: ".res[data-oi]", targets: "#edDeck [data-g]",
+    data: (el) => ({ oi: +el.dataset.oi }), ghost: (el) => cardImgHTML(fakeEntry({ oi: +el.dataset.oi }), { bare: true }),
+    onStart: () => area.classList.add("dragging"), onEnd: () => area.classList.remove("dragging"),
+    drop: (d, t) => { dropNew(d.oi, t.dataset.g); } }); }
   hoverBind(area);
 }
 function moveCard(oi, board, g) {
