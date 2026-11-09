@@ -452,6 +452,12 @@ html.dragging-now, html.dragging-now * { cursor: grabbing !important; }
 .brbig { font-size: 22px; font-weight: 800; min-width: 54px; height: 54px; border-radius: 14px; display: grid; place-items: center; flex: none; }
 .brlist { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .brcombo { font-size: 13px; margin: 3px 0; }
+.askbox { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.5); display: grid; place-items: center; padding: 20px; animation: fadeIn .12s ease both; }
+.askin { width: min(420px, 100%); background: #1f2126; border: 1px solid rgba(255,255,255,.08); border-radius: 18px; padding: 18px; display: grid; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+.askin b { font-size: 16px; } .askbt { display: flex; gap: 8px; justify-content: flex-end; }
+.colh { display: flex; align-items: center; gap: 6px; } .colh > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.colm { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 6px; cursor: pointer; }
+.colm:hover { background: rgba(255,255,255,.1); color: var(--text, #fff); }
 .gf { display: flex; flex-direction: column; gap: 10px; }
 .gf-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; position: sticky; top: calc(var(--appbar-h, 56px) + env(safe-area-inset-top)); z-index: 4; background: var(--bg); padding: 4px 0 6px; }
 .gf-stat { background: var(--surface); border-radius: 14px; padding: 6px 12px; display: flex; flex-direction: column; align-items: center; min-width: 58px; }
@@ -734,10 +740,10 @@ function priceBlock(oi, set, number, foil) {
   return `<div class="pricebox"><div><b>${fmtUSD(v) || "sem preço"}</b> <span class="meta">${l ? "LigaMagic · anotado em " + new Date(l.at).toLocaleDateString("pt-BR") : v ? "estimado (Scryfall × dólar)" : ""}</span></div>
     <div class="actions"><a class="btn small" target="_blank" rel="noopener" href="${esc(ligaURL(oi))}">Ver na LigaMagic ↗</a><button class="btn small" data-ligaset="${esc(set)}|${esc(number)}|${foil ? 1 : 0}">${l ? "Atualizar preço" : "Anotar preço da Liga"}</button></div></div>`;
 }
-document.addEventListener("click", (e) => {
+document.addEventListener("click", async (e) => {
   const b = e.target.closest("[data-ligaset]"); if (!b) return;
   const [set, number, f] = b.dataset.ligaset.split("|"); const cur = ligaOf(set, number, f === "1");
-  const v = prompt("Preço na LigaMagic (R$). Deixe vazio para apagar.", cur ? (cur.v / 100).toFixed(2).replace(".", ",") : "");
+  const v = await askText("Preço na LigaMagic (R$)", cur ? (cur.v / 100).toFixed(2).replace(".", ",") : "", { hint: "Deixe vazio para apagar.", allowEmpty: true, inputmode: "decimal" });
   if (v === null) return; S.liga = S.liga || {}; const k = ligaKey(set, number, f === "1");
   const n = Math.round(parseFloat(v.replace(/[^\d,.]/g, "").replace(/\.(?=\d{3})/g, "").replace(",", ".")) * 100);
   if (!v.trim() || !n) delete S.liga[k]; else S.liga[k] = { v: n, at: Date.now() };
@@ -1358,7 +1364,7 @@ function renderDeck(id) {
   if (DF.id !== id) { DF.id = id; DF.f = null; }
   const d = S.decks.find(x => x.id === id); if (!d) return go("decks");
   $("title").textContent = d.name; $("bars").innerHTML = ""; $("backBtn").classList.remove("invisible");
-  setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
+  setMenu([["Abrir editor de deck", () => openEditor(d.id)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Renomear", async () => { const n = await askText("Nome do deck", d.name); if (n) { d.name = n; save(); renderDeck(id); } }], ["Montar com cartas da coleção", () => buildDeck(d)], ["Desmontar (devolver às caixas)", () => unbuildDeck(d)], ["Copiar lista do deck", () => copyDeck(d)], ["Copiar lista do que falta", () => copyMissing(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.remove("hidden"); $("fab").onclick = () => addCardToDeck(d);
   const total = deckCount(d);
   const cards = d.cards.map(c => ({ ...c, o: oInfo(c.oi), have: haveFor(d, c.oi), lib: libFor(c.oi) }));
@@ -1437,6 +1443,20 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
   $("dcOk").onclick = () => { closeSheet(); renderDeck(d.id); };
   bindMoveChips(d, c, () => { closeSheet(); renderDeck(d.id); });
 }
+// Caixa de texto do próprio app (o app de Windows não aceita o prompt() do navegador)
+function askText(title, def = "", o = {}) {
+  return new Promise((resolve) => {
+    const old = $("askBox"); if (old) old.remove();
+    const w = document.createElement("div"); w.id = "askBox"; w.className = "askbox";
+    w.innerHTML = `<div class="askin" role="dialog" aria-modal="true"><b>${esc(title)}</b>${o.hint ? `<div class="meta">${esc(o.hint)}</div>` : ""}<input type="text" id="askI" value="${esc(def)}" ${o.inputmode ? `inputmode="${o.inputmode}"` : ""} maxlength="80" autocomplete="off"><div class="askbt"><button class="btn" id="askC">Cancelar</button><button class="btn primary" id="askO">OK</button></div></div>`;
+    document.body.appendChild(w); const i = $("askI"); setTimeout(() => { i.focus(); i.select(); }, 30);
+    const done = (v) => { w.remove(); document.removeEventListener("keydown", k, true); resolve(v); };
+    const ok = () => { const v = i.value; if (!v.trim() && !o.allowEmpty) { i.focus(); return; } done(v); };
+    const k = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); done(null); } else if (e.key === "Enter" && document.activeElement === i) { e.preventDefault(); ok(); } };
+    document.addEventListener("keydown", k, true);
+    $("askO").onclick = ok; $("askC").onclick = () => done(null); w.onclick = (e) => { if (e.target === w) done(null); };
+  });
+}
 // ============ ARRASTAR COM ANIMAÇÃO SUAVE ============
 // A carta segue o ponteiro com inércia e inclina conforme a velocidade. Mouse: arrasta direto. Toque: segure ~0,25 s e arraste.
 const DRAG = { on: false, suppress: 0 };
@@ -1475,13 +1495,15 @@ function startDrag(el, ev, o) {
     if (over) over.classList.remove("dropover"); const t = e.type === "pointercancel" ? null : findT();
     DRAG.on = false; DRAG.suppress = Date.now(); document.documentElement.classList.remove("dragging-now"); o.onEnd && o.onEnd();
     alive = false; cancelAnimationFrame(raf);
-    const ok = t && o.drop(data, t, px, py, el) !== false;
-    const fin = () => { g.remove(); el.classList.remove("dragsrc"); };
+    const fin = () => { g.remove(); el.classList.remove("dragsrc"); document.querySelectorAll(".dragsrc").forEach(x => x.classList.remove("dragsrc")); };
+    let ok = false; try { ok = !!t && o.drop(data, t, px, py, el) !== false; } catch (err) { console.error(err); ok = false; }
     if (ok) { g.style.transition = "transform .16s ease-out, opacity .16s ease-out"; g.style.transform = `translate(${tx}px, ${ty}px) rotate(0deg) scale(1)`; g.style.opacity = "0"; setTimeout(fin, 170); }
     else { const b = el.isConnected ? el.getBoundingClientRect() : r; g.style.transition = "transform .3s cubic-bezier(.2,.9,.3,1.2)"; g.style.transform = `translate(${b.left}px, ${b.top}px) rotate(0deg) scale(1)`; setTimeout(fin, 310); }
   };
   window.addEventListener("pointermove", mv); window.addEventListener("pointerup", end); window.addEventListener("pointercancel", end); window.addEventListener("touchmove", tm, { passive: false });
 }
+// segurança: se algum fantasma ficar para trás, some no próximo toque
+document.addEventListener("pointerdown", () => { if (!DRAG.on) document.querySelectorAll(".dragghost").forEach(g => { if (!g.style.transition) g.remove(); }); }, true);
 // depois de arrastar, ignora o "clique" que o navegador dispara ao soltar
 document.addEventListener("click", (e) => { if (Date.now() - DRAG.suppress < 250) { e.stopPropagation(); e.preventDefault(); } }, true);
 
@@ -1548,7 +1570,7 @@ function bulkCtx(e, d, after) {
     ["📦 Pegar da caixa (as que tivermos)", () => { list.forEach(c => allocate(d, c.oi, c.qty)); done(); toast("Cartas reservadas das caixas"); }],
     ["📋 Copiar nomes", () => { navigator.clipboard.writeText(list.map(c => `${c.qty} ${DB.o[c.oi][0]}`).join("\n")).then(() => toast("Lista copiada")); }],
     "-", { head: "Mover todas para" }, ["Deck (por tipo)", () => mvAll("main")], ...cats.map(k => ["🏷 " + k, () => mvAll("cat:" + k)]),
-    ["＋ Nova categoria…", () => { const n = prompt("Nome da categoria"); if (n && n.trim()) mvAll("cat:" + n.trim()); }], ["Sideboard", () => mvAll("side")], ["Talvez", () => mvAll("maybe")],
+    ["＋ Nova categoria…", async () => { const n = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" }); if (n && n.trim()) mvAll("cat:" + n.trim()); }], ["Sideboard", () => mvAll("side")], ["Talvez", () => mvAll("maybe")],
     "-", ["🗑 Remover todas do deck", () => { list.forEach(c => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); }); done(); }, "danger"], ["Limpar seleção", () => { SEL.clear(); selPaint(); }]]);
 }
 function compareCards(a, b) {
@@ -1592,7 +1614,7 @@ function cardCtx(e, d, c, after, openFn) {
     "-", { head: "Mover para" },
     ...(c.board !== "main" || c.cat ? [["Deck (por tipo)", () => mv("main")]] : []),
     ...cats.filter(k => !(c.board === "main" && c.cat === k)).map(k => ["🏷 " + k, () => mv("cat:" + k)]),
-    ["＋ Nova categoria…", () => { const n = prompt("Nome da categoria (ex.: Ramp, Remoção, Combo)"); if (n && n.trim()) mv("cat:" + n.trim()); }],
+    ["＋ Nova categoria…", async () => { const n = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" }); if (n && n.trim()) mv("cat:" + n.trim()); }],
     ...(c.board !== "side" ? [["Sideboard", () => mv("side")]] : []), ...(c.board !== "maybe" ? [["Talvez", () => mv("maybe")]] : []),
     ...(c.board !== "cmd" && isCmdFormat(d) && cmdCandidates().includes(c.oi) ? [["Comandante", () => mv("cmd")]] : []),
     "-", ["🗑 Remover do deck", () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); save(); after(); }, "danger"], { hint: "Ctrl + botão direito: menu padrão do navegador" }];
@@ -1745,7 +1767,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.14";
+const APP_VERSION = "2026.11.14c";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2577,6 +2599,32 @@ function ownStatus(d, c) { const have = haveFor(d, c.oi); if (have >= c.qty) ret
 function openEditor(id) { ED.id = id; ED.pane = d0pane(id); go("decks", { kind: "edit", id }); }
 function d0pane(id) { const d = S.decks.find(x => x.id === id); return d && d.cards.length ? "deck" : "busca"; }
 document.addEventListener("click", (e) => { const eg = e.target.closest("#edGf"); if (eg && view && view.id) { GF.id = null; return openGoldfish(view.id); } const b = e.target.closest("#openEd"); if (b && view && view.id) openEditor(view.id); const gb = e.target.closest("#openGf"); if (gb && view && view.id) { GF.id = null; openGoldfish(view.id); } const r = e.target.closest("#rebuildDeck"); if (r && view && view.id) { const d = S.decks.find(x => x.id === view.id); if (d) buildDeck(d); } });
+// Menu ⋮ de cada categoria/coluna do editor
+function colMenu(e, k) {
+  const d = deckOf(); const list = d.cards.filter(c => !(c.board === "cmd" && isCmdFormat(d)) && groupKey(c) === k); if (!list.length) return;
+  const n = list.reduce((a, c) => a + c.qty, 0); const after = () => { renderDeckPane(); renderStatsPane(); };
+  const copy = (arr, what) => { const txt = arr.map(([q, oi]) => `${q} ${DB.o[oi][0]}`).join("\n"); if (!txt) return toast("Nada para copiar."); navigator.clipboard.writeText(txt).then(() => toast(`${what} copiada (${arr.length} linha${arr.length > 1 ? "s" : ""}) — cole na busca por lista da LigaMagic`, 3200), () => askText("Copie a lista", txt)); };
+  const missing = list.map(c => [Math.max(0, c.qty - haveFor(d, c.oi)), c.oi]).filter(([q]) => q > 0);
+  const custom = list.some(c => c.cat === k) || ED.group === "tpl" || ED.group === "cat";
+  const fixedBoard = k === "Sideboard" || k === "Talvez" || k === "Comandante";
+  const cats = [...new Set(d.cards.filter(x => x.board === "main" && x.cat && x.cat !== k).map(x => x.cat))].sort((a, b) => a.localeCompare(b));
+  const mvAll = (to) => { list.slice().forEach(c => moveDeckCard(d, c, to)); after(); };
+  ctxMenu(e.clientX, e.clientY, [{ head: `${k} · ${n} carta${n > 1 ? "s" : ""}` },
+    ["📋 Copiar lista", () => copy(list.map(c => [c.qty, c.oi]), "Lista"), "pri"],
+    ["📋 Copiar só o que falta" + (missing.length ? ` (${missing.reduce((a, [q]) => a + q, 0)})` : ""), () => copy(missing, "Lista do que falta")],
+    ["↗ Abrir a LigaMagic", () => window.open("https://www.ligamagic.com.br/", "_blank")],
+    "-",
+    ...(custom && !fixedBoard ? [["✏ Renomear categoria", async () => { const nn = await askText("Renomear categoria", k); if (!nn || !nn.trim() || nn.trim() === k) return; list.forEach(c => { if (c.board === "main") c.cat = nn.trim(); }); if (ED.group !== "tpl") ED.group = "cat"; save(); after(); }]] : []),
+    ["✓ Tenho todas — já estão no deck", () => { list.forEach(c => { if (ownStatus(d, c) !== "ok") ownMark(d, c, true, () => {}); }); save(); after(); toast("Marcadas como no deck"); }],
+    ["📦 Pegar da caixa (as que tivermos)", () => { list.forEach(c => allocate(d, c.oi, c.qty)); save(); after(); toast("Reservadas das caixas"); }],
+    ["☑ Selecionar todas", () => { list.forEach(c => SEL.add(selKey(c))); selPaint(); }],
+    "-", { head: "Mover todas para" },
+    ...(k !== "Sideboard" && k !== "Talvez" && !cats.length && !custom ? [] : [["Deck (por tipo)", () => mvAll("main")]]),
+    ...cats.map(x => ["🏷 " + x, () => mvAll("cat:" + x)]),
+    ["＋ Nova categoria…", async () => { const nn = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" }); if (nn && nn.trim()) mvAll("cat:" + nn.trim()); }],
+    ...(k !== "Sideboard" ? [["Sideboard", () => mvAll("side")]] : []), ...(k !== "Talvez" ? [["Talvez", () => mvAll("maybe")]] : []),
+    "-", ["🗑 Remover todas do deck", async () => { list.forEach(c => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); }); save(); after(); toast(`${n} carta(s) removida(s) — Ctrl+Z desfaz`); }, "danger"]]);
+}
 // Botão direito nas cartas da busca do editor
 function addToAnyDeck(dd, oi, board) {
   if (dd.id === ED.id && tab === "decks" && view && view.kind === "edit") return addToDeck(oi, board);
@@ -2613,7 +2661,7 @@ function renderEditor() {
   const d = deckOf(); if (!d) return go("decks");
   document.body.classList.add("wide");
   $("title").textContent = d.name; $("backBtn").classList.remove("invisible"); $("bars").innerHTML = "";
-  setMenu([["▶ Testar (goldfish)", () => openGoldfish(d.id)], ["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", () => { const n = prompt("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), () => { const f = prompt("Formato (Commander, Standard, Modern, Pauper, Livre)", d.format || "Commander"); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Excluir deck…", () => deleteDeck(d)]]);
+  setMenu([["▶ Testar (goldfish)", () => openGoldfish(d.id)], ["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", async () => { const n = await askText("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), async () => { const f = await askText("Formato", d.format || "Commander", { hint: "Commander, Standard, Modern, Pauper, Livre…" }); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.add("hidden"); $("main").onclick = null; $("main").oncontextmenu = null;
   $("main").innerHTML = `
     <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}<button class="edgf" id="edGf" title="Testar o deck sozinho">▶ Testar (playtest)</button></div>
@@ -2710,12 +2758,12 @@ function drawResults() {
   hoverBind($("edResults"));
 }
 // ---- Deck ----
-function dropNew(oi, g) {
+async function dropNew(oi, g) {
   const d = deckOf(); if (!d || g === "__del") return;
   if (g === "Comandante") { if (isCmdFormat(d) && cmdCandidates().includes(oi)) return setCommander(d, oi, d.cards.some(c => c.board === "cmd")); return toast("Essa carta não pode ser comandante."); }
   const board = g === "Sideboard" ? "side" : g === "Talvez" ? "maybe" : "main";
   let cat = "";
-  if (board === "main" && (ED.group === "cat" || ED.group === "tpl")) { cat = g; if (g === "__new") { cat = prompt("Nome da nova categoria (ex.: Ramp, Remoção, Combo)") || ""; if (!cat.trim()) return; cat = cat.trim(); } }
+  if (board === "main" && (ED.group === "cat" || ED.group === "tpl")) { cat = g; if (g === "__new") { cat = (await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo, Wincons" })) || ""; if (!cat.trim()) return; cat = cat.trim(); } }
   const before = d.cards.find(x => x.oi === oi && x.board === board); const q0 = before ? before.qty : 0;
   addToDeck(oi, board);
   const c = d.cards.find(x => x.oi === oi && x.board === board);
@@ -2884,7 +2932,7 @@ function renderDeckPane() {
     ${commanderBanner(d)}
     ${d.cards.some(c => c.board !== "cmd") ? "" : `<div class="empty">Deck vazio. Use a busca para adicionar cartas${isWide() ? " (painel da esquerda)" : ""}.</div>`}
     <div class="cols ${ED.mode}">${keys.map(k => { const list = groups[k].sort(sortIn); const n = list.reduce((a, c) => a + c.qty, 0);
-      return `<div class="col" data-g="${esc(k)}"><div class="colh"><span>${esc(k)}</span><span class="meta">${n}</span></div>
+      return `<div class="col" data-g="${esc(k)}"><div class="colh"><span>${esc(k)}</span><span class="meta">${n}</span><button class="colm" data-colm="${esc(k)}" title="Opções da categoria">⋮</button></div>
         ${list.map(c => { const st = ownStatus(d, c); const o = DB.o[c.oi];
           return ED.mode === "list"
             ? `<div class="li" data-oi="${c.oi}" data-b="${c.board}"><span class="q">${c.qty}</span><span class="nm">${esc(o[0])}</span>${manaHTML(o[1])}<span class="st ${st}"></span></div>`
@@ -2898,7 +2946,8 @@ function renderDeckPane() {
   if ($("cbPartner")) $("cbPartner").onclick = () => pickCommander(d, d.cards.find(c => c.board === "cmd").oi);
   $("edMode").onchange = (e) => { ED.mode = e.target.value; renderDeckPane(); };
   const area = $("edDeck");
-  area.onclick = (e) => { const it = e.target.closest("[data-oi][data-b]"); if (!it) return;
+  area.onclick = (e) => { const cm = e.target.closest("[data-colm]"); if (cm) { const r = cm.getBoundingClientRect(); return colMenu({ clientX: r.left - 180, clientY: r.bottom + 4 }, cm.dataset.colm); }
+    const it = e.target.closest("[data-oi][data-b]"); if (!it) return;
     if (e.ctrlKey || e.metaKey) { const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) selToggle(c); return; }
     if (e.target.closest(".st")) { const d = deckOf(); const c = d.cards.find(x => x.oi === +it.dataset.oi && x.board === it.dataset.b); if (c) return ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); }); }
     deckCardMenu(+it.dataset.oi, it.dataset.b); };
@@ -2916,14 +2965,14 @@ function renderDeckPane() {
     drop: (d, t) => { dropNew(d.oi, t.dataset.g); } }); }
   hoverBind(area);
 }
-function moveCard(oi, board, g) {
+async function moveCard(oi, board, g) {
   const d = deckOf(); const c = d.cards.find(x => x.oi === oi && x.board === board); if (!c) return;
   if (g === "__del") { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); }
   else if (g === "Sideboard" || g === "Talvez") { c.board = g === "Sideboard" ? "side" : "maybe"; releaseExtra(d, oi); }
   else if (g === "Comandante") c.board = "cmd";
   else {
     if (c.board !== "main") c.board = "main";
-    if (ED.group === "cat" || ED.group === "tpl") { let name = g; if (g === "__new") { name = prompt("Nome da nova categoria (ex.: Ramp, Remoção, Combo)"); if (!name) return; } c.cat = name; }
+    if (ED.group === "cat" || ED.group === "tpl") { let name = g; if (g === "__new") { name = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo, Wincons" }); if (!name) return; } c.cat = name; }
   }
   save(); renderDeckPane(); renderStatsPane();
 }
@@ -2947,7 +2996,7 @@ function deckCardMenu(oi, board) { setTimeout(() => { if (!$("sheet").classList.
   $("mM").onclick = () => { if (c.qty > 1) { c.qty--; $("mQ").textContent = c.qty; releaseExtra(d, oi); done(); } };
   $("mP").onclick = () => { c.qty++; $("mQ").textContent = c.qty; done(); };
   $("mBoard").onchange = (e) => { c.board = e.target.value; done(); };
-  $("mCat").onchange = (e) => { let v = e.target.value; if (v === "__new") v = prompt("Nome da categoria") || ""; c.cat = v || undefined; if (!c.cat) delete c.cat; if (c.cat && ED.group !== "tpl") ED.group = "cat"; done(); };
+  $("mCat").onchange = async (e) => { let v = e.target.value; if (v === "__new") v = (await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" })) || ""; c.cat = v || undefined; if (!c.cat) delete c.cat; if (c.cat && ED.group !== "tpl") ED.group = "cat"; done(); };
   $("mPrint").onchange = (e) => { const p = DB.p[+e.target.value]; c.set = p[0]; c.number = p[1]; done(); deckCardMenu(oi, c.board); };
   $("mDel").onclick = () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, oi); closeSheet(); done(); };
   $("mOk").onclick = closeSheet;
@@ -3028,7 +3077,7 @@ function renderStatsPane() {
 // ============ CAIXAS ============
 function renderBoxes() {
   $("title").textContent = "Caixas"; $("bars").innerHTML = "";
-  setMenu([["Reorganizar caixas", () => { buildLayout(); renderBoxes(); toast("Caixas reorganizadas."); }], ["Capacidade por caixa", () => { const n = parseInt(prompt("Quantas cartas com sleeve cabem em cada caixa?", S.boxes.capacity), 10); if (n > 20) { S.boxes.capacity = n; save(); renderBoxes(); } }], ["Lista para etiquetas dos divisores", labelsSheet]]);
+  setMenu([["Reorganizar caixas", () => { buildLayout(); renderBoxes(); toast("Caixas reorganizadas."); }], ["Capacidade por caixa", async () => { const n = parseInt(await askText("Quantas cartas com sleeve cabem em cada caixa?", String(S.boxes.capacity), { inputmode: "numeric" }), 10); if (n > 20) { S.boxes.capacity = n; save(); renderBoxes(); } }], ["Lista para etiquetas dos divisores", labelsSheet]]);
   if (!S.boxes.layout) buildLayout();
   const counts = sectionCounts(); const cap = S.boxes.capacity;
   const inDeckTotal = S.cards.reduce((a, e) => a + inDecks(e), 0);
@@ -3106,9 +3155,9 @@ function renderScan() {
   $("sessCount").textContent = SC.session.reduce((a, x) => a + x.qty, 0);
   startScanner();
 }
-$("scanDest").onchange = (e) => {
+$("scanDest").onchange = async (e) => {
   if (e.target.value === "__new") {
-    const n = prompt("Nome do deck (pode deixar em branco e dar o nome no final)", ""); if (n === null) { e.target.value = S.settings.scanDest || ""; return; }
+    const n = await askText("Nome do novo deck", "", { hint: "Pode deixar em branco e dar o nome no final.", allowEmpty: true }); if (n === null) { e.target.value = S.settings.scanDest || ""; return; }
     const d = { id: uid(), name: n.trim() || "Deck escaneado " + new Date().toLocaleDateString("pt-BR"), unnamed: !n.trim(), format: "Commander", source: "scan", cards: [], built: true, created: Date.now() }; S.decks.push(d);
     S.settings.scanDest = d.id; save(); renderScan(); toast("Escaneando o deck. A 1ª lendária pode virar o comandante. Toque em “Finalizar” quando acabar.", 3500); return;
   }
