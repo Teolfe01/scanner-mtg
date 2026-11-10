@@ -1814,7 +1814,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.16d";
+const APP_VERSION = "2026.11.17a";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2248,11 +2248,16 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ============ AVALIADOR DE BRACKET (Commander Brackets, beta) ============
-// Regras: Game Changers (0 → 1–2 · até 3 → 3 · 4+ → 4), destruição de terrenos em massa, turnos extras em cadeia
-// e combos de 2 cartas (cedo → 4; tardio → 3). Dados: Scryfall (is:gamechanger) + Commander Spellbook (data/brackets.json.gz).
+// Segue as regras oficiais (atualização de out/2025) e a classificação de combos do Commander Spellbook:
+// Game Changers (0 → 2 · até 3 → 3 · 4+ → 4), destruição de terrenos em massa (→ 4), turnos extras em cadeia,
+// e combos de 2 cartas pela tag do Spellbook: R (implacável → 4), S/P (forte → 3), E/O (nível precon → 2), C (casual).
 const BR = { gc: new Set(), combos: new Map(), ready: false, updated: "" };
-const MLD = ["Armageddon", "Ravages of War", "Catastrophe", "Decree of Annihilation", "Jokulhaups", "Obliterate", "Ruination", "Sunder", "Wildfire", "Destructive Force", "Impending Disaster", "Boom // Bust", "Global Ruin", "Raze the Effigy", "Apocalypse", "Devastation", "Upheaval", "Winter Orb", "Static Orb", "Rising Waters", "Hokori, Dust Drinker", "Blood Moon", "Back to Basics", "Magus of the Moon", "Contamination", "Epicenter", "Myojin of Infinite Rage", "Burning of Xinye", "Wake of Destruction", "Desolation Angel", "Keldon Firebombers", "Numot, the Devastator", "Tectonic Break", "Thoughts of Ruin", "Bearer of the Heavens", "Mana Vortex", "Cleansing", "Acid Rain", "Flashfires", "Tsunami", "Boil", "Choke", "Ruination Rioter", "Stasis", "Hallowed Burial"];
+// Lista de negação de terreno em massa (só efeitos que atingem os terrenos de todos)
+const MLD = ["Armageddon", "Ravages of War", "Catastrophe", "Decree of Annihilation", "Jokulhaups", "Obliterate", "Ruination", "Sunder", "Wildfire", "Destructive Force", "Impending Disaster", "Boom // Bust", "Global Ruin", "Apocalypse", "Devastation", "Winter Orb", "Static Orb", "Rising Waters", "Hokori, Dust Drinker", "Blood Moon", "Back to Basics", "Magus of the Moon", "Contamination", "Epicenter", "Myojin of Infinite Rage", "Burning of Xinye", "Desolation Angel", "Keldon Firebombers", "Numot, the Devastator", "Tectonic Break", "Thoughts of Ruin", "Bearer of the Heavens", "Mana Vortex", "Cleansing", "Acid Rain", "Flashfires", "Tsunami", "Boil", "Choke", "Stasis", "Fall of the Thran", "Worldfire"];
 const MLD_SET = new Set(MLD);
+const MLD_RX = /destroy all lands|destroy all nonbasic lands|each player sacrifices (all|five|four|three) lands|exile all lands|return all lands to their owners' hands|lands don't untap during their controllers' untap steps/i;
+const TUTOR_RX = /search your library for (a|an|any|up to (one|two|three)) (?!(basic )?(land|forest|plains|island|swamp|mountain|snow land)s?\b)[^.]*?cards?\b/i;
+const XTURN_RX = /takes? an extra turn|take (an|two) extra turns/i;
 async function loadBrackets() {
   try {
     const j = await gunzipJSON("data/brackets.json.gz"); BR.updated = j.updated || "";
@@ -2266,24 +2271,40 @@ async function loadBrackets() {
 }
 const isGC = (oi) => BR.gc.has(oi);
 const BR_NAME = { 1: "Exibição", 2: "Básico", 3: "Melhorado", 4: "Otimizado", 5: "cEDH" };
+const BR_TAG = { R: { n: "Implacável", b: 4, i: "⚡" }, S: { n: "Forte", b: 3, i: "🔥" }, P: { n: "Poderoso (caro)", b: 3, i: "🔥" }, O: { n: "Excêntrico", b: 2, i: "⏳" }, E: { n: "Nível precon", b: 2, i: "⏳" }, C: { n: "Casual", b: 1, i: "⏳" } };
 function evalBracket(d) {
   const cards = d.cards.filter(c => c.board === "main" || c.board === "cmd"); const set = new Set(cards.map(c => c.oi));
+  const txt = (oi) => DB.o[oi][6] || "";
   const gcs = [...set].filter(isGC);
-  const mld = [...set].filter(oi => MLD_SET.has(DB.o[oi][0]) || /destroy all lands|destroy all nonbasic lands|each player sacrifices (all|five|four) lands|exile all lands/i.test(DB.o[oi][6] || ""));
-  const turns = [...set].filter(oi => /takes? an extra turn|take (an|two) extra turns/i.test(DB.o[oi][6] || ""));
+  const mld = [...set].filter(oi => MLD_SET.has(DB.o[oi][0]) || MLD_RX.test(txt(oi)));
+  const turns = [...set].filter(oi => XTURN_RX.test(txt(oi)));
+  const tutors = [...set].filter(oi => TUTOR_RX.test(txt(oi)));
   const combos = []; const seen = new Set();
-  for (const oi of set) for (const [o2, res, mv] of (BR.combos.get(oi) || [])) { if (!set.has(o2)) continue; const k = [oi, o2].sort((a, b) => a - b).join("|"); if (seen.has(k)) continue; seen.add(k); combos.push({ a: oi, b: o2, res, mv, early: mv <= 6 }); }
-  const early = combos.filter(c => c.early);
-  let b = 1; const why = [];
-  if (gcs.length) { if (gcs.length <= 3) { b = Math.max(b, 3); why.push(`${gcs.length} Game Changer(s) — até 3 é bracket 3`); } else { b = 4; why.push(`${gcs.length} Game Changers — mais de 3 é bracket 4`); } }
-  if (mld.length) { b = 4; why.push(`Destruição/negação de terrenos em massa (${mld.length})`); }
-  if (early.length) { b = 4; why.push(`${early.length} combo(s) de 2 cartas que podem sair cedo`); }
-  else if (combos.length) { b = Math.max(b, 3); why.push(`${combos.length} combo(s) de 2 cartas de fim de jogo — permitidos a partir do 3`); }
-  if (turns.length >= 3) { b = 4; why.push(`${turns.length} cartas de turno extra — risco de encadear turnos`); }
-  else if (turns.length) why.push(`${turns.length} carta(s) de turno extra — ok se não encadear`);
-  const cedh = b === 4 && (gcs.length >= 8 || (early.length >= 2 && gcs.length >= 5));
-  if (!why.length) why.push("Sem Game Changers, combos de 2 cartas, destruição de terrenos em massa nem turnos extras em cadeia");
-  return { b, label: b === 1 ? "1–2" : cedh ? "4–5" : String(b), name: b === 1 ? "Exibição / Básico" : cedh ? "Otimizado (pode ser cEDH)" : BR_NAME[b], why, gcs, mld, turns, combos, early };
+  for (const oi of set) for (const [o2, res, mv, tag] of (BR.combos.get(oi) || [])) { if (!set.has(o2)) continue; const k = [oi, o2].sort((a, b) => a - b).join("|"); if (seen.has(k)) continue; seen.add(k);
+    const t = BR_TAG[tag] ? tag : "S"; combos.push({ a: oi, b: o2, res, mv, tag: t, tb: BR_TAG[t].b, early: t === "R" }); }
+  combos.sort((x, y) => y.tb - x.tb);
+  const fast = combos.filter(c => c.tag === "R"), strong = combos.filter(c => c.tb === 3), soft = combos.filter(c => c.tb <= 2);
+  // "motores" de combo: grupos de combos que compartilham peças contam como um só
+  const engines = (() => { const par = new Map(); const f = (x) => { while (par.get(x) !== x) x = par.get(x); return x; };
+    for (const c of strong) { for (const x of [c.a, c.b]) if (!par.has(x)) par.set(x, x); par.set(f(c.a), f(c.b)); }
+    return new Set([...par.keys()].map(f)).size; })();
+  let b = 2; const why = [];
+  if (gcs.length > 3) { b = 4; why.push(`${gcs.length} Game Changers (mais de 3 → 4)`); }
+  else if (gcs.length) { b = 3; why.push(`${gcs.length} Game Changer${gcs.length > 1 ? "s" : ""} (até 3 → 3)`); }
+  if (mld.length) { b = 4; why.push(`Negação de terrenos em massa (${mld.length}) → 4`); }
+  if (fast.length) { b = 4; why.push(`${fast.length} combo${fast.length > 1 ? "s" : ""} implacáve${fast.length > 1 ? "is" : "l"} (rápido/eficiente) → 4`); }
+  if (strong.length) { if (engines >= 3) { b = 4; why.push(`${engines} motores de combo diferentes → 4`); } else { b = Math.max(b, 3); why.push(`${strong.length} combo${strong.length > 1 ? "s" : ""} de 2 cartas de fim de jogo → 3`); } }
+  if (soft.length) why.push(`${soft.length} combo${soft.length > 1 ? "s" : ""} leve${soft.length > 1 ? "s" : ""} (nível precon) — ok no 2`);
+  if (turns.length >= 3) { b = 4; why.push(`${turns.length} cartas de turno extra — risco de encadear → 4`); }
+  else if (turns.length) { b = Math.max(b, turns.length >= 2 ? 3 : b); why.push(`${turns.length} carta${turns.length > 1 ? "s" : ""} de turno extra${turns.length >= 2 ? " → 3" : " — ok se não encadear"}`); }
+  if (tutors.length >= 6 && b < 3) { b = 3; why.push(`${tutors.length} tutores — acima do esperado num precon → 3`); }
+  else if (tutors.length >= 3) why.push(`${tutors.length} tutores`);
+  const cedh = b === 4 && (gcs.length >= 8 && fast.length >= 1 || fast.length >= 3 && gcs.length >= 5);
+  const clean = b === 2 && !combos.length && !turns.length && tutors.length <= 2;
+  if (b === 2 && !gcs.length && !mld.length && !strong.length && !fast.length) why.unshift("Sem Game Changers, combos fortes ou terrenos em massa");
+  const label = cedh ? "4–5" : clean ? "1–2" : String(b);
+  const name = cedh ? "Otimizado (pode ser cEDH)" : clean ? "Básico (ou Exibição)" : BR_NAME[b];
+  return { b, label, name, why, gcs, mld, turns, tutors, combos, early: fast };
 }
 function bracketChip(d) { if (!BR.ready || !d.cards.length || !isCmdFormat(d)) return ""; const r = evalBracket(d); return `<span class="brchip b${r.b}" title="Bracket estimado: ${esc(r.name)}">B${r.label}</span>`; }
 function bracketHTML(d, compact) {
@@ -2293,10 +2314,11 @@ function bracketHTML(d, compact) {
   return `<div class="card brcard" data-brk="1"><div class="brhead"><span class="brbig b${r.b}">${r.label}</span><div><b>Bracket estimado: ${esc(r.name)}</b><div class="meta">${r.why.map(esc).join(" · ")}</div></div></div>
     ${compact ? `<button class="btn small" data-brdet="1">Ver detalhes</button>` : `
     ${r.gcs.length ? `<div><div class="meta">Game Changers (${r.gcs.length})</div><div class="brlist">${r.gcs.map(o => `<span class="pill">${nm(o)}</span>`).join("")}</div></div>` : ""}
-    ${r.combos.length ? `<div><div class="meta">Combos de 2 cartas (${r.combos.length})</div>${r.combos.slice(0, 12).map(c => `<div class="brcombo">${c.early ? "⚡" : "⏳"} <b>${nm(c.a)}</b> + <b>${nm(c.b)}</b><span class="meta"> → ${esc(c.res)}${c.mv ? " · " + c.mv + " de mana" : ""}</span></div>`).join("")}</div>` : ""}
+    ${r.combos.length ? `<div><div class="meta">Combos de 2 cartas (${r.combos.length})</div>${r.combos.slice(0, 15).map(c => `<div class="brcombo">${BR_TAG[c.tag].i} <b>${nm(c.a)}</b> + <b>${nm(c.b)}</b><span class="meta"> → ${esc(c.res)} · <i>${BR_TAG[c.tag].n}</i></span></div>`).join("")}${r.combos.length > 15 ? `<div class="meta">+${r.combos.length - 15}…</div>` : ""}</div>` : ""}
     ${r.mld.length ? `<div><div class="meta">Terrenos em massa</div><div class="brlist">${r.mld.map(o => `<span class="pill bad">${nm(o)}</span>`).join("")}</div></div>` : ""}
+    ${r.tutors.length ? `<div><div class="meta">Tutores (${r.tutors.length})</div><div class="brlist">${r.tutors.map(o => `<span class="pill">${nm(o)}</span>`).join("")}</div></div>` : ""}
     ${r.turns.length ? `<div><div class="meta">Turnos extras</div><div class="brlist">${r.turns.map(o => `<span class="pill">${nm(o)}</span>`).join("")}</div></div>` : ""}
-    <div class="cfg-s">Estimativa automática pelas regras oficiais (beta). Bracket 1 e 2 dependem da intenção do deck, e a conversa antes do jogo vale mais que o número. ⚡ combo que pode sair cedo · ⏳ de fim de jogo. Dados: Scryfall e Commander Spellbook${BR.updated ? " (" + BR.updated + ")" : ""}.</div>`}</div>`;
+    <div class="cfg-s">Estimativa automática pelas regras oficiais (beta). Bracket 1 e 2 dependem da intenção do deck, e a conversa antes do jogo vale mais que o número. ⚡ implacável (bracket 4) · 🔥 forte (3) · ⏳ leve, nível precon (2), conforme Commander Spellbook. Dados: Scryfall e Commander Spellbook${BR.updated ? " (" + BR.updated + ")" : ""}.</div>`}</div>`;
 }
 function bracketSheet(d) { openSheet(bracketHTML(d, false), `<button class="btn primary" id="brX">OK</button>`); $("brX").onclick = closeSheet; }
 
