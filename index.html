@@ -818,6 +818,28 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   <div class="pbar"><i id="splashBar"></i></div>
 </div></div>
 
+<script>
+// Proteção de abertura: se algo der errado ao carregar, mostra o erro em vez de uma tela vazia
+(function () {
+  var errs = [];
+  function show(title) {
+    if (document.getElementById("bootErr")) return;
+    var d = document.createElement("div"); d.id = "bootErr";
+    d.style.cssText = "position:fixed;inset:0;z-index:9999;background:#121316;color:#eee;font:15px system-ui;display:grid;place-items:center;padding:24px;text-align:center";
+    d.innerHTML = '<div style="max-width:420px"><h2 style="margin:0 0 8px">' + title + '</h2><p style="opacity:.8;margin:0 0 14px">Tente recarregar. Se continuar, mande um print desta tela.</p>' +
+      '<pre style="white-space:pre-wrap;text-align:left;font-size:11px;opacity:.7;max-height:30vh;overflow:auto;background:#1c1e23;padding:8px;border-radius:8px">' + (errs.join("\n") || "(sem mensagem de erro)").replace(/</g, "&lt;") + '</pre>' +
+      '<button id="bootR" style="margin:12px 6px 0;padding:10px 16px;border:0;border-radius:8px;background:#f07a3c;color:#1a1205;font-weight:700">Recarregar</button>' +
+      '<button id="bootC" style="margin:12px 6px 0;padding:10px 16px;border:0;border-radius:8px;background:#2a2d33;color:#eee">Limpar cache e recarregar</button></div>';
+    document.body.appendChild(d);
+    document.getElementById("bootR").onclick = function () { location.reload(); };
+    document.getElementById("bootC").onclick = function () { var p = []; try { if (navigator.serviceWorker) p.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })); if (window.caches) p.push(caches.keys().then(function (ks) { return Promise.all(ks.filter(function (k) { return k !== "bmtg-imgs"; }).map(function (k) { return caches.delete(k); })); })); } catch (e) {} Promise.all(p).then(function () { location.reload(); }, function () { location.reload(); }); };
+  }
+  window.addEventListener("error", function (e) { errs.push((e.message || "erro") + (e.filename ? " @ " + e.filename.split("/").pop() + ":" + e.lineno : "")); });
+  window.addEventListener("unhandledrejection", function (e) { errs.push("promessa: " + (e.reason && (e.reason.message || e.reason) || "?")); });
+  window.__bootDone = false;
+  setTimeout(function () { var sp = document.getElementById("splash"); if (!window.__bootDone && sp && !sp.classList.contains("hidden")) show(errs.length ? "O app teve um erro ao abrir" : "O app está demorando para abrir"); }, 25000);
+})();
+</script>
 <script src="lib/tesseract.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -1912,7 +1934,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17n";
+const APP_VERSION = "2026.11.17o";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -4271,7 +4293,7 @@ function accountMenu() {
     await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; }); loadBrackets();
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
-    $("splash").classList.add("hidden"); undoBaseline(); if (S.settings.edGroup) ED.group = S.settings.edGroup; if (S.settings.edSort) ED.dsort = S.settings.edSort;
+    $("splash").classList.add("hidden"); window.__bootDone = true; undoBaseline(); if (S.settings.edGroup) ED.group = S.settings.edGroup; if (S.settings.edSort) ED.dsort = S.settings.edSort;
     applyPrefs();
     const startTab = new URLSearchParams(location.search).get("tab") || (P().startTab !== "last" && !(S.settings.resume && S.settings.resume.fromLink) ? P().startTab : null); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
