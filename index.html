@@ -722,6 +722,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .pill { border-radius: 6px; }
 .cardimg .price, .cardimg .qtyb, .inb, .ownb, .stk .q, .lastscan b, .locb i, .edh-rank { border-radius: 5px; }
 .pt-c:not(.pt-bf) { position: relative; }
+.tile .tsub { font-size: 12px; color: var(--muted); display: flex; gap: 6px; justify-content: center; align-items: center; flex-wrap: wrap; min-height: 22px; }
 .pt-k { position: absolute; left: 50%; top: 42%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; z-index: 2; }
 .pt-k b { background: rgba(10,11,14,.88); color: #fff; border: 1px solid rgba(var(--acc-rgb),.7); border-radius: 5px; font: 700 12px/1.3 var(--font); padding: 1px 7px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
 .pt-fd { background: #2a1d14; display: grid; place-items: center; aspect-ratio: 488 / 680; } .pt-fd img { width: 50%; height: auto; opacity: .85; }
@@ -780,6 +781,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
   <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
   <button data-tab="edh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 18h18l-1.5-10-4.5 4-3-6-3 6-4.5-4z"/><path d="M5 21h14"/></svg>EDH</button>
+  <button data-tab="wish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Desejos</button>
   <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
 </nav>
@@ -948,9 +950,9 @@ const store = {
   async get(k) { return new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); }); },
   async set(k, v) { return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 };
-const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {} };
+const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {}, wish: [] };
 let saveT = 0;
-function save(silent) { undoTrack(); setTimeout(pushCloud, 300); clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
+function save(silent) { undoTrack(); setTimeout(pushCloud, 300); clearTimeout(saveT); saveT = setTimeout(async () => { try { await store.set("cards", S.cards); await store.set("decks", S.decks); await store.set("boxes", S.boxes); await store.set("settings", S.settings); await store.set("liga", S.liga); await store.set("wish", S.wish); } catch (e) { toast("Erro ao salvar no aparelho: " + e.message); } }, 250); }
 
 // Entrada de carta: { key, oi, name, set, number, lang, foil, qty, img, added, decks: {deckId: qty} }
 const entryKey = (set, number, foil, lang) => [set, normNum(number), foil ? "f" : "n", lang || "en"].join("|");
@@ -1055,10 +1057,10 @@ function cardImgHTML(e, opts = {}) {
   const drawn = `<div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i><span class="skn">${esc(o[0])}</span></div>`;
   const cls = e.set && IMGS[imgKey(e.set, e.number)] !== "" ? "cardimg" : "cardimg noimg";
   const gc = BR.gc.has(e.oi) ? `<span class="gcb" title="Game Changer (Commander Brackets)">GC</span>` : "";
-  if (opts.bare) return `<div class="${cls}">${drawn}${inner}${gc}</div>`;
+  if (opts.bare) return `<div class="${cls}" data-woi="${e.oi}">${drawn}${inner}${gc}</div>`;
   const price = priceOf(e); const dq = inDecks(e);
   const deckName = dq ? (S.decks.find(d => e.decks[d.id]) || {}).name : "";
-  return `<div class="${cls}">${drawn}${inner}
+  return `<div class="${cls}" data-woi="${e.oi}">${drawn}${inner}
     ${e.qty > 1 ? `<span class="qtyb">${e.qty}</span>` : ""}
     ${dq ? `<span class="deckb" title="Em deck">${esc(deckName)}${dq < e.qty ? ` ${dq}/${e.qty}` : ""}</span>` : ""}
     ${price ? `<span class="price">${fmtUSD(price)}</span>` : ""}
@@ -1068,7 +1070,7 @@ function cardImgHTML(e, opts = {}) {
 
 // ============ Navegação ============
 let tab = "col", view = null; // view: {kind:'deck', id}
-const views = { col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), edh: (...a) => renderEdh(...a), cfg: (...a) => renderCfg(...a) };
+const views = { wish: (...a) => renderWish(...a), col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), edh: (...a) => renderEdh(...a), cfg: (...a) => renderCfg(...a) };
 // Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
 const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
@@ -1730,6 +1732,7 @@ function cardCtx(e, d, c, after, openFn) {
     ["👁 Comparar com…", () => comparePick(c)],
     ["↗ Ver página da carta", () => window.open(sfURL, "_blank")],
     ["↗ Ver na LigaMagic", () => window.open(ligaURL(c.oi), "_blank")],
+    wishItem(c.oi),
     ["⧉ Copiar nome", () => navigator.clipboard.writeText(name).then(() => toast("Nome copiado: " + name), () => toast(name))],
     "-",
     ...(st === "ok" ? [["↩ Devolver para a caixa", () => { for (const x of S.cards.filter(x => x.oi === c.oi)) delete x.decks[d.id]; save(); after(); toast("Devolvida para a caixa"); }]]
@@ -1891,7 +1894,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17f";
+const APP_VERSION = "2026.11.17g";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2028,6 +2031,113 @@ async function bugsList() {
     $("bgList").innerHTML = qs.docs.map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${b.kind === "ideia" ? "💡" : "🐞"} ${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nada por aqui ainda.</div>`;
     $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
   } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
+}
+
+// ============ CARTAS DESEJADAS ============
+// Lista de compras compartilhada (fica na nuvem em libs/principal/meta/wish). Botão direito (ou toque longo) em qualquer carta → adicionar.
+const wishHas = (oi) => S.wish.find(w => w.oi === oi);
+function wishAdd(oi, o = {}) {
+  if (oi === undefined || oi === null || !DB.o[oi]) return;
+  const w0 = wishHas(oi); if (w0) { toast(`${DB.o[oi][0]} já está nas desejadas`); return; }
+  const pi = o.set ? DB.bySetNum.get(o.set + "|" + normNum(o.number)) : defaultPrint(oi); const p = pi >= 0 ? DB.p[pi] : null;
+  S.wish.unshift({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), oi, name: DB.o[oi][0], set: p ? p[0] : "", number: p ? p[1] : "", qty: o.qty || 1, note: o.note || "", at: Date.now() });
+  save(); toast(`⭐ ${DB.o[oi][0]} nas desejadas`, 1600); if (tab === "wish") renderWish();
+}
+function wishDel(id) { S.wish = S.wish.filter(w => w.id !== id); save(); }
+function wishItem(oi) { const w = wishHas(oi); return w ? ["⭐ Tirar das desejadas", () => { wishDel(w.id); toast("Removida das desejadas"); if (tab === "wish") renderWish(); }] : ["⭐ Adicionar às desejadas", () => wishAdd(oi), "pri"]; }
+function oiFromEl(el) {
+  if (!el || !el.closest) return undefined;
+  const a = el.closest("[data-oi]"); if (a && a.dataset.oi !== "" && !isNaN(+a.dataset.oi) && DB.o[+a.dataset.oi]) return +a.dataset.oi;
+  const b = el.closest("[data-woi]"); if (b && b.dataset.woi !== "" && DB.o[+b.dataset.woi]) return +b.dataset.woi;
+  const k = el.closest("[data-k]"); if (k) { const e = S.cards.find(x => x.key === k.dataset.k); if (e) return e.oi; }
+  return undefined;
+}
+function wishCtx(x, y, oi) {
+  ctxMenu(x, y, [{ head: DB.o[oi][0] }, wishItem(oi), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
+}
+// botão direito em qualquer carta que ainda não tenha menu próprio
+document.addEventListener("contextmenu", (e) => {
+  if (e.defaultPrevented || e.target.closest("input, textarea, .ctxm, #pt")) return;
+  if (Date.now() - LP.touchAt < 1200) { const oi = oiFromEl(e.target); if (oi === undefined) return; e.preventDefault(); clearTimeout(LP.t); if (DRAG.on || $("ctxm")) return; if (navigator.vibrate) navigator.vibrate(12); LP.eat = Date.now(); wishCtx(e.clientX, e.clientY - 10, oi); return; }
+  const oi = oiFromEl(e.target); if (oi === undefined) return;
+  e.preventDefault(); wishCtx(e.clientX, e.clientY, oi);
+});
+// toque longo (celular): mesmo menu
+const LP = { touchAt: 0, t: 0, eat: 0 };
+// o "clique" que o celular dispara ao soltar o dedo depois do toque longo não pode abrir a carta
+document.addEventListener("click", (e) => { if (LP.eat && Date.now() - LP.eat < 1500 && LP.el && LP.el.contains(e.target)) { LP.eat = 0; e.stopPropagation(); e.preventDefault(); } }, true);
+document.addEventListener("pointerdown", (e) => {
+  if (e.pointerType !== "touch") return; LP.touchAt = Date.now();
+  if (e.target.closest("input, textarea, .ctxm, #pt, .sheet")) return;
+  const oi = oiFromEl(e.target); if (oi === undefined) return; LP.el = e.target.closest("button, .tile, .row, .res, [data-oi], [data-woi]") || e.target;
+  const x0 = e.clientX, y0 = e.clientY; clearTimeout(LP.t);
+  const cancel = () => { clearTimeout(LP.t); window.removeEventListener("pointermove", mv, true); window.removeEventListener("pointerup", cancel, true); window.removeEventListener("pointercancel", cancel, true); };
+  const mv = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) cancel(); };
+  window.addEventListener("pointermove", mv, true); window.addEventListener("pointerup", cancel, true); window.addEventListener("pointercancel", cancel, true);
+  LP.t = setTimeout(() => { cancel(); if (DRAG.on || $("ctxm")) return; if (navigator.vibrate) navigator.vibrate(12); LP.eat = Date.now(); wishCtx(x0, y0 - 10, oi); }, 520);
+}, true);
+
+function renderWish() {
+  $("title").textContent = "Desejadas"; $("fab").classList.add("hidden");
+  const sortK = S.settings.wishSort || "recent";
+  setMenu([["Copiar lista (para a LigaMagic)", wishCopy], ["Adicionar as faltantes de um deck…", wishFromDeck], ["Adicionar carta pelo nome…", wishByName], ...(S.wish.length ? [["Limpar a lista…", () => { if (confirm(`Tirar as ${S.wish.length} cartas da lista de desejadas?`)) { S.wish = []; save(); renderWish(); } }]] : [])]);
+  if (!$("wishBars")) {
+    $("bars").innerHTML = `<div id="wishBars"><div class="toolbar"><input type="search" id="wq" placeholder="Filtrar desejadas…" aria-label="Filtrar">
+      <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg><select id="wSort"><option value="recent">Recentes</option><option value="price">Preço</option><option value="name">Nome</option></select></span>
+      <button class="iconbtn" id="wAdd" title="Adicionar pelo nome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
+      <div class="subbar"><div class="subrow"><span class="count" id="wCount"></span></div></div></div>`;
+    $("wq").oninput = drawWish; $("wSort").onchange = (e) => { S.settings.wishSort = e.target.value; save(true); drawWish(); }; $("wAdd").onclick = wishByName;
+  }
+  $("wSort").value = sortK; drawWish();
+}
+function wishPrice(w) { return brlOf(w.set, w.number, false) || 0; }
+function drawWish() {
+  const q = norm(($("wq") || {}).value || ""); const k = S.settings.wishSort || "recent";
+  let list = S.wish.filter(w => !q || norm(w.name).includes(q) || ptN(w.oi).includes(q) || norm(w.note || "").includes(q));
+  list.sort(k === "price" ? (a, b) => wishPrice(b) * b.qty - wishPrice(a) * a.qty : k === "name" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.at - a.at);
+  const tot = S.wish.reduce((a, w) => a + wishPrice(w) * w.qty, 0);
+  $("wCount").textContent = `${S.wish.reduce((a, w) => a + w.qty, 0)} carta(s)${tot ? " · ≈ " + fmtUSD(tot) : ""}`;
+  if (!S.wish.length) { $("main").innerHTML = `<div class="empty">Nenhuma carta desejada ainda.<br>Clique com o botão direito (no celular, segure o dedo) em qualquer carta do app — coleção, decks, busca, EDH, ofertas — e escolha <b>⭐ Adicionar às desejadas</b>.<br><br><button class="btn primary" id="wE">+ Adicionar pelo nome</button></div>`; $("wE").onclick = wishByName; return; }
+  $("main").innerHTML = `<div class="grid">${list.map(w => { const pr = wishPrice(w); const have = libFor(w.oi) + S.cards.filter(e => e.oi === w.oi).reduce((a, e) => a + inDecks(e), 0);
+    const img = cardImgHTML({ oi: w.oi, set: w.set, number: w.number }, { bare: true });
+    return `<button class="tile" data-wid="${w.id}" data-woi="${w.oi}"><span class="tname">${esc(w.name)}</span>${img.slice(0, -6)}${w.qty > 1 ? `<span class="qtyb">${w.qty}</span>` : ""}${pr ? `<span class="price">${fmtUSD(pr * w.qty)}</span>` : ""}</div>
+      <span class="tsub">${have ? `<span class="pill ok">tem ${have}</span> ` : ""}${w.note ? esc(w.note) : `<span class="meta">${esc((w.set || "").toUpperCase())}</span>`}</span></button>`; }).join("")}</div>`;
+  $("main").onclick = (e) => { const t = e.target.closest("[data-wid]"); if (t) wishSheet(t.dataset.wid); };
+}
+function wishSheet(id) {
+  const w = S.wish.find(x => x.id === id); if (!w) return; const pr = wishPrice(w);
+  openSheet(`<div class="detail">${cardImgHTML({ oi: w.oi, set: w.set, number: w.number }, { bare: true })}<div><h3>${esc(w.name)}</h3><div class="meta">${esc((w.set || "").toUpperCase())} #${esc(w.number || "")}${pr ? " · " + fmtUSD(pr) + " cada" : ""}</div>
+    <div class="seg" style="margin-top:8px;justify-content:flex-start"><button id="wM">−</button><button aria-pressed="true" id="wQ">${w.qty}</button><button id="wP">+</button></div></div></div>
+    <input type="text" id="wN" placeholder="Anotação (ex.: para o deck da Ayara, versão foil…)" value="${esc(w.note || "")}">
+    <div class="gf-menu"><button class="btn primary" id="wGot">✓ Comprei — pôr na coleção</button><button class="btn" id="wLiga">🛒 Ver na LigaMagic ↗</button><button class="btn" id="wVer">🎨 Trocar edição</button><button class="btn danger" id="wDel">Remover</button></div>`, `<button class="btn primary" id="wX">OK</button>`);
+  const keep = () => { w.note = $("wN").value.trim(); save(); };
+  $("wM").onclick = () => { w.qty = Math.max(1, w.qty - 1); $("wQ").textContent = w.qty; save(); }; $("wP").onclick = () => { w.qty++; $("wQ").textContent = w.qty; save(); };
+  $("wX").onclick = () => { keep(); closeSheet(); renderWish(); };
+  $("wLiga").onclick = () => window.open(ligaURL(w.oi), "_blank");
+  $("wDel").onclick = () => { wishDel(w.id); closeSheet(); renderWish(); toast("Removida das desejadas"); };
+  $("wGot").onclick = () => { keep(); if (w.set) addToCollection({ oi: w.oi, set: w.set, number: w.number, qty: w.qty }); wishDel(w.id); closeSheet(); renderWish(); toast(`✓ ${w.qty}× ${w.name} na coleção`); };
+  $("wVer").onclick = () => { keep(); closeSheet(); setTimeout(() => wishPickPrint(w), 60); };
+}
+function wishPickPrint(w) {
+  const ps = (DB.prints[w.oi] || []).slice().sort((a, b) => (DB.p[b][5] || "").localeCompare?.(DB.p[a][5] || "") || 0);
+  openSheet(`<h3 style="margin:0">Edição de ${esc(w.name)}</h3><div class="grid" id="wpL" style="margin-top:8px">${ps.slice(0, 120).map(pi => `<button class="tile" data-pi="${pi}"><span class="tname">${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])}</span>${cardImgHTML({ oi: w.oi, set: DB.p[pi][0], number: DB.p[pi][1] }, { bare: true })}</button>`).join("")}</div>`, `<button class="btn" id="wpX">Cancelar</button>`);
+  $("wpX").onclick = () => { closeSheet(); wishSheet(w.id); };
+  $("wpL").onclick = (e) => { const t = e.target.closest("[data-pi]"); if (!t) return; const p = DB.p[+t.dataset.pi]; w.set = p[0]; w.number = p[1]; save(); closeSheet(); wishSheet(w.id); };
+}
+async function wishCopy() { if (!S.wish.length) return toast("A lista está vazia"); const t = S.wish.map(w => `${w.qty} ${w.name}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${S.wish.length} cartas copiadas — cole na busca por lista da LigaMagic`); } catch { download("desejadas.txt", t); } }
+async function wishByName() {
+  const n = await askText("Adicionar às desejadas", "", { hint: "Nome da carta (inglês ou português)" }); if (!n) return;
+  const r = searchNames(n, 8); if (!r.length) return toast("Não achei essa carta");
+  if (r.length === 1 || norm(DB.o[r[0]][0]) === norm(n)) return wishAdd(r[0]);
+  ctxMenu(innerWidth / 2 - 120, 140, [{ head: "Qual delas?" }, ...r.map(oi => [DB.o[oi][0], () => wishAdd(oi)])]);
+}
+function wishFromDeck() {
+  if (!S.decks.length) return toast("Você ainda não tem decks");
+  ctxMenu(innerWidth / 2 - 120, 120, [{ head: "Faltantes de qual deck?" }, ...S.decks.map(d => [d.name, () => {
+    const miss = new Map(); d.cards.forEach(c => { const m = c.qty - Math.min(c.qty, haveFor(d, c.oi) + libFor(c.oi)); if (m > 0) miss.set(c.oi, (miss.get(c.oi) || 0) + m); });
+    if (!miss.size) return toast("Você já tem todas as cartas desse deck");
+    let n = 0; for (const [oi, q] of miss) { if (wishHas(oi)) continue; const pi = defaultPrint(oi); const p = pi >= 0 ? DB.p[pi] : null; S.wish.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), oi, name: DB.o[oi][0], set: p ? p[0] : "", number: p ? p[1] : "", qty: q, note: d.name, at: Date.now() }); n++; }
+    save(); renderWish(); toast(`${n} carta(s) de ${d.name} nas desejadas`); }])]);
 }
 // ============ GOLDFISH (testar o deck sozinho) ============
 const GF = { id: null };
@@ -2308,7 +2418,7 @@ function gfCtx(e, u) {
   }
   if (x.isCmd && z !== "cmd") items.push(["👑 Voltar para a zona de comando", mv("cmd"), "pri"]);
   if (makesTok || z === "bf") items.push("-", [makesTok ? "🪙 Criar ficha desta carta…" : "🪙 Criar cópia (ficha)…", () => gfTokenMenu(e, x), makesTok ? "pri" : ""]);
-  items.push("-", ["🔍 Ampliar", () => { const t = document.createElement("div"); t.innerHTML = gfImg(x); zoomImg(t); }]);
+  items.push("-", wishItem(x.oi), ["🔍 Ampliar", () => { const t = document.createElement("div"); t.innerHTML = gfImg(x); zoomImg(t); }]);
   ctxMenu(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2, items);
 }
 function gfActMenu(e) {
@@ -3925,6 +4035,10 @@ function startSync() {
   }, err => cloudError(err));
   CLOUD.unsub.push(watch("cards", S.cards, "key", localCards));
   CLOUD.unsub.push(watch("decks", S.decks, "id", localDecks));
+  CLOUD.unsub.push(base().collection("meta").doc("wish").onSnapshot(doc => {
+    if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/wish", JSON.stringify(d)); S.wish = Array.isArray(d.list) ? d.list : []; store.set("wish", S.wish).catch(() => {}); if (tab === "wish") rerenderSoon(); }
+    const first = !CLOUD.synced.wish; CLOUD.synced.wish = true; if (first && !doc.exists && S.wish.length) setTimeout(pushCloud, 500);
+  }, cloudError));
   CLOUD.unsub.push(base().collection("meta").doc("liga").onSnapshot(doc => {
     if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/liga", JSON.stringify(d)); S.liga = Object.assign({}, S.liga, d.p || {}); store.set("liga", S.liga).catch(() => {}); }
   }, cloudError));
@@ -3950,6 +4064,7 @@ async function pushCloud() {
     S.decks.forEach(d => want.set("decks/" + docId(d.id), d));
     want.set("meta/boxes", { capacity: S.boxes.capacity, layout: S.boxes.layout || null });
     want.set("meta/liga", { p: S.liga || {} });
+    if (CLOUD.synced.wish) want.set("meta/wish", { list: S.wish || [] });
     for (const [path, obj] of want) { const j = JSON.stringify(obj); if (CLOUD.last.get(path) !== j) { ops.push(["set", path, JSON.parse(j)]); CLOUD.last.set(path, j); } }
     for (const path of [...CLOUD.last.keys()]) if ((path.startsWith("cards/") || path.startsWith("decks/")) && !want.has(path)) { ops.push(["del", path]); CLOUD.last.delete(path); }
     for (let i = 0; i < ops.length; i += 400) {
@@ -3984,7 +4099,7 @@ function accountMenu() {
 (async () => {
   try {
     await store.open();
-    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; S.liga = (await store.get("liga")) || {}; IMGS = (await store.get("imgs")) || {};
+    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; S.liga = (await store.get("liga")) || {}; S.wish = (await store.get("wish")) || []; IMGS = (await store.get("imgs")) || {};
     S.cards.forEach(e => { if (e.img && !IMGS[imgKey(e.set, e.number)]) IMGS[imgKey(e.set, e.number)] = e.img; });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
