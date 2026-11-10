@@ -680,8 +680,8 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   #title { order: 1; flex: 0 0 auto; text-align: left; font-size: 20px; white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
   #bars { order: 2; flex: 1 1 0; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 0 12px; }
   #bars:empty { min-height: 44px; }
-  #colBars { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
-  #colBars .subbar { display: contents; }
+  #colBars, #wishBars { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
+  #colBars .subbar, #wishBars .subbar { display: contents; }
   #bars .toolbar { flex: 1 1 380px; max-width: 760px; margin: 0; padding: 0; }
   #bars .toolbar input { height: 40px; }
   #bars .subbar { background: none; flex: 0 1 auto; }
@@ -727,6 +727,14 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .pt-k b { background: rgba(10,11,14,.88); color: #fff; border: 1px solid rgba(var(--acc-rgb),.7); border-radius: 5px; font: 700 12px/1.3 var(--font); padding: 1px 7px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
 .pt-fd { background: #2a1d14; display: grid; place-items: center; aspect-ratio: 488 / 680; } .pt-fd img { width: 50%; height: auto; opacity: .85; }
 .pt-life b[data-a] { cursor: text; }
+#wishBars .toolbar { grid-template-columns: 1fr repeat(4, auto); }
+.wgh { display: flex; align-items: center; gap: 10px; margin: 18px 2px 8px; flex-wrap: wrap; } .wgh:first-child { margin-top: 2px; } .wgh b { font-size: 15px; } .wgh .meta { flex: 1; }
+.tile.wsel { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(var(--acc-rgb), .1); }
+.wck { position: absolute; left: 6%; top: 4%; width: 24px; height: 24px; border-radius: 6px; background: rgba(10,11,14,.8); border: 2px solid rgba(255,255,255,.7); color: #fff; display: grid; place-items: center; font-weight: 800; z-index: 3; }
+.tile.wsel .wck { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.iconbtn.on { background: rgba(var(--acc-rgb), .2); color: var(--accent); }
+.wbar { flex-wrap: wrap; justify-content: center; width: max-content; max-width: calc(100vw - 24px); border-radius: 12px; } .wbar button:disabled { opacity: .4; }
+@media (min-width: 1000px) { .wbar { left: calc(50% + var(--side) / 2); bottom: 24px; max-width: calc(100vw - var(--side) - 48px); } }
 </style>
 </head>
 <body>
@@ -1076,7 +1084,7 @@ const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
 function go(t, v = null, o = {}) {
   if (t !== "scan" && tab === "scan") stopCamera();
-  tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide", "pt-on", "edfit"); { const pv = $("gfPv"); if (pv) pv.remove(); } if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null; $("main").onclick = null; $("main").onmouseover = null;
+  tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide", "pt-on", "edfit"); { const pv = $("gfPv"); if (pv) pv.remove(); } if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null; $("main").onclick = null; $("main").onmouseover = null; { const wb = $("wBar"); if (wb) wb.remove(); }
   document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
   const scan = t === "scan";
   $("scanView").classList.toggle("hidden", !scan); $("appbar").classList.toggle("hidden", scan); $("main").classList.toggle("hidden", scan);
@@ -1894,7 +1902,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17h";
+const APP_VERSION = "2026.11.17j";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2080,29 +2088,73 @@ document.addEventListener("pointerdown", (e) => {
 function renderWish() {
   $("title").textContent = "Desejadas"; $("fab").classList.add("hidden");
   const sortK = S.settings.wishSort || "recent";
-  setMenu([["Copiar lista (para a LigaMagic)", wishCopy], ["Adicionar as faltantes de um deck…", wishFromDeck], ["Adicionar carta pelo nome…", wishByName], ...(S.wish.length ? [["Limpar a lista…", () => { if (confirm(`Tirar as ${S.wish.length} cartas da lista de desejadas?`)) { S.wish = []; save(); renderWish(); } }]] : [])]);
+  setMenu([["Copiar lista inteira (para a LigaMagic)", () => wishCopy()], ["Selecionar cartas para copiar", () => { WS.on = true; drawWish(); }], ["Adicionar as faltantes de um deck…", wishFromDeck], ["Adicionar carta pelo nome…", wishByName], ...(S.wish.length ? [["Limpar a lista…", () => { if (confirm(`Tirar as ${S.wish.length} cartas da lista de desejadas?`)) { S.wish = []; save(); renderWish(); } }]] : [])]);
   if (!$("wishBars")) {
     $("bars").innerHTML = `<div id="wishBars"><div class="toolbar"><input type="search" id="wq" placeholder="Filtrar desejadas…" aria-label="Filtrar">
       <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg><select id="wSort"><option value="recent">Recentes</option><option value="price">Preço</option><option value="name">Nome</option></select></span>
+      <span class="iconbtn" title="Agrupar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7"/></svg><select id="wGroup"><option value="">Sem grupos</option><option value="price">Faixa de preço</option><option value="note">Anotação (deck)</option><option value="color">Cor</option></select></span>
+      <button class="iconbtn" id="wSelBtn" title="Selecionar cartas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 3 3 5-6"/></svg></button>
       <button class="iconbtn" id="wAdd" title="Adicionar pelo nome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
       <div class="subbar"><div class="subrow"><span class="count" id="wCount"></span></div></div></div>`;
+    $("wGroup").onchange = (e) => { S.settings.wishGroup = e.target.value; save(true); drawWish(); };
+    $("wSelBtn").onclick = () => { WS.on = !WS.on; if (!WS.on) WS.sel.clear(); drawWish(); };
     $("wq").oninput = drawWish; $("wSort").onchange = (e) => { S.settings.wishSort = e.target.value; save(true); drawWish(); }; $("wAdd").onclick = wishByName;
   }
-  $("wSort").value = sortK; drawWish();
+  $("wSort").value = sortK; $("wGroup").value = S.settings.wishGroup || ""; drawWish();
 }
 function wishPrice(w) { return brlOf(w.set, w.number, false) || 0; }
+const WS = { on: false, sel: new Set() };
+const WISH_BANDS = [[0, 500, "Até R$ 5"], [500, 2000, "R$ 5 a 20"], [2000, 5000, "R$ 20 a 50"], [5000, 10000, "R$ 50 a 100"], [10000, Infinity, "Mais de R$ 100"]];
+function wishGroupOf(w, g) {
+  if (g === "price") { const p = wishPrice(w); if (!p) return [99, "Sem preço"]; const k = WISH_BANDS.findIndex(([a, b]) => p >= a && p < b); return [k, WISH_BANDS[k][2]]; }
+  if (g === "note") return w.note ? [0, w.note] : [1, "Sem anotação"];
+  if (g === "color") { const c = colorBucket(w.oi); return [COLOR_ORDER.findIndex(x => x[0] === c), COLOR_NAME[c]]; }
+  return [0, ""];
+}
 function drawWish() {
-  const q = norm(($("wq") || {}).value || ""); const k = S.settings.wishSort || "recent";
+  const q = norm(($("wq") || {}).value || ""); const k = S.settings.wishSort || "recent"; const g = S.settings.wishGroup || "";
   let list = S.wish.filter(w => !q || norm(w.name).includes(q) || ptN(w.oi).includes(q) || norm(w.note || "").includes(q));
   list.sort(k === "price" ? (a, b) => wishPrice(b) * b.qty - wishPrice(a) * a.qty : k === "name" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.at - a.at);
+  for (const id of [...WS.sel]) if (!S.wish.some(w => w.id === id)) WS.sel.delete(id);
   const tot = S.wish.reduce((a, w) => a + wishPrice(w) * w.qty, 0);
   $("wCount").textContent = `${S.wish.reduce((a, w) => a + w.qty, 0)} carta(s)${tot ? " · ≈ " + fmtUSD(tot) : ""}`;
-  if (!S.wish.length) { $("main").innerHTML = `<div class="empty">Nenhuma carta desejada ainda.<br>Clique com o botão direito (no celular, segure o dedo) em qualquer carta do app — coleção, decks, busca, EDH, ofertas — e escolha <b>⭐ Adicionar às desejadas</b>.<br><br><button class="btn primary" id="wE">+ Adicionar pelo nome</button></div>`; $("wE").onclick = wishByName; return; }
-  $("main").innerHTML = `<div class="grid">${list.map(w => { const pr = wishPrice(w); const have = libFor(w.oi) + S.cards.filter(e => e.oi === w.oi).reduce((a, e) => a + inDecks(e), 0);
+  if ($("wSelBtn")) $("wSelBtn").classList.toggle("on", WS.on);
+  if (!S.wish.length) { WS.on = false; wishSelBar(); $("main").innerHTML = `<div class="empty">Nenhuma carta desejada ainda.<br>Clique com o botão direito (no celular, segure o dedo) em qualquer carta do app — coleção, decks, busca, EDH, ofertas — e escolha <b>⭐ Adicionar às desejadas</b>.<br><br><button class="btn primary" id="wE">+ Adicionar pelo nome</button></div>`; $("wE").onclick = wishByName; return; }
+  const tile = (w) => { const pr = wishPrice(w); const have = libFor(w.oi) + S.cards.filter(e => e.oi === w.oi).reduce((a, e) => a + inDecks(e), 0);
     const img = cardImgHTML({ oi: w.oi, set: w.set, number: w.number }, { bare: true });
-    return `<button class="tile" data-wid="${w.id}" data-woi="${w.oi}"><span class="tname">${esc(w.name)}</span>${img.slice(0, -6)}${w.qty > 1 ? `<span class="qtyb">${w.qty}</span>` : ""}${pr ? `<span class="price">${fmtUSD(pr * w.qty)}</span>` : ""}</div>
-      <span class="tsub">${have ? `<span class="pill ok">tem ${have}</span> ` : ""}${w.note ? esc(w.note) : `<span class="meta">${esc((w.set || "").toUpperCase())}</span>`}</span></button>`; }).join("")}</div>`;
-  $("main").onclick = (e) => { const t = e.target.closest("[data-wid]"); if (t) wishSheet(t.dataset.wid); };
+    return `<button class="tile${WS.sel.has(w.id) ? " wsel" : ""}" data-wid="${w.id}" data-woi="${w.oi}"><span class="tname">${esc(w.name)}</span>${img.slice(0, -6)}${w.qty > 1 ? `<span class="qtyb">${w.qty}</span>` : ""}${pr ? `<span class="price">${fmtUSD(pr * w.qty)}</span>` : ""}${WS.on ? `<span class="wck">${WS.sel.has(w.id) ? "✓" : ""}</span>` : ""}</div>
+      <span class="tsub">${have ? `<span class="pill ok">tem ${have}</span> ` : ""}${w.note ? esc(w.note) : `<span class="meta">${esc((w.set || "").toUpperCase())}</span>`}</span></button>`; };
+  let html;
+  if (!g) html = `<div class="grid">${list.map(tile).join("")}</div>`;
+  else {
+    const groups = new Map(); for (const w of list) { const [o, n] = wishGroupOf(w, g); const key = n; if (!groups.has(key)) groups.set(key, { o, n, l: [] }); groups.get(key).l.push(w); }
+    html = [...groups.values()].sort((a, b) => a.o - b.o || a.n.localeCompare(b.n)).map(gr => { const sum = gr.l.reduce((a, w) => a + wishPrice(w) * w.qty, 0); const all = gr.l.every(w => WS.sel.has(w.id));
+      return `<div class="wgh"><b>${esc(gr.n)}</b><span class="meta">${gr.l.reduce((a, w) => a + w.qty, 0)} carta(s)${sum ? " · " + fmtUSD(sum) : ""}</span><button class="btn small" data-wg="${esc(gr.n)}">${all && WS.on ? "Desmarcar" : "Selecionar"}</button><button class="btn small" data-wgc="${esc(gr.n)}">📋 Copiar</button></div><div class="grid">${gr.l.map(tile).join("")}</div>`; }).join("");
+    WS.groups = groups;
+  }
+  keepImgs($("main"), () => $("main").innerHTML = html);
+  $("main").onclick = (e) => {
+    const gb = e.target.closest("[data-wg]"); if (gb) { const l = WS.groups.get(gb.dataset.wg).l; const all = WS.on && l.every(w => WS.sel.has(w.id)); WS.on = true; l.forEach(w => all ? WS.sel.delete(w.id) : WS.sel.add(w.id)); return drawWish(); }
+    const gc = e.target.closest("[data-wgc]"); if (gc) return wishCopy(WS.groups.get(gc.dataset.wgc).l);
+    const t = e.target.closest("[data-wid]"); if (!t) return;
+    if (WS.on || e.ctrlKey || e.metaKey || e.shiftKey) { WS.on = true; const id = t.dataset.wid; WS.sel.has(id) ? WS.sel.delete(id) : WS.sel.add(id); return drawWish(); }
+    wishSheet(t.dataset.wid);
+  };
+  wishSelBar();
+}
+function wishSelBar() {
+  let bar = $("wBar"); if (!WS.on || tab !== "wish") { if (bar) bar.remove(); return; }
+  if (!bar) { bar = document.createElement("div"); bar.id = "wBar"; bar.className = "selbar wbar"; document.body.appendChild(bar); }
+  const sel = S.wish.filter(w => WS.sel.has(w.id)); const sum = sel.reduce((a, w) => a + wishPrice(w) * w.qty, 0);
+  bar.innerHTML = `<span><b>${sel.length}</b> selecionada(s)${sum ? " · " + fmtUSD(sum) : ""}</span><button data-wb="copy"${sel.length ? "" : " disabled"}>📋 Copiar lista</button><button data-wb="all">Todas</button><button data-wb="none">Nenhuma</button><button data-wb="got"${sel.length ? "" : " disabled"}>✓ Comprei</button><button data-wb="del"${sel.length ? "" : " disabled"}>Remover</button><button data-wb="x" title="Sair da seleção">✕</button>`;
+  bar.onclick = (e) => { const b = e.target.closest("[data-wb]"); if (!b) return; const a = b.dataset.wb;
+    if (a === "copy") return wishCopy(sel);
+    if (a === "all") { const q = norm(($("wq") || {}).value || ""); S.wish.filter(w => !q || norm(w.name).includes(q) || ptN(w.oi).includes(q) || norm(w.note || "").includes(q)).forEach(w => WS.sel.add(w.id)); }
+    if (a === "none") WS.sel.clear();
+    if (a === "x") { WS.on = false; WS.sel.clear(); }
+    if (a === "del") { if (!confirm(`Tirar ${sel.length} carta(s) das desejadas?`)) return; S.wish = S.wish.filter(w => !WS.sel.has(w.id)); WS.sel.clear(); save(); toast(`${sel.length} removida(s)`); }
+    if (a === "got") { if (!confirm(`Pôr ${sel.length} carta(s) na coleção e tirar das desejadas?`)) return; sel.forEach(w => { if (w.set) addToCollection({ oi: w.oi, set: w.set, number: w.number, qty: w.qty }); }); S.wish = S.wish.filter(w => !WS.sel.has(w.id)); WS.sel.clear(); save(); toast(`✓ ${sel.length} carta(s) na coleção`); }
+    drawWish(); };
 }
 function wishSheet(id) {
   const w = S.wish.find(x => x.id === id); if (!w) return; const pr = wishPrice(w);
@@ -2124,7 +2176,7 @@ function wishPickPrint(w) {
   $("wpX").onclick = () => { closeSheet(); wishSheet(w.id); };
   $("wpL").onclick = (e) => { const t = e.target.closest("[data-pi]"); if (!t) return; const p = DB.p[+t.dataset.pi]; w.set = p[0]; w.number = p[1]; save(); closeSheet(); wishSheet(w.id); };
 }
-async function wishCopy() { if (!S.wish.length) return toast("A lista está vazia"); const t = S.wish.map(w => `${w.qty} ${w.name}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${S.wish.length} cartas copiadas — cole na busca por lista da LigaMagic`); } catch { download("desejadas.txt", t); } }
+async function wishCopy(list) { list = Array.isArray(list) ? list : S.wish; if (!list.length) return toast("Nada para copiar"); const t = list.map(w => `${w.qty} ${w.name.split(" // ")[0]}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${list.length} carta(s) copiada(s) — cole em "Busca por lista" na LigaMagic`, 3000); } catch { download("desejadas.txt", t); } }
 async function wishByName() {
   const n = await askText("Adicionar às desejadas", "", { hint: "Nome da carta (inglês ou português)" }); if (!n) return;
   const r = searchNames(n, 8); if (!r.length) return toast("Não achei essa carta");
