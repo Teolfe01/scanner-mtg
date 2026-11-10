@@ -35,6 +35,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1360, height: 880, minWidth: 380, minHeight: 600, backgroundColor: "#121316", title: "Biblioteca MTG",
     icon: path.join(__dirname, "build", "icon.png"), autoHideMenuBar: true,
+    // barra de título integrada ao app: só os botões de minimizar/maximizar/fechar, desenhados sobre a barra do topo
+    titleBarStyle: "hidden", titleBarOverlay: { color: "#131418", symbolColor: "#c9ced8", height: 56 },
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
