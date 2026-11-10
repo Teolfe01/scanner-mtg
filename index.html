@@ -736,6 +736,12 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .iconbtn.on { background: rgba(var(--acc-rgb), .2); color: var(--accent); }
 .wbar { flex-wrap: wrap; justify-content: center; width: max-content; max-width: calc(100vw - 24px); border-radius: 12px; } .wbar button:disabled { opacity: .4; }
 @media (min-width: 1000px) { .wbar { left: calc(50% + var(--side) / 2); bottom: 24px; max-width: calc(100vw - var(--side) - 48px); } }
+.edhf { display: grid; gap: 10px; background: var(--surface); border-radius: var(--r-lg); padding: 12px 14px; margin-bottom: 12px; }
+.edhf-row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.edhf-row label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.edhf-row select { min-height: 36px; padding: 4px 8px; width: auto; }
+.edhf-row > select { max-width: 230px; }
+@media (min-width: 1000px) { .edh-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important; } }
 </style>
 </head>
 <body>
@@ -1903,7 +1909,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17k";
+const APP_VERSION = "2026.11.17l";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2744,15 +2750,71 @@ function edhMakeDeck(oi) {
   S.decks.push(d); ED.useCI = true; save(); return d;
 }
 function edhPick() { pickCommander((oi) => { const st = edhState(); st.oi = oi; EDHT.tag = ""; EDHT.cat = ""; EDHT.more = false; store.set("settings", S.settings); closeSheet(); if (tab === "edh") renderEdh(); else go("edh"); }); }
-async function edhLanding() {
-  $("main").innerHTML = `<div class="cmdban empty-cmd"><div><b>Escolha um comandante</b><div class="meta">Veja decks de cada bracket (1 a 5), a lista média e as cartas com mais sinergia, direto do EDHREC.</div></div><button class="btn primary" id="ehPick0">Escolher</button></div>
-    <h2 class="sec"><span>Mais jogados</span></h2><div class="ed-results" id="ehTop"><div class="meta">Carregando…</div></div>`;
-  $("ehPick0").onclick = edhPick;
-  try { const top = await edhTopCommanders(null); if (tab !== "edh" || !$("ehTop")) return;
-    $("ehTop").innerHTML = top.slice(0, 30).map(x => `<div class="res"><button class="resimg" data-oi="${x.oi}">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}<span class="edh-rank">#${x.rank}</span><span class="edh-pct">${x.decks.toLocaleString("pt-BR")} decks</span></button><span class="resname">${esc(DB.o[x.oi][0])}</span></div>`).join("");
-    $("ehTop").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (!b) return; edhState().oi = +b.dataset.oi; store.set("settings", S.settings); renderEdh(); window.scrollTo(0, 0); };
-  } catch (e) { if ($("ehTop")) $("ehTop").innerHTML = `<div class="meta">Sem conexão com o EDHREC agora.</div>`; }
+// Página inicial da aba EDH: grade de comandantes com filtros (busca do Scryfall, ordem de popularidade do EDHREC)
+const EDHL = { seq: 0, next: null, items: [], busy: false };
+const edhF = () => { const d = { cols: "", cm: "=", src: "", max: "", sort: "edhrec", own: false, type: "" }; const f = S.settings.edhF || (S.settings.edhF = {}); for (const k in d) if (!(k in f)) f[k] = d[k]; return f; };
+function edhQuery() {
+  const f = edhF(); const q = ["is:commander", "game:paper"];
+  if (f.cols) q.push("id" + f.cm + f.cols.toLowerCase()); else if (f.cm === "=" && f.colsC) q.push("id=c");
+  if (f.src === "precon") q.push("st:commander"); else if (f.src === "fora") q.push("-st:commander");
+  if (f.max) q.push("usd<=" + (f.max / 100 / RATE()).toFixed(2));
+  if (f.type === "creature") q.push("t:legendary t:creature"); else if (f.type === "partner") q.push("(o:partner or o:\"choose a background\" or t:background)"); else if (f.type === "pw") q.push("t:planeswalker");
+  const [order, dir] = { edhrec: ["edhrec", "auto"], cheap: ["usd", "asc"], exp: ["usd", "desc"], new: ["released", "desc"], name: ["name", "asc"] }[f.sort] || ["edhrec", "auto"];
+  return `https://api.scryfall.com/cards/search?q=${encodeURIComponent(q.join(" "))}&order=${order}&dir=${dir}&unique=cards`;
 }
+async function edhLanding() {
+  const f = edhF(); const C = ["W", "U", "B", "R", "G"];
+  const opt = (id, v, list) => `<select id="${id}">${list.map(([k, n]) => `<option value="${k}"${String(v) === String(k) ? " selected" : ""}>${n}</option>`).join("")}</select>`;
+  $("main").innerHTML = `<div class="edhf">
+      <div class="edhf-row"><div class="chips" id="efC">${C.map(c => `<button class="chip color" data-c="${c}" aria-pressed="${f.cols.includes(c)}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="X" aria-pressed="${!!f.colsC}">Incolor</button></div>
+        ${opt("efCm", f.cm, [["=", "Exatamente essas cores"], ["<=", "Dentro dessas cores"], [">=", "Com pelo menos essas"]])}</div>
+      <div class="edhf-row">
+        <label>Origem ${opt("efSrc", f.src, [["", "Todos"], ["precon", "Saiu em precon"], ["fora", "Nunca saiu em precon"]])}</label>
+        <label>Tipo ${opt("efType", f.type, [["", "Qualquer"], ["creature", "Criatura lendária"], ["partner", "Parceiros / Antecedente"], ["pw", "Planeswalker"]])}</label>
+        <label>Preço do comandante ${opt("efMax", f.max, [["", "Qualquer"], ["500", "até R$ 5"], ["2000", "até R$ 20"], ["5000", "até R$ 50"], ["10000", "até R$ 100"]])}</label>
+        <label>Ordenar ${opt("efSort", f.sort, [["edhrec", "Mais jogados"], ["cheap", "Mais baratos"], ["exp", "Mais caros"], ["new", "Mais novos"], ["name", "Nome"]])}</label>
+        <label class="ck"><input type="checkbox" id="efOwn" ${f.own ? "checked" : ""}> Só os que temos</label>
+        <button class="btn small" id="efClr">Limpar</button><button class="btn small primary" id="ehPick0">🔍 Buscar por nome</button>
+      </div></div>
+    <div class="meta" id="ehN" style="margin:2px 2px 8px"></div>
+    <div class="ed-results edh-grid" id="ehTop"></div>
+    <div id="ehMore" style="text-align:center;margin:14px 0"></div>`;
+  $("ehPick0").onclick = edhPick;
+  const reload = () => { store.set("settings", S.settings).catch(() => {}); edhLoadList(true); };
+  $("efC").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c;
+    if (c === "X") { f.colsC = !f.colsC; if (f.colsC) f.cols = ""; } else { f.colsC = false; f.cols = f.cols.includes(c) ? f.cols.replace(c, "") : C.filter(x => x === c || f.cols.includes(x)).join(""); }
+    $("efC").querySelectorAll("[data-c]").forEach(x => x.setAttribute("aria-pressed", x.dataset.c === "X" ? !!f.colsC : f.cols.includes(x.dataset.c))); reload(); };
+  $("efCm").onchange = (e) => { f.cm = e.target.value; reload(); }; $("efSrc").onchange = (e) => { f.src = e.target.value; reload(); };
+  $("efType").onchange = (e) => { f.type = e.target.value; reload(); }; $("efMax").onchange = (e) => { f.max = e.target.value; reload(); };
+  $("efSort").onchange = (e) => { f.sort = e.target.value; reload(); }; $("efOwn").onchange = (e) => { f.own = e.target.checked; edhDrawList(); store.set("settings", S.settings).catch(() => {}); };
+  $("efClr").onclick = () => { S.settings.edhF = null; edhLanding(); };
+  $("ehTop").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (!b) return; edhState().oi = +b.dataset.oi; store.set("settings", S.settings); renderEdh(); window.scrollTo(0, 0); };
+  edhLoadList(true);
+}
+async function edhLoadList(reset) {
+  if (reset) { EDHL.items = []; EDHL.next = edhQuery(); EDHL.total = 0; EDHL.auto = 0; $("ehTop").innerHTML = Array(12).fill(`<div class="res"><div class="cardimg"><div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i></div></div></div>`).join(""); $("ehN").textContent = "Carregando…"; }
+  if (!EDHL.next || (EDHL.busy && !reset)) return; const seq = ++EDHL.seq; EDHL.busy = true;
+  try {
+    const r = await fetch(EDHL.next); const j = await r.json(); if (seq !== EDHL.seq || tab !== "edh" || !$("ehTop")) return;
+    if (j.object === "error") { EDHL.next = null; EDHL.items = []; EDHL.total = 0; }
+    else { EDHL.total = j.total_cards || 0; EDHL.next = j.has_more ? j.next_page : null;
+      const seen = new Set(EDHL.items.map(x => x.oi));
+      for (const c of j.data || []) { const oi = edhOi(c.name); if (oi === undefined || seen.has(oi)) continue; seen.add(oi); EDHL.items.push({ oi, rank: c.edhrec_rank, usd: parseFloat(c.prices && (c.prices.usd || c.prices.usd_foil) || "") || 0 }); } }
+    edhDrawList();
+  } catch (e) { if ($("ehN")) $("ehN").textContent = "Não consegui carregar agora (sem internet?)."; }
+  finally { if (seq === EDHL.seq) EDHL.busy = false; }
+}
+function edhDrawList() {
+  if (!$("ehTop")) return; const f = edhF(); const own = f.own ? new Set(S.cards.map(e => e.oi)) : null;
+  const list = own ? EDHL.items.filter(x => own.has(x.oi)) : EDHL.items;
+  $("ehN").textContent = EDHL.total ? `${EDHL.total.toLocaleString("pt-BR")} comandante(s) com esses filtros${own ? ` · ${list.length} na coleção (dos carregados)` : ""}` : "Nenhum comandante com esses filtros.";
+  keepImgs($("ehTop"), () => $("ehTop").innerHTML = list.map(x => `<div class="res"><button class="resimg" data-oi="${x.oi}">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}${x.rank && f.sort === "edhrec" ? `<span class="edh-rank">#${x.rank}</span>` : ""}${x.usd ? `<span class="edh-pct">${fmtUSD(usd2c(x.usd))}</span>` : ""}${libFor(x.oi) || S.cards.some(e => e.oi === x.oi) ? `<span class="ownb">✓</span>` : ""}</button><span class="resname">${esc(DB.o[x.oi][0])}</span></div>`).join(""));
+  $("ehMore").innerHTML = EDHL.next ? `<button class="btn" id="ehMoreB">Carregar mais</button>` : "";
+  if ($("ehMoreB")) $("ehMoreB").onclick = () => edhLoadList(false);
+  // enche a tela: se ainda sobra espaço, carrega a próxima página sozinho
+  if (EDHL.next && document.documentElement.scrollHeight <= innerHeight + 200 && (EDHL.auto = (EDHL.auto || 0) + 1) <= 4) setTimeout(() => edhLoadList(false), 150);
+}
+window.addEventListener("scroll", () => { if (tab === "edh" && $("ehTop") && EDHL.next && !EDHL.busy && innerHeight + scrollY > document.documentElement.scrollHeight - 900) edhLoadList(false); }, { passive: true });
 
 // ============ OFERTAS ============
 // A LigaMagic não deixa outros apps lerem os preços, então a referência é o preço internacional (Scryfall) em R$,
