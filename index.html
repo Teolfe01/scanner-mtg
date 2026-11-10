@@ -721,6 +721,11 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .selbar button, .seg button, .fchip button, .destchip button, .scanstatus .tapuse { border-radius: 6px; }
 .pill { border-radius: 6px; }
 .cardimg .price, .cardimg .qtyb, .inb, .ownb, .stk .q, .lastscan b, .locb i, .edh-rank { border-radius: 5px; }
+.pt-c:not(.pt-bf) { position: relative; }
+.pt-k { position: absolute; left: 50%; top: 42%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; pointer-events: none; z-index: 2; }
+.pt-k b { background: rgba(10,11,14,.88); color: #fff; border: 1px solid rgba(var(--acc-rgb),.7); border-radius: 5px; font: 700 12px/1.3 var(--font); padding: 1px 7px; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.5); }
+.pt-fd { background: #2a1d14; display: grid; place-items: center; aspect-ratio: 488 / 680; } .pt-fd img { width: 50%; height: auto; opacity: .85; }
+.pt-life b[data-a] { cursor: text; }
 </style>
 </head>
 <body>
@@ -1506,7 +1511,7 @@ function renderDeck(id) {
     return `<button class="row" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fake, { bare: true })}<span><span class="rn">${c.qty > 1 ? c.qty + "× " : ""}${esc(c.o.name)}</span><span class="rs">${manaHTML(c.o.mana)} ${st}</span></span><span class="rr">${c.have}/${c.qty}</span></button>`;
   };
   $("main").innerHTML = `<div class="dview"><div class="dvside">
-    <div class="two" style="margin-bottom:10px"><button class="btn primary" id="openEd">✎ Editar deck</button><button class="btn" id="openGf">▶ Testar (goldfish)</button></div>
+    <div class="two" style="margin-bottom:10px"><button class="btn primary" id="openEd">✎ Editar deck</button><button class="btn" id="openGf">▶ Testar</button></div>
     ${(() => { const oiS = [...new Set(d.cards.map(c => c.oi))]; const pull = oiS.reduce((a, oi) => a + Math.min(Math.max(0, d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0) - haveFor(d, oi)), libFor(oi)), 0);
       const mounted = oiS.reduce((a, oi) => a + haveFor(d, oi), 0);
       return pull ? `<button class="btn" id="rebuildDeck" style="width:100%;margin-bottom:10px">↺ ${mounted || /precon/.test(d.source || "") ? "Remontar deck" : "Montar com a coleção"} — pegar ${pull} carta(s) das caixas</button>` : ""; })()}
@@ -1886,7 +1891,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17e";
+const APP_VERSION = "2026.11.17f";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2030,8 +2035,8 @@ let GFU = 0;
 function gfNew(d) {
   const lib = []; const cmd = [];
   for (const c of d.cards) { if (c.board === "side" || c.board === "maybe") continue;
-    for (let i = 0; i < c.qty; i++) { const x = { u: ++GFU, oi: c.oi, set: c.set, number: c.number, t: false }; (c.board === "cmd" && isCmdFormat(d) ? cmd : lib).push(x); } }
-  Object.assign(GF, { hist: GF.id === d.id ? GF.hist || [] : [], fut: [], id: d.id, lib: gfShuffle(lib), hand: [], bf: [], gy: [], ex: [], cmd, turn: 0, life: isCmdFormat(d) ? 40 : 20, mull: 0, kept: false, landDrop: 0, log: [] });
+    for (let i = 0; i < c.qty; i++) { const x = { u: ++GFU, oi: c.oi, set: c.set, number: c.number, t: false }; if (c.board === "cmd" && isCmdFormat(d)) { x.isCmd = true; cmd.push(x); } else lib.push(x); } }
+  Object.assign(GF, { hist: GF.id === d.id ? GF.hist || [] : [], fut: [], id: d.id, lib: gfShuffle(lib), hand: [], bf: [], gy: [], ex: [], cmd, turn: 0, life: isCmdFormat(d) ? 40 : 20, opp: isCmdFormat(d) ? 40 : 20, poison: 0, mull: 0, kept: false, landDrop: 0, log: [] });
   gfDraw(7);
 }
 function gfShuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
@@ -2043,6 +2048,8 @@ function gfMove(u, to, where = "end") {
   const f = gfFind(u); if (!f) return; f.arr.splice(f.i, 1); const x = f.x; x.t = false;
   if (x.tok && to !== "bf") { GFE.delete(u); return; } // ficha que sai do campo deixa de existir
   if (to === "bf" && f.z === "hand" && gfIsLand(x)) GF.landDrop++;
+  if (to === "bf" && f.z === "cmd") x.tax = (x.tax || 0) + 1; // imposto do comandante
+  if (f.z === "bf" && to !== "bf") { delete x.k; delete x.f; delete x.fd; }
   const dst = gfZones()[to]; if (where === "top") dst.unshift(x); else dst.push(x);
 }
 // Sair do playtest: volta pelo histórico; se não houver para onde voltar (app reaberto direto no playtest), vai para o deck
@@ -2058,6 +2065,8 @@ function gfCard(x, z) {
 function gfAct(a) {
   if (!["keep"].includes(a) || !GF.mull) gfPush();
   if (a === "life-") GF.life--; else if (a === "life+") GF.life++;
+  else if (a === "opp-") GF.opp--; else if (a === "opp+") GF.opp++; else if (a === "psn-") GF.poison = Math.max(0, GF.poison - 1); else if (a === "psn+") GF.poison++;
+  else if (a === "lifeset" || a === "oppset") { const k = a === "lifeset" ? "life" : "opp"; askText(k === "life" ? "Sua vida" : "Vida do oponente", String(GF[k]), { inputmode: "numeric", hint: "Use −5 ou +3 para somar/subtrair" }).then(v => { if (v == null) return; v = v.trim(); const n = parseInt(v, 10); if (isNaN(n)) return; GF[k] = /^[+-]/.test(v) ? GF[k] + n : n; gfDraw0(); }); return; }
   else if (a === "mull") { GF.lib.push(...GF.hand); GF.hand = []; gfShuffle(GF.lib); GF.mull++; gfDraw(7); toast(`Mulligan ${GF.mull} — ao manter, ${GF.mull} carta(s) vão para o fundo`); }
   else if (a === "keep") { if (GF.mull) return gfBottom(GF.mull); GF.kept = true; GF.turn = 1; GF.landDrop = 0; }
   else if (a === "draw") gfDraw(1);
@@ -2138,7 +2147,7 @@ function gfStats(d) {
 }
 
 // ============ PLAYTEST (estilo Archidekt) ============
-const gfSnap = () => JSON.stringify({ lib: GF.lib, hand: GF.hand, bf: GF.bf, gy: GF.gy, ex: GF.ex, cmd: GF.cmd, turn: GF.turn, life: GF.life, mull: GF.mull, kept: GF.kept, landDrop: GF.landDrop });
+const gfSnap = () => JSON.stringify({ lib: GF.lib, hand: GF.hand, bf: GF.bf, gy: GF.gy, ex: GF.ex, cmd: GF.cmd, turn: GF.turn, life: GF.life, opp: GF.opp, poison: GF.poison, mull: GF.mull, kept: GF.kept, landDrop: GF.landDrop });
 function gfPush() { GF.hist = GF.hist || []; GF.hist.push(gfSnap()); if (GF.hist.length > 80) GF.hist.shift(); GF.fut = []; }
 function gfUndo() { if (!GF.hist || !GF.hist.length) return toast("Nada para desfazer", 900); (GF.fut = GF.fut || []).push(gfSnap()); Object.assign(GF, JSON.parse(GF.hist.pop())); gfDraw0(); }
 function gfRedo() { if (!GF.fut || !GF.fut.length) return toast("Nada para refazer", 900); GF.hist.push(gfSnap()); Object.assign(GF, JSON.parse(GF.fut.pop())); gfDraw0(); }
@@ -2163,6 +2172,14 @@ const gfTokImg = (x) => `<div class="cardimg"><img src="${esc(x.tok.img)}" alt="
 function gfEl(x, z, cls = "", style = "") {
   let el = GFE.get(x.u);
   if (!el) { el = document.createElement("div"); el.innerHTML = x.tok ? gfTokImg(x) : gfImg(x); GFE.set(x.u, el); }
+  const face = x.fd ? "fd" : x.f ? "back" : "front";
+  if ((el.dataset.face || "front") !== face) { el.dataset.face = face;
+    el.innerHTML = face === "fd" ? `<div class="cardimg pt-fd"><img src="icon-v2-192.png" alt="" draggable="false"></div>` : face === "back" ? `<div class="cardimg"><img src="${esc(imgOf(x) + "&face=back")}" alt="" draggable="false"></div>` : x.tok ? gfTokImg(x) : gfImg(x); }
+  let kb = el.querySelector(":scope > .pt-k"); const ks = Object.entries(x.k || {}).filter(([, n]) => n);
+  const tax = z === "cmd" && x.tax ? [["Imposto", "+" + 2 * x.tax]] : [];
+  if (ks.length || tax.length) { if (!kb) { kb = document.createElement("div"); kb.className = "pt-k"; el.appendChild(kb); }
+    kb.innerHTML = [...tax, ...ks].map(([k, n]) => `<b>${/^[+-]1\/[+-]1$/.test(k) ? (n > 0 ? "+" + n + "/+" + n : n + "/" + n).replace("+-", "-") : esc(k) + " " + n}</b>`).join(""); }
+  else if (kb) kb.remove();
   el.className = "pt-c" + (cls ? " " + cls : "") + (x.tok ? " tok" : ""); el.dataset.u = x.u; el.dataset.oi = x.tok ? "" : x.oi; el.dataset.z = z; el.style.cssText = style;
   return el;
 }
@@ -2173,7 +2190,9 @@ function gfDraw0() {
   const pre = !GF.kept; const mana = GF.bf.filter(x => !x.tok && gfIsLand(x) && !x.t).length;
   // topo
   $("ptStats").innerHTML = `<span class="pt-chip"><b>Turno ${GF.turn || "—"}</b></span>
-    <span class="pt-chip pt-life"><button data-a="life-">−</button><b>${GF.life}</b><span>vida</span><button data-a="life+">+</button></span>
+    <span class="pt-chip pt-life"><button data-a="life-">−</button><b data-a="lifeset" title="Clique para digitar">${GF.life}</b><span>vida</span><button data-a="life+">+</button></span>
+    <span class="pt-chip pt-life" title="Oponente imaginário: anote o dano que você causa"><button data-a="opp-">−</button><b data-a="oppset" title="Clique para digitar">${GF.opp}</b><span>oponente</span><button data-a="opp+">+</button></span>
+    ${GF.poison ? `<span class="pt-chip pt-life"><button data-a="psn-">−</button><b>${GF.poison}</b><span>veneno</span><button data-a="psn+">+</button></span>` : ""}
     <span class="pt-chip"><b>${mana}</b> mana livre</span><span class="pt-chip">${GF.landDrop ? "✓ terreno jogado" : "terreno: 0"}</span>`;
   $("ptTR").innerHTML = pre ? `<button class="pt-tb" data-a="mull">Mulligan${GF.mull ? " (" + GF.mull + ")" : ""}</button><button class="pt-tb pri" data-a="keep">Manter mão ↵</button>`
     : `<button class="pt-tb" data-a="draw">Comprar</button><button class="pt-tb pri" data-a="next">Próximo turno ›</button>`;
@@ -2226,7 +2245,7 @@ function gfBuild() {
     const op = e.target.closest("[data-open]"); if (op) return gfPile(op.dataset.open);
   };
   pt.oncontextmenu = (e) => { const c = e.target.closest(".pt-c[data-u]"); if (!c) return; if (e.ctrlKey) return; e.preventDefault(); gfCtx(e, +c.dataset.u); };
-  pt.onmouseover = (e) => { const c = e.target.closest(".pt-c[data-u]"); let pv = $("gfPv"); if (!c || DRAG.on || !isWide()) { if (pv) pv.remove(); return; }
+  pt.onmouseover = (e) => { const c = e.target.closest(".pt-c[data-u]"); GF.hoverU = c ? +c.dataset.u : 0; let pv = $("gfPv"); if (!c || DRAG.on || !isWide()) { if (pv) pv.remove(); return; }
     if (!pv) { pv = document.createElement("div"); pv.id = "gfPv"; pv.className = "gf-pv"; document.body.appendChild(pv); } if (pv.dataset.u !== c.dataset.u) { pv.dataset.u = c.dataset.u; pv.innerHTML = c.innerHTML; } };
   pt.onmouseleave = () => { const pv = $("gfPv"); if (pv) pv.remove(); };
   smoothDrag(pt, { sel: ".pt-c[data-u], .pt-back", targets: "[data-zone]",
@@ -2277,6 +2296,17 @@ function gfCtx(e, u) {
   else if (z === "bf") items.push([x.t ? "Desvirar" : "Virar (tap)", mv("tap"), "pri", isWide() ? "Clique" : ""], ["Para o cemitério", mv("gy")], ["Exilar", mv("ex")], ["Voltar para a mão", mv("hand")], "-", ["Topo do grimório", mv("lib", "top")], ["Fundo do grimório", mv("lib")]);
   else if (z === "cmd") items.push(["Lançar comandante", mv("bf"), "pri"], ["Para a mão", mv("hand")]);
   else items.push(["Para a mão", mv("hand")], ["Para o campo", mv("bf")], ...(z !== "gy" ? [["Para o cemitério", mv("gy")]] : []), ...(z !== "ex" ? [["Exilar", mv("ex")]] : []), ...(z !== "lib" ? [["Topo do grimório", mv("lib", "top")]] : []));
+  if (z === "bf") {
+    const kc = (k, d) => () => { gfPush(); x.k = x.k || {}; x.k[k] = (x.k[k] || 0) + d; if (!x.k[k]) delete x.k[k]; gfDraw0(); };
+    items.push("-", { head: "Marcadores" }, ["＋ Marcador +1/+1", kc("+1/+1", 1), "", isWide() ? "+" : ""], ["－ Marcador +1/+1", kc("+1/+1", -1), "", isWide() ? "−" : ""]);
+    for (const k of Object.keys(x.k || {}).filter(k => k !== "+1/+1")) items.push([`＋ ${k}`, kc(k, 1)], [`－ ${k}`, kc(k, -1)]);
+    items.push(["Outro marcador (lealdade, carga…)", async () => { const nm = await askText("Nome do marcador", /Planeswalker/.test(DB.o[x.oi]?.[5] || "") ? "Lealdade" : "Carga", { hint: "Ex.: Lealdade, Carga, -1/-1, Veneno, Tempo" }); if (!nm) return; const q = parseInt(await askText("Quantos?", "1", { inputmode: "numeric" }), 10); if (!q) return; kc(nm.trim(), q)(); }]);
+    if (x.k && Object.keys(x.k).length) items.push(["Tirar todos os marcadores", () => { gfPush(); delete x.k; gfDraw0(); }]);
+    items.push("-");
+    if (/ \/\/ /.test(name) && !x.tok) items.push([x.f ? "🔄 Voltar para a frente" : "🔄 Transformar (virar a carta)", () => { gfPush(); x.f = !x.f; gfDraw0(); }]);
+    items.push([x.fd ? "Desvirar face para cima" : "Colocar com a face para baixo", () => { gfPush(); x.fd = !x.fd; gfDraw0(); }]);
+  }
+  if (x.isCmd && z !== "cmd") items.push(["👑 Voltar para a zona de comando", mv("cmd"), "pri"]);
   if (makesTok || z === "bf") items.push("-", [makesTok ? "🪙 Criar ficha desta carta…" : "🪙 Criar cópia (ficha)…", () => gfTokenMenu(e, x), makesTok ? "pri" : ""]);
   items.push("-", ["🔍 Ampliar", () => { const t = document.createElement("div"); t.innerHTML = gfImg(x); zoomImg(t); }]);
   ctxMenu(e.clientX || innerWidth / 2, e.clientY || innerHeight / 2, items);
@@ -2288,8 +2318,14 @@ function gfActMenu(e) {
     ["Desvirar tudo", () => { gfPush(); [...GF.bf, ...GF.cmd].forEach(x => x.t = false); gfDraw0(); }, "", "U"],
     ["Ver topo (vidência)", () => gfScry(), "", "V"], ["Moer 1", () => { gfPush(); if (GF.lib.length) GF.gy.push(GF.lib.shift()); gfDraw0(); }],
     ["Embaralhar grimório", () => { gfPush(); gfShuffle(GF.lib); toast("Embaralhado"); gfDraw0(); }, "", "S"],
+    "-", ["Comprar X…", () => gfTopX("Comprar quantas?", (x) => GF.hand.push(x))], ["Moer X (topo → cemitério)…", () => gfTopX("Moer quantas?", (x) => GF.gy.push(x))], ["Exilar X do topo…", () => gfTopX("Exilar quantas do topo?", (x) => GF.ex.push(x))],
+    ["Revelar até achar um terreno", () => gfRevealUntil(gfIsLand, "terreno")], ["Revelar até achar uma não-terreno", () => gfRevealUntil(x => !gfIsLand(x), "mágica")],
+    "-", ["🎲 Rolar d6", () => toast("🎲 d6: " + (1 + Math.floor(Math.random() * 6)), 2500)], ["🎲 Rolar d20", () => toast("🎲 d20: " + (1 + Math.floor(Math.random() * 20)), 2500)], ["🪙 Jogar moeda", () => toast("🪙 " + (Math.random() < .5 ? "Cara" : "Coroa"), 2500)],
+    [GF.poison ? "☠ Veneno +1" : "☠ Marcar veneno", () => gfAct("psn+")],
     "-", ["Estatísticas da mão inicial", () => gfStats(d)], ["Nova partida", () => { gfPush(); gfNew(d); gfDraw0(); }, "", "R"]]);
 }
+async function gfTopX(q, put) { const n = parseInt(await askText(q, "2", { inputmode: "numeric" }), 10); if (!(n > 0)) return; gfPush(); for (let i = 0; i < n && GF.lib.length; i++) put(GF.lib.shift()); gfDraw0(); }
+function gfRevealUntil(test, label) { const i = GF.lib.findIndex(test); if (i < 0) return toast("Nenhuma " + label + " no grimório"); gfPush(); const rev = GF.lib.splice(0, i + 1); const hit = rev.pop(); GF.ex.push(...rev); GF.hand.push(hit); gfDraw0(); toast(`${DB.o[hit.oi][0]} para a mão · ${rev.length} revelada(s) foram para o exílio (mova se precisar)`, 3500); }
 function gfHandMenu(e) {
   const r = e.target.getBoundingClientRect();
   ctxMenu(r.left, r.top - 200, [{ head: `Mão (${GF.hand.length})` },
@@ -2306,7 +2342,7 @@ function gfPileMenu(e, z) {
   ctxMenu(r.left - 120, r.top - 40, items);
 }
 function gfKeys() {
-  openSheet(`<h3 style="margin:0">Atalhos do playtest</h3><div class="pt-keys">${[["D", "Comprar"], ["N", "Próximo turno (desvira e compra)"], ["U", "Desvirar tudo"], ["S", "Embaralhar grimório"], ["V", "Ver topo (vidência)"], ["M", "Mulligan"], ["Enter", "Manter mão"], ["R", "Nova partida"], ["Ctrl+Z", "Desfazer"], ["Ctrl+Y", "Refazer"], ["Clique", "Mão: jogar · Campo: virar/desvirar"], ["Botão direito", "Todas as opções da carta"], ["Arrastar", "Mover entre campo, mão, grimório, cemitério, exílio"]].map(([k, t]) => `<div><kbd>${k}</kbd><span>${t}</span></div>`).join("")}</div>`, `<button class="btn primary" id="kX">OK</button>`);
+  openSheet(`<h3 style="margin:0">Atalhos do playtest</h3><div class="pt-keys">${[["D", "Comprar"], ["N", "Próximo turno (desvira e compra)"], ["U", "Desvirar tudo"], ["S", "Embaralhar grimório"], ["V", "Ver topo (vidência)"], ["M", "Mulligan"], ["Enter", "Manter mão"], ["R", "Nova partida"], ["+ / −", "Marcador +1/+1 na carta sob o mouse"], ["Esc", "Sair do teste"], ["Ctrl+Z", "Desfazer"], ["Ctrl+Y", "Refazer"], ["Clique", "Mão: jogar · Campo: virar/desvirar"], ["Botão direito", "Todas as opções da carta"], ["Arrastar", "Mover entre campo, mão, grimório, cemitério, exílio"]].map(([k, t]) => `<div><kbd>${k}</kbd><span>${t}</span></div>`).join("")}</div>`, `<button class="btn primary" id="kX">OK</button>`);
   $("kX").onclick = closeSheet;
 }
 document.addEventListener("keydown", (e) => {
@@ -2314,6 +2350,7 @@ document.addEventListener("keydown", (e) => {
   if (!$("sheet").classList.contains("hidden")) return;
   const k = e.key.toLowerCase();
   if (k === "escape") { if (document.querySelector(".ctxm")) return; e.preventDefault(); return gfExit(); }
+  if (k === "+" || k === "=" || k === "-") { const f = GF.hoverU && gfFind(GF.hoverU); if (f && f.z !== "bf") return; if (f) { e.preventDefault(); gfPush(); const x = f.x; x.k = x.k || {}; x.k["+1/+1"] = (x.k["+1/+1"] || 0) + (k === "-" ? -1 : 1); if (!x.k["+1/+1"]) delete x.k["+1/+1"]; gfDraw0(); } return; }
   if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); return gfUndo(); }
   if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); return gfRedo(); }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -2939,10 +2976,10 @@ function renderEditor() {
   const d = deckOf(); if (!d) return go("decks");
   document.body.classList.add("wide");
   $("title").textContent = d.name; $("backBtn").classList.remove("invisible"); $("bars").innerHTML = "";
-  setMenu([["▶ Testar (goldfish)", () => openGoldfish(d.id)], ["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", async () => { const n = await askText("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), async () => { const f = await askText("Formato", d.format || "Commander", { hint: "Commander, Standard, Modern, Pauper, Livre…" }); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Excluir deck…", () => deleteDeck(d)]]);
+  setMenu([["▶ Testar", () => openGoldfish(d.id)], ["Resumo e montagem do deck", () => go("decks", { kind: "deck", id: d.id })], ["Renomear", async () => { const n = await askText("Nome do deck", d.name); if (n) { d.name = n; save(); renderEditor(); } }], ["Formato: " + (d.format || "Commander"), async () => { const f = await askText("Formato", d.format || "Commander", { hint: "Commander, Standard, Modern, Pauper, Livre…" }); if (f) { d.format = f; save(); renderEditor(); } }], ["Copiar lista", () => copyDeck(d)], ["Copiar faltantes", () => copyMissing(d)], ["Escanear cartas para este deck", () => scanForDeck(d)], ["Excluir deck…", () => deleteDeck(d)]]);
   $("fab").classList.add("hidden"); $("main").onclick = null; $("main").oncontextmenu = null;
   $("main").innerHTML = `
-    <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}<button class="edgf" id="edGf" title="Testar o deck sozinho">▶ Testar (playtest)</button></div>
+    <div class="edtabs" id="edTabs">${["busca", "deck", "analise"].map(p => `<button data-p="${p}" aria-pressed="${ED.pane === p}">${{ busca: "Buscar", deck: "Deck", analise: "Análise" }[p]}</button>`).join("")}<button class="edgf" id="edGf" title="Testar o deck sozinho">▶ Testar</button></div>
     <div class="editor" data-pane="${ED.pane}">
       <section class="ed-search" id="edSearch"></section>
       <section class="ed-deck" id="edDeck"></section>
