@@ -1912,7 +1912,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17m";
+const APP_VERSION = "2026.11.17n";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2631,7 +2631,8 @@ async function edhDecks(path) {
 }
 function EH_mem(key, j) { EDH.mem.set(key, j); store.set(key, { at: Date.now(), j }).catch(() => {}); }
 function renderEdh() {
-  const st = edhState();
+  // a aba abre na lista de comandantes; um comandante é uma "página" própria (o voltar retorna à lista)
+  const st = edhState(); st.oi = view && view.kind === "cmd" && DB.o[view.oi] ? view.oi : null;
   $("title").textContent = "EDH"; $("bars").innerHTML = ""; $("fab").classList.add("hidden");
   setMenu([["Escolher outro comandante", edhPick], ...(st.oi != null ? [["Ver no EDHREC ↗", () => window.open("https://edhrec.com/commanders/" + cmdSlug([st.oi]), "_blank")]] : []), ["Esconder esta aba", () => { setPref("showEdh", false); go("col"); toast("Aba EDH escondida — dá para voltar em Configurações"); }]]);
   if (st.oi == null || !DB.o[st.oi]) return edhLanding();
@@ -2755,7 +2756,7 @@ function edhMakeDeck(oi) {
   const d = { id: uid(), name: DB.o[oi][0].split(" // ")[0], format: "Commander", source: "edhrec", cards: [{ oi, qty: 1, board: "cmd", set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" }], built: false, created: Date.now() };
   S.decks.push(d); ED.useCI = true; save(); return d;
 }
-function edhPick() { pickCommander((oi) => { const st = edhState(); st.oi = oi; EDHT.tag = ""; EDHT.cat = ""; EDHT.more = false; store.set("settings", S.settings); closeSheet(); if (tab === "edh") renderEdh(); else go("edh"); }); }
+function edhPick() { pickCommander((oi) => { const st = edhState(); st.oi = oi; EDHT.tag = ""; EDHT.cat = ""; EDHT.more = false; store.set("settings", S.settings); closeSheet(); go("edh", { kind: "cmd", oi }); }); }
 // Página inicial da aba EDH: grade de comandantes com filtros (busca do Scryfall, ordem de popularidade do EDHREC)
 const EDHL = { seq: 0, next: null, items: [], busy: false };
 const edhF = () => { const d = { cols: "", cm: "=", src: "", max: "", sort: "edhrec", own: false, type: "" }; const f = S.settings.edhF || (S.settings.edhF = {}); for (const k in d) if (!(k in f)) f[k] = d[k]; return f; };
@@ -2793,7 +2794,7 @@ async function edhLanding() {
   $("efType").onchange = (e) => { f.type = e.target.value; reload(); }; $("efMax").onchange = (e) => { f.max = e.target.value; reload(); };
   $("efSort").onchange = (e) => { f.sort = e.target.value; reload(); }; $("efOwn").onchange = (e) => { f.own = e.target.checked; edhDrawList(); store.set("settings", S.settings).catch(() => {}); };
   $("efClr").onclick = () => { S.settings.edhF = null; edhLanding(); };
-  $("ehTop").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (!b) return; edhState().oi = +b.dataset.oi; store.set("settings", S.settings); renderEdh(); window.scrollTo(0, 0); };
+  $("ehTop").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (!b) return; const oi = +b.dataset.oi; edhState().oi = oi; EDHT.tag = ""; EDHT.cat = ""; EDHT.more = false; store.set("settings", S.settings); go("edh", { kind: "cmd", oi }); };
   edhLoadList(true);
 }
 // Comandantes dos decks prontos (precons), gerado de MTGJSON por tools/build_precons.py
