@@ -11,6 +11,11 @@ const APP_URL = "https://teolfe01.github.io/scanner-mtg/?source=desktop";
 const LOGIN_URL = "https://teolfe01.github.io/scanner-mtg/desktop-login.html";
 const SITE = "https://teolfe01.github.io";
 let win = null;
+const APP_ID = "io.github.teolfe01.bibliotecamtg.desktop";
+// O .exe portátil roda de uma cópia temporária. Para o atalho fixado na barra de tarefas apontar para o .exe de verdade
+// (e não para a cópia que some ao fechar), informamos ao Windows o caminho original.
+const REAL_EXE = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+if (process.platform === "win32") app.setAppUserModelId(APP_ID);
 
 // registro de erros em %APPDATA%\\Biblioteca MTG\\log.txt
 function log(...a) { try { fs.appendFileSync(path.join(app.getPath("userData"), "log.txt"), new Date().toISOString() + " " + a.map(x => x && x.stack ? x.stack : String(x)).join(" ") + "\n"); } catch (e) {} }
@@ -33,6 +38,16 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
+  if (process.platform === "win32") { try { win.setAppDetails({ appId: APP_ID, relaunchCommand: `"${REAL_EXE}"`, relaunchDisplayName: "Biblioteca MTG", appIconPath: REAL_EXE, appIconIndex: 0 }); } catch (e) { log("setAppDetails", e); } }
+  // se a página travar, avisa e oferece recarregar (o que estava salvo continua salvo)
+  let hangT = null;
+  win.on("unresponsive", () => { log("janela parou de responder"); clearTimeout(hangT); hangT = setTimeout(async () => {
+    if (!win || win.isDestroyed()) return;
+    const r = await dialog.showMessageBox(win, { type: "warning", buttons: ["Recarregar", "Esperar"], defaultId: 0, title: "Biblioteca MTG", message: "O app parou de responder.", detail: "Recarregar não apaga nada do que já foi salvo." });
+    if (r.response === 0 && win && !win.isDestroyed()) { log("recarregando após travar"); win.webContents.forcefullyCrashRenderer(); } }, 2500); });
+  win.on("responsive", () => { clearTimeout(hangT); log("voltou a responder"); });
+  // erros da página vão para o log, para dar para investigar
+  win.webContents.on("console-message", (e, level, message, line, src) => { if (level >= 3) log("página:", message, src ? src.split("/").pop() + ":" + line : ""); });
   win.on("closed", () => { win = null; });
   win.webContents.on("render-process-gone", (e, d) => { log("página caiu", JSON.stringify(d)); if (win && !win.isDestroyed()) setTimeout(() => win.reload(), 800); });
   win.loadURL(APP_URL).catch(() => win.loadFile(path.join(__dirname, "offline.html")));

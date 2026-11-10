@@ -1814,7 +1814,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17a";
+const APP_VERSION = "2026.11.17b";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -1972,6 +1972,12 @@ function gfMove(u, to, where = "end") {
   if (x.tok && to !== "bf") { GFE.delete(u); return; } // ficha que sai do campo deixa de existir
   if (to === "bf" && f.z === "hand" && gfIsLand(x)) GF.landDrop++;
   const dst = gfZones()[to]; if (where === "top") dst.unshift(x); else dst.push(x);
+}
+// Sair do playtest: volta pelo histórico; se não houver para onde voltar (app reaberto direto no playtest), vai para o deck
+function gfExit() {
+  const id = GF.id; const back = history.state && history.state.bm && !history.state.guard;
+  const fb = () => { if (tab === "decks" && view && view.kind === "gold") go("decks", S.decks.some(d => d.id === id) ? { kind: "deck", id } : null); };
+  if (back) { history.back(); setTimeout(fb, 400); } else fb();
 }
 function openGoldfish(id) { go("decks", { kind: "gold", id }); }
 function gfCard(x, z) {
@@ -2136,7 +2142,7 @@ function gfBuild() {
   const pt = $("pt");
   pt.onclick = (e) => {
     const a = e.target.closest("[data-a]"); if (a) return gfAct(a.dataset.a);
-    if (e.target.closest("#ptExit")) return history.back();
+    if (e.target.closest("#ptExit")) return gfExit();
     if (e.target.closest("#ptKeys")) return gfKeys();
     if (e.target.closest("#ptUndo")) return gfUndo(); if (e.target.closest("#ptRedo")) return gfRedo();
     if (e.target.closest("#ptAct")) return gfActMenu(e); if (e.target.closest("#ptHand")) return gfHandMenu(e);
@@ -2235,6 +2241,7 @@ document.addEventListener("keydown", (e) => {
   if (!(tab === "decks" && view && view.kind === "gold") || !$("pt")) return; const t = e.target; if (t && t.matches("input, textarea, select")) return;
   if (!$("sheet").classList.contains("hidden")) return;
   const k = e.key.toLowerCase();
+  if (k === "escape") { if (document.querySelector(".ctxm")) return; e.preventDefault(); return gfExit(); }
   if ((e.ctrlKey || e.metaKey) && k === "z" && !e.shiftKey) { e.preventDefault(); return gfUndo(); }
   if ((e.ctrlKey || e.metaKey) && (k === "y" || (k === "z" && e.shiftKey))) { e.preventDefault(); return gfRedo(); }
   if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -2585,6 +2592,7 @@ function restoreResume() {
   if (r.v && r.v.id && !S.decks.some(d => d.id === r.v.id)) return false;
   if (r.F) { Object.assign(F, r.F); F.colors = new Set(r.F.colors || []); }
   if (r.ED) Object.assign(ED, r.ED);
+  if (r.v && r.v.kind === "gold") r.v = { kind: "deck", id: r.v.id };
   if (r.v && r.v.kind === "edit") ED.id = r.v.id;
   DF.id = r.DFid || null; DF.f = r.DF || null;
   go(r.t, r.v || null, { init: true });
@@ -3880,7 +3888,7 @@ function accountMenu() {
     const startTab = new URLSearchParams(location.search).get("tab") || (P().startTab !== "last" && !(S.settings.resume && S.settings.resume.fromLink) ? P().startTab : null); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
     else if (restoreResume()) {}
-    else if (lv && views[lv.t] && (!lv.v || !lv.v.id || S.decks.some(d => d.id === lv.v.id))) { if (lv.v && lv.v.kind === "edit") ED.id = lv.v.id; go(lv.t, lv.v || null, { init: true }); }
+    else if (lv && views[lv.t] && (!lv.v || !lv.v.id || S.decks.some(d => d.id === lv.v.id))) { if (lv.v && lv.v.kind === "gold") lv.v = { kind: "deck", id: lv.v.id }; if (lv.v && lv.v.kind === "edit") ED.id = lv.v.id; go(lv.t, lv.v || null, { init: true }); }
     else go("col", null, { init: true }); updateRate().then(() => { if (tab === "col") renderCol(); });
     try {
       const u = await cloudInit();
