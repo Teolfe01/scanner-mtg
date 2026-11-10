@@ -654,6 +654,54 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 @keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
 @keyframes bump { 30% { transform: scale(1.08); } 60% { transform: scale(.97); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+/* ===== Tela grande (PC): menu lateral, barra superior compacta, conteúdo na largura toda ===== */
+#cfgBtn { display: none; }
+@media (min-width: 1000px) {
+  :root { --side: 88px; }
+  body { padding-left: var(--side); }
+  nav.bottom { left: 0; right: auto; top: 0; bottom: 0; width: var(--side); max-width: none; margin: 0; border-radius: 0; flex-direction: column; justify-content: flex-start; gap: 2px; padding: 12px 0; background: rgba(16,17,20,.94); box-shadow: 1px 0 0 rgba(255,255,255,.05); }
+  nav.bottom::before { content: ""; display: block; width: 40px; height: 40px; margin: 2px auto 14px; border-radius: 12px; background: url(icon-v2-192.png) center / cover; flex: 0 0 auto; }
+  nav.bottom > button { flex: 0 0 auto; width: 100%; height: 66px; font-size: 11px !important; color: var(--muted); border-radius: 0; outline: none; }
+  nav.bottom > button:hover { color: var(--ink); background: rgba(255,255,255,.04); }
+  nav.bottom button[aria-current="page"] { color: #fff; background: linear-gradient(90deg, rgba(var(--acc-rgb),.16), transparent); }
+  nav.bottom button[aria-current="page"] svg { transform: none; }
+  nav.bottom button::after { left: 0; top: 50%; bottom: auto; width: 3px; height: 30px; border-radius: 0 3px 3px 0; transform: translateY(-50%) scaleY(0); }
+  nav.bottom button[aria-current="page"]::after { transform: translateY(-50%) scaleY(1); }
+  .fab { right: 28px; bottom: 28px; }
+  #scanView { left: var(--side); bottom: 0; }
+  .undobtn { left: calc(var(--side) + 16px); bottom: 22px; }
+  /* barra superior numa linha: título · busca/filtros · ações */
+  .appbar { display: flex; align-items: center; gap: 4px 14px; padding: 6px 14px; flex-wrap: nowrap; }
+  .titlebar { display: contents; }
+  #backBtn { order: 0; flex: 0 0 auto; } #backBtn.invisible { display: none; }
+  #title { order: 1; flex: 0 0 auto; text-align: left; font-size: 20px; white-space: nowrap; max-width: 30vw; overflow: hidden; text-overflow: ellipsis; }
+  #bars { order: 2; flex: 1 1 0; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 0 12px; }
+  #bars:empty { min-height: 44px; }
+  #colBars { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 0 18px; }
+  #colBars .subbar { display: contents; }
+  #bars .toolbar { flex: 1 1 380px; max-width: 760px; margin: 0; padding: 0; }
+  #bars .toolbar input { height: 40px; }
+  #bars .subbar { background: none; flex: 0 1 auto; }
+  #bars .subrow, #bars .filterpanel { max-width: none; margin: 0; padding: 4px 0; }
+  #bars .filterpanel { flex: 1 1 100%; padding-bottom: 8px; }
+  #bars .subrow { flex-wrap: nowrap; gap: 18px; }
+  #menuBtn { order: 4; flex: 0 0 auto; } #cfgBtn { display: grid; order: 5; flex: 0 0 auto; }
+  .menu { top: 54px; right: 14px; }
+  main { max-width: none; padding: 16px 24px 40px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)) !important; }
+  html[data-grid="s"] .grid { grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)) !important; }
+  html[data-grid="l"] .grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)) !important; }
+  .dgrid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+  /* editor: botão de playtest sobe para a barra do topo */
+  .edtabs { position: fixed !important; top: 8px; right: 124px; z-index: 11; margin: 0 !important; }
+  /* deck: resumo fixo à esquerda, lista em colunas à direita */
+  .dview { display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 22px; align-items: start; }
+  .dvside { position: sticky; top: 72px; max-height: calc(100vh - 84px); overflow: auto; scrollbar-width: thin; }
+  .dvside .kpis { grid-template-columns: repeat(2, 1fr); }
+  #dlist { column-width: 360px; column-gap: 16px; }
+  #dlist .row { break-inside: avoid; } #dlist .fchip { column-span: all; }
+  #dlist h2.sec { break-after: avoid; margin-top: 0; padding-top: 14px; }
+}
 </style>
 </head>
 <body>
@@ -662,6 +710,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
   <div class="titlebar">
     <button class="iconbtn invisible" id="backBtn" aria-label="Voltar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H6M11 6l-6 6 6 6"/></svg></button>
     <h1 id="title">Coleção</h1>
+    <button class="iconbtn" id="cfgBtn" aria-label="Configurações" title="Configurações"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     <button class="iconbtn" id="menuBtn" aria-label="Mais opções"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="19" r="2.2"/></svg></button>
   </div>
   <div id="bars"></div>
@@ -1034,8 +1083,11 @@ function setMenu(items) {
   if (tab !== "cfg" && !items.some(it => /Configura/.test(it[0]))) items = [...items, ["⚙️ Configurações", openSettings]];
   $("menu").innerHTML = items.map((it, i) => `<button data-i="${i}">${esc(it[0])}</button>`).join("");
   $("menu").onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b) return; $("menu").classList.add("hidden"); items[+b.dataset.i][1](); };
-  $("menuBtn").classList.toggle("invisible", !items.length || tab === "cfg");
+  if (innerWidth >= 1000) items = items.filter(it => !/Configura/.test(it[0]));
+  $("menu").innerHTML = items.map((it, i) => `<button data-i="${i}">${esc(it[0])}</button>`).join("");
+  $("menuBtn").classList.toggle("invisible", !items.length || tab === "cfg"); $("cfgBtn").classList.toggle("invisible", tab === "cfg");
 }
+$("cfgBtn").onclick = () => openSettings();
 $("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle("hidden"); };
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
 
@@ -1433,7 +1485,7 @@ function renderDeck(id) {
     const fake = { oi: c.oi, set: c.set || DB.p[defaultPrint(c.oi)]?.[0] || "", number: c.number || DB.p[defaultPrint(c.oi)]?.[1] || "" };
     return `<button class="row" data-oi="${c.oi}" data-b="${c.board}">${cardImgHTML(fake, { bare: true })}<span><span class="rn">${c.qty > 1 ? c.qty + "× " : ""}${esc(c.o.name)}</span><span class="rs">${manaHTML(c.o.mana)} ${st}</span></span><span class="rr">${c.have}/${c.qty}</span></button>`;
   };
-  $("main").innerHTML = `
+  $("main").innerHTML = `<div class="dview"><div class="dvside">
     <div class="two" style="margin-bottom:10px"><button class="btn primary" id="openEd">✎ Editar deck</button><button class="btn" id="openGf">▶ Testar (goldfish)</button></div>
     ${(() => { const oiS = [...new Set(d.cards.map(c => c.oi))]; const pull = oiS.reduce((a, oi) => a + Math.min(Math.max(0, d.cards.filter(c => c.oi === oi).reduce((x, c) => x + c.qty, 0) - haveFor(d, oi)), libFor(oi)), 0);
       const mounted = oiS.reduce((a, oi) => a + haveFor(d, oi), 0);
@@ -1446,8 +1498,8 @@ function renderDeck(id) {
       ${Object.keys(rolesCount).length ? `<div class="roles">${Object.entries(rolesCount).sort((a, b) => b[1] - a[1]).map(([r, n]) => `<button class="pill fbtn" data-f="role:${r}">${esc(ROLES[r])} ${n}</button>`).join("")}</div>` : ""}
       ${value ? `<div class="meta">Valor estimado: ${fmtUSD(value)}</div>` : ""}
       <div class="actions"><button class="btn primary small" id="bBuild">Montar com a coleção</button><button class="btn small" id="bUnbuild">Desmontar</button><button class="btn small" id="bMiss">Copiar faltantes</button></div>
-    </div>
-    <div id="dlist"></div>`;
+    </div></div>
+    <div id="dlist"></div></div>`;
   const fLabel = (f) => { const [k, v] = f.split(":"); return k === "role" ? ROLES[v] : k === "cmc" ? "CMC " + (v === "7" ? "7+" : v) : k === "color" ? COLOR_NAME[v] : k === "land" ? "Terrenos" : "Faltando"; };
   const fTest = (f, c) => { const [k, v] = (f || "").split(":"); if (!k) return true;
     if (k === "role") return c.o.roles.includes(v); if (k === "land") return mainTypes(c.o.type).includes("Land");
@@ -1814,7 +1866,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17b";
+const APP_VERSION = "2026.11.17c";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
