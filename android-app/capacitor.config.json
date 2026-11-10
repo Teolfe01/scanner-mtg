@@ -4,11 +4,21 @@
   "webDir": "www",
   "server": {
     "url": "https://teolfe01.github.io/scanner-mtg/?source=native",
-    "allowNavigation": ["teolfe01.github.io"],
+    "allowNavigation": [
+      "teolfe01.github.io"
+    ],
     "androidScheme": "https"
   },
-  "android": { "backgroundColor": "#121316" },
+  "android": {
+    "backgroundColor": "#121316",
+    "adjustMarginsForEdgeToEdge": "force"
+  },
   "plugins": {
-    "FirebaseAuthentication": { "skipNativeAuth": true, "providers": ["google.com"] }
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": [
+        "google.com"
+      ]
+    }
   }
 }
