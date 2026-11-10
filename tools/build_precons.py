@@ -3,22 +3,28 @@
 #   rank:  { comandante: edhrec_rank }
 import gzip, json, sys, tarfile, time, urllib.request, os
 UA = {"User-Agent": "BibliotecaMTG/1.0 (github.com/Teolfe01/scanner-mtg)", "Accept": "application/json"}
-decks = []
+decks = []; types = {}; nocmd = 0; sample = None
 with tarfile.open(sys.argv[1], "r:gz") as tf:
     for m in tf:
         if not m.isfile() or not m.name.endswith(".json"): continue
         try: d = json.load(tf.extractfile(m)).get("data") or {}
         except Exception: continue
         t = d.get("type") or ""
+        types[t] = types.get(t, 0) + 1
         if "Commander" not in t: continue
-        cmds = [c.get("name") for c in (d.get("commander") or []) if c.get("name")]
-        if not cmds: continue
+        cmds = [c.get("name") for c in (d.get("commander") or d.get("displayCommander") or []) if c.get("name")]
+        if not cmds: cmds = [c.get("name") for c in (d.get("mainBoard") or []) if c.get("isCommander") or c.get("isDisplayCommander")]
+        if not cmds:
+            nocmd += 1
+            if not sample: sample = (m.name, list(d.keys()))
+            continue
         cmds = list(dict.fromkeys(cmds))
         fn = os.path.basename(m.name)[:-5]
         decks.append([d.get("name") or fn, (d.get("code") or "").lower(), d.get("releaseDate") or "", fn, cmds])
 decks.sort(key=lambda x: x[2], reverse=True)
 names = sorted({n for d in decks for n in d[4]})
-print("decks:", len(decks), "comandantes:", len(names))
+print("decks:", len(decks), "comandantes:", len(names), "sem comandante:", nocmd, sample)
+print("tipos:", sorted(types.items(), key=lambda x: -x[1])[:25])
 rank = {}
 for i in range(0, len(names), 75):
     ids = [{"name": n.split(" // ")[0]} for n in names[i:i + 75]]
