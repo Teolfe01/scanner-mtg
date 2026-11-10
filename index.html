@@ -736,6 +736,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .iconbtn.on { background: rgba(var(--acc-rgb), .2); color: var(--accent); }
 .wbar { flex-wrap: wrap; justify-content: center; width: max-content; max-width: calc(100vw - 24px); border-radius: 12px; } .wbar button:disabled { opacity: .4; }
 @media (min-width: 1000px) { .wbar { left: calc(50% + var(--side) / 2); bottom: 24px; max-width: calc(100vw - var(--side) - 48px); } }
+.edh-deck { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .edhf { display: grid; gap: 10px; background: var(--surface); border-radius: var(--r-lg); padding: 12px 14px; margin-bottom: 12px; }
 .edhf-row { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
 .edhf-row label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
@@ -1457,6 +1458,21 @@ function importDeckDialog() {
 }
 // Precons via MTGJSON
 let DECKLIST = null;
+async function importPreconFile(file) {
+      const j = (await fetch(`https://mtgjson.com/api/v5/decks/${encodeURIComponent(file)}.json`).then(r => r.json())).data;
+      const cards = []; const miss = [];
+      const add = (list, board) => (list || []).forEach(c => {
+        let pi = DB.bySetNum.get(String(c.setCode).toLowerCase() + "|" + normNum(c.number));
+        if (pi !== undefined && norm(DB.o[DB.p[pi][3]][0].split(" // ")[0]) !== norm(String(c.name).split(" // ")[0])) pi = undefined;
+        if (pi === undefined) { const m = DB.byName.has(norm(c.name)) ? DB.byName.get(norm(c.name)) : (matchName(c.name, false) || {}).i; if (m === undefined) { miss.push(c.name); return; } pi = defaultPrint(m); }
+        const p = DB.p[pi]; const ex = cards.find(x => x.oi === p[3] && x.board === board);
+        if (ex) ex.qty += c.count || 1; else cards.push({ oi: p[3], qty: c.count || 1, board, set: p[0], number: p[1], foil: !!c.isFoil });
+      });
+      add(j.commander, "cmd"); add(j.mainBoard, "main"); add(j.sideBoard, "side");
+      const fmt = /commander/i.test(j.type || "") ? "Commander" : "Livre"; const n = cards.reduce((a, c) => a + c.qty, 0);
+      if (miss.length) toast("Não encontrei: " + miss.slice(0, 5).join(", "), 4000);
+      const d = newDeck(j.name, fmt, cards, "precon " + (j.code || "")); setTimeout(() => offerCollectionAdd(d), 400);
+}
 async function preconDialog() {
   openSheet(`<h3 style="margin:0">Importar deck precon</h3><input type="search" id="pq" placeholder="Buscar por nome ou coleção (ex. Commander 2024, Bloomburrow)"><div class="meta" id="pStatus">Carregando a lista de decks oficiais…</div><div class="rows" id="pList"></div>`, `<button class="btn" id="pClose">Fechar</button>`);
   $("pClose").onclick = closeSheet;
@@ -1473,20 +1489,7 @@ async function preconDialog() {
   $("pList").onclick = async (ev) => {
     const b = ev.target.closest("[data-f]"); if (!b) return;
     $("pStatus").textContent = "Baixando o deck…";
-    try {
-      const j = (await fetch(`https://mtgjson.com/api/v5/decks/${encodeURIComponent(b.dataset.f)}.json`).then(r => r.json())).data;
-      const cards = []; const miss = [];
-      const add = (list, board) => (list || []).forEach(c => {
-        let pi = DB.bySetNum.get(String(c.setCode).toLowerCase() + "|" + normNum(c.number));
-        if (pi !== undefined && norm(DB.o[DB.p[pi][3]][0].split(" // ")[0]) !== norm(String(c.name).split(" // ")[0])) pi = undefined;
-        if (pi === undefined) { const m = DB.byName.has(norm(c.name)) ? DB.byName.get(norm(c.name)) : (matchName(c.name, false) || {}).i; if (m === undefined) { miss.push(c.name); return; } pi = defaultPrint(m); }
-        const p = DB.p[pi]; const ex = cards.find(x => x.oi === p[3] && x.board === board);
-        if (ex) ex.qty += c.count || 1; else cards.push({ oi: p[3], qty: c.count || 1, board, set: p[0], number: p[1], foil: !!c.isFoil });
-      });
-      add(j.commander, "cmd"); add(j.mainBoard, "main"); add(j.sideBoard, "side");
-      const fmt = /commander/i.test(j.type || "") ? "Commander" : "Livre"; const n = cards.reduce((a, c) => a + c.qty, 0);
-      if (miss.length) toast("Não encontrei: " + miss.slice(0, 5).join(", "), 4000);
-      const d = newDeck(j.name, fmt, cards, "precon " + (j.code || "")); setTimeout(() => offerCollectionAdd(d), 400);
+    try { await importPreconFile(b.dataset.f);
     } catch (e) { $("pStatus").textContent = "Não consegui baixar esse deck."; }
   };
 }
@@ -1909,7 +1912,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17l";
+const APP_VERSION = "2026.11.17m";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2639,7 +2642,7 @@ function renderEdh() {
         <div class="meta">${esc(DB.o[oi][5])}</div>
         <div class="edh-ci">${(DB.o[oi][4] || "C").split("").map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`).join("")}</div>
         <div class="meta" id="ehTotal"></div>
-        <div class="actions" style="margin:6px 0 0"><button class="btn small" id="ehPick">Trocar</button><button class="btn small primary" id="ehNew">Montar deck</button></div></div></div>
+        <div class="actions" style="margin:6px 0 0"><button class="btn small" id="ehPick">Trocar</button><button class="btn small primary" id="ehNew">Montar deck</button><span id="ehPre"></span></div></div></div>
     <div class="chips edh-br" id="ehBr">${BRACKETS.map(([s, n]) => `<button class="chip" data-br="${s}" aria-pressed="${st.br === s}">${n}<span class="cnt" data-cnt="${s}"></span></button>`).join("")}</div>
     <div class="meta edh-brnote" id="ehBrNote"></div>
     <h2 class="sec"><span>Decks${st.br ? " neste bracket" : ""}</span><span id="ehDn"></span></h2><div id="ehDecks"><div class="meta">Carregando decks do EDHREC…</div></div>
@@ -2655,6 +2658,9 @@ function renderEdh() {
   $("ehBr").onclick = (e) => { const b = e.target.closest("[data-br]"); if (!b) return; st.br = b.dataset.br; EDHT.more = false; EDHT.tag = ""; store.set("settings", S.settings); renderEdh(); };
   $("ehOwn").onchange = (e) => { EDHT.own = e.target.checked; edhDrawCards(); };
   edhLoad(oi, st.br);
+  loadPrecons().then(() => { const n = DB.o[oi][0]; const ds = PRE.decks.filter(d => d[4].some(c => c === n || c.split(" // ")[0] === n.split(" // ")[0])); if (!ds.length || !$("ehPre")) return;
+    $("ehPre").innerHTML = ds.slice(0, 3).map(d => `<button class="btn small" data-pf="${esc(d[3])}" title="Importa a lista oficial desse deck pronto">📦 Precon: ${esc(d[0])} (${esc((d[2] || "").slice(0, 4))})</button>`).join("");
+    $("ehPre").onclick = async (e) => { const b = e.target.closest("[data-pf]"); if (!b) return; b.disabled = true; toast("Baixando o precon…"); try { await importPreconFile(b.dataset.pf); } catch (er) { toast("Não consegui baixar esse precon agora."); } b.disabled = false; }; }).catch(() => {});
 }
 const BR_TXT = { "": "Todos os decks registrados no EDHREC para este comandante.", exhibition: "Bracket 1 — decks temáticos e casuais, sem combos nem Game Changers.", core: "Bracket 2 — nível de um precon: sem Game Changers, sem combos de 2 cartas cedo.", upgraded: "Bracket 3 — decks melhorados: até 3 Game Changers, combos só no fim do jogo.", optimized: "Bracket 4 — alta potência: sem restrições de cartas.", cedh: "Bracket 5 — competitivo (cEDH), feito para o meta de torneio." };
 async function edhLoad(oi, br) {
@@ -2756,7 +2762,6 @@ const edhF = () => { const d = { cols: "", cm: "=", src: "", max: "", sort: "edh
 function edhQuery() {
   const f = edhF(); const q = ["is:commander", "game:paper"];
   if (f.cols) q.push("id" + f.cm + f.cols.toLowerCase()); else if (f.cm === "=" && f.colsC) q.push("id=c");
-  if (f.src === "precon") q.push("st:commander"); else if (f.src === "fora") q.push("-st:commander");
   if (f.max) q.push("usd<=" + (f.max / 100 / RATE()).toFixed(2));
   if (f.type === "creature") q.push("t:legendary t:creature"); else if (f.type === "partner") q.push("(o:partner or o:\"choose a background\" or t:background)"); else if (f.type === "pw") q.push("t:planeswalker");
   const [order, dir] = { edhrec: ["edhrec", "auto"], cheap: ["usd", "asc"], exp: ["usd", "desc"], new: ["released", "desc"], name: ["name", "asc"] }[f.sort] || ["edhrec", "auto"];
@@ -2769,7 +2774,7 @@ async function edhLanding() {
       <div class="edhf-row"><div class="chips" id="efC">${C.map(c => `<button class="chip color" data-c="${c}" aria-pressed="${f.cols.includes(c)}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="X" aria-pressed="${!!f.colsC}">Incolor</button></div>
         ${opt("efCm", f.cm, [["=", "Exatamente essas cores"], ["<=", "Dentro dessas cores"], [">=", "Com pelo menos essas"]])}</div>
       <div class="edhf-row">
-        <label>Origem ${opt("efSrc", f.src, [["", "Todos"], ["precon", "Saiu em precon"], ["fora", "Nunca saiu em precon"]])}</label>
+        <label>Mostrar ${opt("efSrc", f.src === "fora" ? "" : f.src, [["", "Todos os comandantes"], ["precon", "Comandantes de precon"]])}</label>
         <label>Tipo ${opt("efType", f.type, [["", "Qualquer"], ["creature", "Criatura lendária"], ["partner", "Parceiros / Antecedente"], ["pw", "Planeswalker"]])}</label>
         <label>Preço do comandante ${opt("efMax", f.max, [["", "Qualquer"], ["500", "até R$ 5"], ["2000", "até R$ 20"], ["5000", "até R$ 50"], ["10000", "até R$ 100"]])}</label>
         <label>Ordenar ${opt("efSort", f.sort, [["edhrec", "Mais jogados"], ["cheap", "Mais baratos"], ["exp", "Mais caros"], ["new", "Mais novos"], ["name", "Nome"]])}</label>
@@ -2791,7 +2796,32 @@ async function edhLanding() {
   $("ehTop").onclick = (e) => { const b = e.target.closest("[data-oi]"); if (!b) return; edhState().oi = +b.dataset.oi; store.set("settings", S.settings); renderEdh(); window.scrollTo(0, 0); };
   edhLoadList(true);
 }
+// Comandantes dos decks prontos (precons), gerado de MTGJSON por tools/build_precons.py
+const PRE = { ready: null, decks: [], rank: {} };
+function loadPrecons() { return PRE.ready || (PRE.ready = gunzipJSON("data/precons.json.gz").then(j => { PRE.decks = j.decks || []; PRE.rank = j.rank || {}; PRE.updated = j.updated; }).catch(e => { PRE.ready = null; throw e; })); }
+async function edhPreconList() {
+  await loadPrecons(); const f = edhF(); const by = new Map();
+  for (const [name, code, date, file, cmds] of PRE.decks) for (const n of cmds) { const oi = edhOi(n); if (oi === undefined) continue; const x = by.get(oi) || { oi, rank: PRE.rank[n] || PRE.rank[n.split(" // ")[0]] || 0, decks: [], date: "" }; x.decks.push({ name, code, date, file }); if (date > x.date) x.date = date; by.set(oi, x); }
+  const want = f.colsC ? "" : f.cols; const ci = (oi) => (DB.o[oi][4] || "");
+  let list = [...by.values()].filter(x => {
+    const c = ci(x.oi);
+    if (f.cols || f.colsC) { if (f.cm === "=" && (c.length !== want.length || ![...want].every(k => c.includes(k)))) return false; if (f.cm === "<=" && ![...c].every(k => want.includes(k))) return false; if (f.cm === ">=" && ![...want].every(k => c.includes(k))) return false; }
+    const t = DB.o[x.oi][5], tx = DB.o[x.oi][6];
+    if (f.type === "creature" && !(/Legendary/.test(t) && /Creature/.test(t))) return false;
+    if (f.type === "partner" && !/Partner|Choose a Background|Background/.test(tx + t)) return false;
+    if (f.type === "pw" && !/Planeswalker/.test(t)) return false;
+    const pi = defaultPrint(x.oi); x.usd = pi >= 0 ? (DB.p[pi][6] || 0) / 100 : 0;
+    if (f.max && x.usd && usd2c(x.usd) > +f.max) return false;
+    return true; });
+  const byRank = (a, b) => (a.rank || 1e9) - (b.rank || 1e9);
+  list.sort({ edhrec: byRank, cheap: (a, b) => a.usd - b.usd, exp: (a, b) => b.usd - a.usd, new: (a, b) => b.date.localeCompare(a.date) || byRank(a, b), name: (a, b) => DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]) }[f.sort] || byRank);
+  return list;
+}
 async function edhLoadList(reset) {
+  if (edhF().src === "precon") { if (!reset) return; const seq = ++EDHL.seq; EDHL.busy = false; $("ehN").textContent = "Carregando precons…";
+    try { const l = await edhPreconList(); if (seq !== EDHL.seq || tab !== "edh") return; EDHL.items = l; EDHL.total = l.length; EDHL.next = null; EDHL.pre = true; edhDrawList(); }
+    catch (e) { if ($("ehN")) $("ehN").textContent = "Não consegui carregar a lista de precons agora."; } return; }
+  EDHL.pre = false;
   if (reset) { EDHL.items = []; EDHL.next = edhQuery(); EDHL.total = 0; EDHL.auto = 0; $("ehTop").innerHTML = Array(12).fill(`<div class="res"><div class="cardimg"><div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i></div></div></div>`).join(""); $("ehN").textContent = "Carregando…"; }
   if (!EDHL.next || (EDHL.busy && !reset)) return; const seq = ++EDHL.seq; EDHL.busy = true;
   try {
@@ -2807,8 +2837,8 @@ async function edhLoadList(reset) {
 function edhDrawList() {
   if (!$("ehTop")) return; const f = edhF(); const own = f.own ? new Set(S.cards.map(e => e.oi)) : null;
   const list = own ? EDHL.items.filter(x => own.has(x.oi)) : EDHL.items;
-  $("ehN").textContent = EDHL.total ? `${EDHL.total.toLocaleString("pt-BR")} comandante(s) com esses filtros${own ? ` · ${list.length} na coleção (dos carregados)` : ""}` : "Nenhum comandante com esses filtros.";
-  keepImgs($("ehTop"), () => $("ehTop").innerHTML = list.map(x => `<div class="res"><button class="resimg" data-oi="${x.oi}">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}${x.rank && f.sort === "edhrec" ? `<span class="edh-rank">#${x.rank}</span>` : ""}${x.usd ? `<span class="edh-pct">${fmtUSD(usd2c(x.usd))}</span>` : ""}${libFor(x.oi) || S.cards.some(e => e.oi === x.oi) ? `<span class="ownb">✓</span>` : ""}</button><span class="resname">${esc(DB.o[x.oi][0])}</span></div>`).join(""));
+  $("ehN").textContent = EDHL.total ? `${EDHL.total.toLocaleString("pt-BR")} comandante(s) ${EDHL.pre ? "de precon " : ""}com esses filtros${own ? ` · ${list.length} na coleção (dos carregados)` : ""}` : "Nenhum comandante com esses filtros.";
+  keepImgs($("ehTop"), () => $("ehTop").innerHTML = list.map(x => `<div class="res"><button class="resimg" data-oi="${x.oi}">${cardImgHTML(fakeEntry({ oi: x.oi }), { bare: true })}${x.rank && f.sort === "edhrec" ? `<span class="edh-rank">#${x.rank}</span>` : ""}${x.usd ? `<span class="edh-pct">${fmtUSD(usd2c(x.usd))}</span>` : ""}${libFor(x.oi) || S.cards.some(e => e.oi === x.oi) ? `<span class="ownb">✓</span>` : ""}</button><span class="resname">${esc(DB.o[x.oi][0])}${x.decks ? `<small class="edh-deck" title="${esc(x.decks.map(d => d.name + " (" + (d.date || "").slice(0, 4) + ")").join("\n"))}">${esc(x.decks[0].name)} · ${esc((x.decks[0].date || "").slice(0, 4))}${x.decks.length > 1 ? " +" + (x.decks.length - 1) : ""}</small>` : ""}</span></div>`).join(""));
   $("ehMore").innerHTML = EDHL.next ? `<button class="btn" id="ehMoreB">Carregar mais</button>` : "";
   if ($("ehMoreB")) $("ehMoreB").onclick = () => edhLoadList(false);
   // enche a tela: se ainda sobra espaço, carrega a próxima página sozinho
