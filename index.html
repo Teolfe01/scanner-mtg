@@ -1894,7 +1894,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17g";
+const APP_VERSION = "2026.11.17h";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -3003,10 +3003,11 @@ async function fillTokCol(d) {
   const list = await deckTokens(d); if (!$("edTok") || deckOf() !== d) return;
   ED.toks = list;
   $("edTokN").textContent = list.length ? `Qtd: ${list.length} tipo${list.length > 1 ? "s" : ""}` : "nenhuma";
-  $("edTokL").innerHTML = list.length ? list.map((t, i) => ED.mode === "list"
+  const tokHtml = list.length ? list.map((t, i) => ED.mode === "list"
       ? `<div class="li tokli" data-tk="${i}" title="Criada por: ${esc(t.from.map(o => DB.o[o][0]).join(", "))}"><span class="nm">${esc(t.name)}</span><span class="meta">${esc(tokShort(t))}</span></div>`
       : `<div class="stk tokstk" data-tk="${i}" title="Criada por: ${esc(t.from.map(o => DB.o[o][0]).join(", "))}"><div class="cardimg"><img src="https://api.scryfall.com/cards/${esc(t.id)}?format=image&version=normal" alt="${esc(t.name)}" loading="lazy" draggable="false"></div></div>`).join("")
     : `<div class="meta" style="padding:8px">Nenhuma carta do deck cria fichas${navigator.onLine ? "" : " (sem internet para conferir)"}.</div>`;
+  if (ED.tokHtml !== tokHtml || !$("edTokL").querySelector(".stk, .li, .meta") || $("edTokL").textContent.includes("Procurando")) $("edTokL").innerHTML = tokHtml; ED.tokHtml = tokHtml;
 }
 function tokColMenu(e) {
   const list = ED.toks || []; if (!list.length) return toast("Nenhuma ficha neste deck.");
@@ -3070,7 +3071,7 @@ function searchCtx(e, oi) {
     ["Sideboard deste deck", () => addToDeck(oi, "side")], ["Talvez (deste deck)", () => addToDeck(oi, "maybe")],
     ...(isCmdFormat(d) && cmdCandidates().includes(oi) ? [["Definir como comandante", () => setCommander(d, oi, d.cards.some(c => c.board === "cmd"))]] : []),
     "-", { head: "Outro deck" }, ["Sideboard de outro deck…", pickDeck("side")], ["Deck principal de outro deck…", pickDeck("main")], ["Talvez de outro deck…", pickDeck("maybe")],
-    "-", ["→ Detalhes da carta", () => cardInfo(oi)], ["👁 Comparar com…", () => comparePick({ oi })],
+    "-", wishItem(oi), ["→ Detalhes da carta", () => cardInfo(oi)], ["👁 Comparar com…", () => comparePick({ oi })],
     ["↗ Ver página da carta", () => window.open(pi >= 0 ? `https://scryfall.com/card/${DB.p[pi][0]}/${encodeURIComponent(DB.p[pi][1])}` : `https://scryfall.com/search?q=${encodeURIComponent('!"' + name + '"')}`, "_blank")],
     ["↗ Ver na LigaMagic", () => window.open(ligaURL(oi), "_blank")], ["⧉ Copiar nome", () => navigator.clipboard.writeText(name).then(() => toast("Nome copiado"))],
     { hint: "Ctrl + botão direito: menu padrão do navegador" }]);
@@ -3167,7 +3168,7 @@ async function drawEdhRecs(d) {
   const deckN = (j.num_decks_avg || (j.container.json_dict.card || {}).num_decks || 0);
   $("edCount").innerHTML = `<span class="edh-badge"><b>Sugestões do EDHREC</b>${deckN ? ` · ${deckN.toLocaleString("pt-BR")} decks` : ""} · % = decks que usam</span> <label class="meta ck" style="margin-top:4px"><input type="checkbox" id="edHideIn" ${hideIn ? "checked" : ""}> Esconder as que já estão no deck</label>`;
   $("edHideIn").onchange = (e) => { ED.hideIn = e.target.checked; drawEdhRecs(d); };
-  $("edResults").innerHTML = html || `<div class="meta" style="grid-column:1/-1">Nada a sugerir com esses filtros${own ? " entre as cartas que vocês têm" : ""}.</div>`;
+  keepImgs($("edResults"), () => $("edResults").innerHTML = html || `<div class="meta" style="grid-column:1/-1">Nada a sugerir com esses filtros${own ? " entre as cartas que vocês têm" : ""}.</div>`);
   hoverBind($("edResults"));
 }
 function drawResults() {
@@ -3176,11 +3177,18 @@ function drawResults() {
   if (!hasFilter || (ED.owned && !ED.q && !ED.colors.size && !ED.type && !ED.role && !ED.cmc)) { const dd = deckOf(); if (P().edhrec && dd.cards.some(c => c.board === "cmd")) return drawEdhRecs(dd); if (!hasFilter) { $("edCount").textContent = "Digite um nome ou use os filtros."; $("edResults").innerHTML = ""; return; } }
   const { list, total } = searchCards(); const d = deckOf();
   $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
-  $("edResults").innerHTML = list.map(i => {
+  keepImgs($("edResults"), () => $("edResults").innerHTML = list.map(i => {
     const inD = d.cards.filter(c => c.oi === i).reduce((a, c) => a + c.qty, 0); const lib = libFor(i);
     return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}${locBadge(i, ED.id)}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
-  }).join("");
+  }).join(""));
   hoverBind($("edResults"));
+}
+// Redesenha sem recarregar as imagens: as que já estavam carregadas voltam para o lugar
+function keepImgs(root, apply) {
+  if (!root) return apply(); const old = new Map();
+  root.querySelectorAll(".cardimg.ok").forEach(ci => { const img = ci.querySelector("img[data-ik]"); if (img && !old.has(img.dataset.ik)) old.set(img.dataset.ik, ci); });
+  apply();
+  root.querySelectorAll(".cardimg").forEach(ci => { const img = ci.querySelector("img[data-ik]"); const o = img && old.get(img.dataset.ik); if (o) { old.delete(img.dataset.ik); ci.replaceWith(o); } });
 }
 // ---- Deck ----
 async function dropNew(oi, g) {
@@ -3352,7 +3360,7 @@ function renderDeckPane() {
   const sortIn = ED.dsort === "name" ? byName : ED.dsort === "price" ? (a, b) => cardPriceC(b) - cardPriceC(a) || byName(a, b) : ED.dsort === "type" ? (a, b) => (primaryType(a.oi) || "").localeCompare(primaryType(b.oi) || "") || byName(a, b) : (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || byName(a, b);
   const fdesc = Object.fromEntries(FUNC.map(f => [f.n, f.tip]));
   const main = d.cards.filter(c => c.board === "main" || c.board === "cmd").reduce((a, c) => a + c.qty, 0);
-  $("edDeck").innerHTML = `
+  const html = `
     <div class="ed-dbar"><b>${main} cartas</b><span class="meta">${d.format || "Commander"}</span>
       <label class="edsel">Agrupar por <select id="edGroup">${[["func", "Categorias (funções)"], ["multi", "Categorias (múltiplas)"], ["cat", "Minhas categorias"], ["type", "Tipo"], ["cmc", "Valor de mana"], ["cmcs", "Valor de mana (mágicas)"], ["full", "Deck inteiro"], ["color", "Cor"], ["bracket", "Info de bracket"], ["tpl", "Template Command Zone"]].map(([v, n]) => `<option value="${v}"${ED.group === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
       <label class="edsel">Ordenar <select id="edSort">${[["cmc", "Valor de mana"], ["name", "Nome"], ["price", "Preço"], ["type", "Tipo"]].map(([v, n]) => `<option value="${v}"${(ED.dsort || "cmc") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
@@ -3370,6 +3378,8 @@ function renderDeckPane() {
       ${CAT_MODES.includes(ED.group) ? `<div class="col newcol" data-g="__new"><div class="colh"><span>+ Nova categoria</span></div><div class="meta" style="padding:8px">Arraste uma carta aqui</div></div>` : ""}
     </div>
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
+  const tokOld = $("edTokL") ? $("edTokL").innerHTML : ""; const tokN = $("edTokN") ? $("edTokN").textContent : "";
+  keepImgs($("edDeck"), () => { $("edDeck").innerHTML = html; if (tokOld && $("edTokL")) { $("edTokL").innerHTML = tokOld; $("edTokN").textContent = tokN; } });
   fillTokCol(d);
   $("edGroup").onchange = (e) => { ED.group = e.target.value; S.settings.edGroup = ED.group; save(true); renderDeckPane(); };
   $("edSort").onchange = (e) => { ED.dsort = e.target.value; S.settings.edSort = ED.dsort; save(true); renderDeckPane(); };
@@ -4008,7 +4018,9 @@ async function signIn() {
   try { const r = await CLOUD.auth.signInWithPopup(p); CLOUD.user = r.user; return r.user; }
   catch (e) { if (/popup|operation-not-supported/i.test(e.code || "")) { await CLOUD.auth.signInWithRedirect(p); return null; } throw e; }
 }
-function rerenderSoon() { undoBaseline(); clearTimeout(rerenderSoon.t); rerenderSoon.t = setTimeout(() => { if ($("sheet").classList.contains("hidden") && tab !== "scan") views[tab](); }, 250); }
+function rerenderSoon() { undoBaseline(); clearTimeout(rerenderSoon.t); rerenderSoon.t = setTimeout(() => { if (!$("sheet").classList.contains("hidden") || tab === "scan" || DRAG.on) return;
+  if (tab === "decks" && view && view.kind === "edit" && $("edDeck")) { if (!deckOf()) return go("decks"); renderDeckPane(); renderStatsPane(); return; }
+  views[tab](); }, 250); }
 function applyDoc(list, id, data, idField) {
   const i = list.findIndex(x => docId(x[idField]) === id);
   if (data === null) { if (i >= 0) list.splice(i, 1); return; }
@@ -4029,7 +4041,10 @@ function startSync() {
       CLOUD.synced[name] = true;
       if (onlyLocal.length) { toast(`Enviando ${onlyLocal.length} ${name === "cards" ? "carta(s)" : "deck(s)"} deste celular para a nuvem…`); pushCloud(); }
     } else {
-      snap.docChanges().forEach(ch => applyDoc(list, ch.doc.id, ch.type === "removed" ? null : ch.doc.data(), idField));
+      // mudanças feitas neste aparelho voltam como "eco" do Firestore: os dados já estão aqui, não precisa redesenhar
+      const remote = snap.docChanges().filter(ch => !ch.doc.metadata.hasPendingWrites);
+      if (!remote.length) { updateCloudBadge(); return; }
+      remote.forEach(ch => applyDoc(list, ch.doc.id, ch.type === "removed" ? null : ch.doc.data(), idField));
     }
     store.set(name, list).catch(() => {}); rerenderSoon(); updateCloudBadge();
   }, err => cloudError(err));
