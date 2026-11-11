@@ -728,6 +728,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .pt-fd { background: #2a1d14; display: grid; place-items: center; aspect-ratio: 488 / 680; } .pt-fd img { width: 50%; height: auto; opacity: .85; }
 .pt-life b[data-a] { cursor: text; }
 #wishBars .toolbar { grid-template-columns: 1fr repeat(4, auto); }
+.simgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; } .simgrid .res { position: relative; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: center; } .simgrid .resname { font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wloc { cursor: pointer; } .wloc:hover { filter: brightness(1.25); }
 .wgh { display: flex; align-items: center; gap: 10px; margin: 18px 2px 8px; flex-wrap: wrap; } .wgh:first-child { margin-top: 2px; } .wgh b { font-size: 15px; } .wgh .meta { flex: 1; }
 .tile.wsel { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(var(--acc-rgb), .1); }
@@ -1288,7 +1289,8 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
       <button class="btn" id="cCopy" style="margin-top:8px;width:100%">➕ Adicionar cópia de outra edição / tratamento</button>
       ${e.qty > 1 ? `<div class="seg" id="cScope" style="margin-top:8px"><button data-v="all" aria-pressed="true">Mudar as ${e.qty} cópias</button><button data-v="one" aria-pressed="false">Só 1 cópia</button></div>` : ""}
     </div>
-    <a class="btn small" style="justify-self:start;text-decoration:none" target="_blank" rel="noopener" href="https://scryfall.com/card/${esc(e.set)}/${esc(e.number)}">Ver no Scryfall ↗</a>`,
+    <a class="btn small" style="justify-self:start;text-decoration:none" target="_blank" rel="noopener" href="https://scryfall.com/card/${esc(e.set)}/${esc(e.number)}">Ver no Scryfall ↗</a>
+    <div id="cSim"></div>`,
     `<button class="btn danger" id="cDel">Remover</button><button class="btn primary" id="cOk">Fechar</button>`);
   $("cMinus").onclick = () => { if (e.qty > Math.max(1, inDecks(e))) { e.qty--; $("cQty").textContent = e.qty; save(); } else toast(inDecks(e) ? "Essa cópia está em um deck. Tire do deck primeiro." : "Para apagar, use Remover."); };
   $("cPlus").onclick = () => { e.qty++; $("cQty").textContent = e.qty; save(); };
@@ -1304,6 +1306,7 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
   if ($("cScope")) $("cScope").onclick = (ev) => { const b = ev.target.closest("[data-v]"); if (!b) return; scope = b.dataset.v; $("cScope").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
   const apply = (patch) => { const nk = changeEntry(e, patch, scope === "one" ? 1 : e.qty); if (nk) { if (tab === "col") drawCol(); openCard(nk); } };
   $("cLang").onchange = (ev) => apply({ lang: ev.target.value });
+  fillSimilar($("cSim"), e.oi);
   $("cMoveTo").onclick = (ev) => { const r = ev.target.getBoundingClientRect(); closeSheet(); moveMenu(r.left, Math.min(r.top, innerHeight - 320), e.oi, undefined, e.key, () => { if (tab === "col") drawCol(); }); };
   // cópia nova (outra versão), sem mexer na que está aberta
   $("cCopy").onclick = () => pickVersion(e.oi, "", (r) => { const n = addToCollection({ oi: e.oi, set: r.set, number: normNum(r.number), lang: e.lang, foil: !!r.foilOnly, qty: 1 }); if (tab === "col") drawCol(); toast(`+1 ${n.name} (${r.set.toUpperCase()} #${normNum(r.number)}${n.foil ? " foil" : ""}) · ${whereLib(n).code}`, 2500); openCard(n.key); }, null);
@@ -1972,7 +1975,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18d";
+const APP_VERSION = "2026.11.18e";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -3472,6 +3475,22 @@ async function edh(path) {
   try { const c = await store.get(key); if (c && Date.now() - c.at < 3 * 864e5) { EDH.mem.set(path, c.j); return c.j; } } catch (e) {}
   const r = await fetch("https://json.edhrec.com/pages/" + path + ".json"); if (!r.ok) throw new Error("EDHREC " + r.status);
   const j = await r.json(); EDH.mem.set(path, j); store.set(key, { at: Date.now(), j }).catch(() => {}); return j;
+}
+// Cartas parecidas (lista "similar" da página da carta no EDHREC); guarda só os nomes por 7 dias
+async function similarOf(oi) {
+  const slug = edhSlug(DB.o[oi][0]), key = "sim:" + slug;
+  try { const c = await store.get(key); if (c && Date.now() - c.at < 7 * 864e5) return c.l; } catch (e) {}
+  const r = await fetch("https://json.edhrec.com/pages/cards/" + slug + ".json"); if (!r.ok) throw new Error("EDHREC " + r.status);
+  const j = await r.json(); const l = (j.similar || []).map(n => edhOi(n)).filter(x => x !== undefined && x !== oi);
+  store.set(key, { at: Date.now(), l }).catch(() => {}); return l;
+}
+async function fillSimilar(el, oi) {
+  if (!el) return; el.innerHTML = `<h2 class="sec">Cartas similares</h2><div class="meta">Carregando…</div>`;
+  let l; try { l = await similarOf(oi); } catch (e) { if (el.isConnected) el.innerHTML = ""; return; }
+  if (!el.isConnected) return; if (!l.length) { el.innerHTML = ""; return; }
+  const own = new Set(S.cards.map(e => e.oi));
+  el.innerHTML = `<h2 class="sec">Cartas similares <span class="meta">EDHREC</span></h2><div class="simgrid">${l.slice(0, 12).map(i => `<button class="res" data-oi="${i}" title="${esc(DB.o[i][0])}">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${own.has(i) ? `<span class="ownb" title="Vocês têm">✓</span>` : ""}<span class="resname">${esc(DB.o[i][0])}</span></button>`).join("")}</div>`;
+  el.onclick = (ev) => { const b = ev.target.closest("[data-oi]"); if (!b) return; const i = +b.dataset.oi; const e = S.cards.find(x => x.oi === i); if (e) openCard(e.key); else cardInfo(i); };
 }
 const edhOi = (name) => { const k = norm(name); if (DB.byName.has(k)) return DB.byName.get(k); const m = matchName(name, false); return m ? m.i : undefined; };
 const EDH_PT = { "New Cards": "Novidades", "High Synergy Cards": "Alta sinergia", "Top Cards": "Mais usadas", "Game Changers": "Game Changers", "High Lift Cards": "Fazem diferença", "Creatures": "Criaturas", "Instants": "Instantâneas", "Sorceries": "Feitiços", "Utility Artifacts": "Artefatos", "Enchantments": "Encantamentos", "Battles": "Batalhas", "Planeswalkers": "Planeswalkers", "Utility Lands": "Terrenos utilitários", "Mana Artifacts": "Artefatos de mana", "Lands": "Terrenos" };
