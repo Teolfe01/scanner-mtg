@@ -15,6 +15,9 @@ const APP_ID = "io.github.teolfe01.bibliotecamtg.desktop";
 // O .exe portátil roda de uma cópia temporária. Para o atalho fixado na barra de tarefas apontar para o .exe de verdade
 // (e não para a cópia que some ao fechar), informamos ao Windows o caminho original.
 const REAL_EXE = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
+// ícone fixo em %APPDATA% (a cópia temporária do .exe some ao fechar; o atalho fixado precisa de um ícone que continue existindo)
+let ICON = path.join(__dirname, "icon.ico");
+try { const dst = path.join(app.getPath("userData"), "icon.ico"); fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(ICON, dst); ICON = dst; } catch (e) {}
 if (process.platform === "win32") app.setAppUserModelId(APP_ID);
 
 // registro de erros em %APPDATA%\\Biblioteca MTG\\log.txt
@@ -34,13 +37,13 @@ app.on("second-instance", () => {
 function createWindow() {
   win = new BrowserWindow({
     width: 1360, height: 880, minWidth: 380, minHeight: 600, backgroundColor: "#121316", title: "Biblioteca MTG",
-    icon: path.join(__dirname, "build", "icon.png"), autoHideMenuBar: true,
+    icon: ICON, autoHideMenuBar: true,
     // barra de título integrada ao app: só os botões de minimizar/maximizar/fechar, desenhados sobre a barra do topo
     titleBarStyle: "hidden", titleBarOverlay: { color: "#131418", symbolColor: "#c9ced8", height: 56 },
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
   win.removeMenu();
-  if (process.platform === "win32") { try { win.setAppDetails({ appId: APP_ID, relaunchCommand: `"${REAL_EXE}"`, relaunchDisplayName: "Biblioteca MTG", appIconPath: REAL_EXE, appIconIndex: 0 }); } catch (e) { log("setAppDetails", e); } }
+  if (process.platform === "win32") { try { win.setAppDetails({ appId: APP_ID, relaunchCommand: `"${REAL_EXE}"`, relaunchDisplayName: "Biblioteca MTG", appIconPath: ICON, appIconIndex: 0 }); } catch (e) { log("setAppDetails", e); } }
   // se a página travar, avisa e oferece recarregar (o que estava salvo continua salvo)
   let hangT = null;
   win.on("unresponsive", () => { log("janela parou de responder"); clearTimeout(hangT); hangT = setTimeout(async () => {
