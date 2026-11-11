@@ -1139,7 +1139,7 @@ const views = { wish: (...a) => renderWish(...a), col: renderCol, scan: renderSc
 // Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
 const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
-function go(t, v = null, o = {}) {
+function go(t, v = null, o = {}) { if (typeof UPD !== "undefined" && UPD.busyWait) setTimeout(() => { if (!updBusy()) { UPD.busyWait = false; checkUpdate(false); } }, 800);
   if (t !== "scan" && tab === "scan") stopCamera();
   tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide", "pt-on", "edfit"); { const pv = $("gfPv"); if (pv) pv.remove(); } if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null; $("main").onclick = null; $("main").onmouseover = null; { const wb = $("wBar"); if (wb) wb.remove(); }
   document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
@@ -1975,7 +1975,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18f";
+const APP_VERSION = "2026.11.18g";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2055,7 +2055,7 @@ function renderCfg() {
       ${btnRow("cfBug", "🐞 Reportar bug ou 💡 sugerir melhoria", "Vai junto um diagnóstico do app")}
       ${btnRow("cfBugs", "Bugs e sugestões", "Lista para o pacote de atualização (a cada 2 dias)")}
       ${window.bmtgDesktop || isInstalled() ? "" : /Android|iPhone|iPad/i.test(navigator.userAgent) ? btnRow("cfInst", "📲 Instalar o app", "") : btnRow("cfExe", "💻 Baixar app para Windows (.exe)", "Programa que abre direto, sem instalar · atualiza sozinho") + btnRow("cfInst", "Ou instalar pelo Chrome", "Vira um app do PC pelo próprio navegador")}
-      <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}</div>
+      <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}<br><button class="btn small" id="cfUpd" style="margin-top:8px">⟳ Procurar atualização</button> <button class="btn small" id="cfForce" style="margin-top:8px">Forçar atualização</button></div>
     </div></div>`;
   const m = $("main");
   m.querySelectorAll("[data-tgl]").forEach(b => b.onclick = () => { const k = b.dataset.tgl; const on = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", on);
@@ -2068,6 +2068,7 @@ function renderCfg() {
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
+  $("cfUpd").onclick = () => checkUpdate(true); $("cfForce").onclick = forceUpdate;
   $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp; if ($("cfExe")) $("cfExe").onclick = () => window.open("https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe", "_blank");
 }
 function diagText() {
@@ -2308,6 +2309,33 @@ function wishFromDeck() {
     let n = 0; for (const [oi, q] of miss) { if (wishHas(oi)) continue; const pi = defaultPrint(oi); const p = pi >= 0 ? DB.p[pi] : null; S.wish.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), oi, name: DB.o[oi][0], set: p ? p[0] : "", number: p ? p[1] : "", qty: q, note: d.name, at: Date.now() }); n++; }
     save(); renderWish(); toast(`${n} carta(s) de ${d.name} nas desejadas`); }])]);
 }
+
+// ============ ATUALIZAÇÃO AUTOMÁTICA ============
+// Compara a versão publicada com a que está rodando; se mudou, troca a página guardada e recarrega.
+// Roda ao abrir, ao voltar para o app (celular) e a cada 30 min. Se a pessoa estiver no meio de algo, espera.
+const UPD = { busyWait: false, lastHidden: 0 };
+const updBusy = () => !$("sheet").classList.contains("hidden") || tab === "scan" || (view && (view.kind === "gold" || view.kind === "edit")) || DRAG.on;
+async function checkUpdate(manual) {
+  try {
+    const r = await fetch("index.html?u=" + Date.now(), { cache: "no-store" }); if (!r.ok) throw new Error(r.status);
+    const t = await r.text(); const m = t.match(/APP_VERSION = "([^"]+)"/); if (!m) throw new Error("versão não encontrada");
+    if (m[1] === APP_VERSION) { if (manual) toast("Você já está na versão mais nova (" + APP_VERSION + ")"); return; }
+    try { const c = await caches.open("bmtg-v3"); await c.put("index.html", new Response(t, { headers: { "Content-Type": "text/html; charset=utf-8" } })); } catch (e) {}
+    if (sessionStorage.getItem("updTo") === m[1] && !manual) return forceUpdate(); // já tentou recarregar e não pegou: limpa tudo
+    sessionStorage.setItem("updTo", m[1]);
+    if (!manual && updBusy()) { UPD.busyWait = true; toast(`Versão nova (${m[1]}) pronta — atualiza quando você terminar o que está fazendo`, 3500); return; }
+    toast("Atualizando para a versão " + m[1] + "…", 2000); setTimeout(() => location.reload(), 600);
+  } catch (e) { if (manual) toast("Não consegui procurar atualização agora (" + (e.message || e) + ")"); }
+}
+async function forceUpdate() {
+  toast("Limpando e baixando a versão mais nova…", 3000);
+  try { if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); } catch (e) {}
+  try { if (window.caches) for (const k of await caches.keys()) if (k !== "bmtg-imgs") await caches.delete(k); } catch (e) {}
+  const u = new URL(location.href); u.searchParams.set("r", Date.now()); location.replace(u.toString());
+}
+setTimeout(() => checkUpdate(false), 4000);
+setInterval(() => { if (!document.hidden) checkUpdate(false); }, 30 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (document.hidden) UPD.lastHidden = Date.now(); else if (Date.now() - UPD.lastHidden > 60000 || UPD.busyWait) { UPD.busyWait = false; checkUpdate(false); } });
 // ============ GOLDFISH (testar o deck sozinho) ============
 const GF = { id: null };
 let GFU = 0;
