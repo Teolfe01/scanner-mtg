@@ -751,6 +751,18 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   .fab { bottom: 72px !important; }
   body.pt-on .bugfab { right: 10px; bottom: auto; top: 64px; }
 }
+.bxg .sec .sw, .loc .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; }
+.bxwarn { background: rgba(240,180,60,.12); border: 1px solid rgba(240,180,60,.35); border-radius: 8px; padding: 8px 10px; margin: 0 2px 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+.bxrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.bxcols { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.bxcol { border: 1px solid var(--line); background: var(--surface-2); border-radius: 8px; padding: 8px; display: grid; gap: 4px; text-align: left; color: inherit; cursor: pointer; }
+.bxcol:hover { border-color: rgba(var(--acc-rgb), .6); } .bxcol b { font-size: 16px; letter-spacing: .03em; }
+.bar.warn i { background: #e0a53a; }
+.bxdiv { display: flex; flex-wrap: wrap; gap: 4px; } .bxdiv i { font-style: normal; font-size: 11px; background: rgba(255,255,255,.06); border-radius: 4px; padding: 1px 5px; } .bxdiv small { opacity: .6; }
+.lbls { display: flex; flex-wrap: wrap; gap: 6px; } .lbl { border: 1px solid #999; border-left: 8px solid var(--c); border-radius: 4px; padding: 6px 8px; display: grid; background: #fff; color: #111; }
+.lbox { width: 160px; } .lbox b { font-size: 28px; letter-spacing: .05em; } .lbox small { font-size: 11px; color: #444; } .ldiv { width: 110px; } .ldiv b { font-size: 15px; } .lbl span { font-size: 11px; color: #333; }
+#printArea { display: none; }
+@media print { body.printing > *:not(#printArea) { display: none !important; } body.printing #printArea { display: block !important; } body.printing { background: #fff !important; padding: 0 !important; } .lbl { break-inside: avoid; } }
 </style>
 </head>
 <body>
@@ -1022,43 +1034,48 @@ function colorBucket(oi) {
   if (types.includes("Land") && !cols) return "L";
   if (!cols) return "C"; if (cols.length > 1) return "M"; return cols;
 }
-const tierOf = (e) => ["r", "m", "s", "b"].includes(rarityOf(e)) ? "R" : "C";
-const TIER_NAME = { R: "Raras e míticas", C: "Comuns e incomuns" };
-const SECTIONS = COLOR_ORDER.flatMap(([c]) => ["R", "C"].map(t => c + t));
-const sectionOf = (e) => colorBucket(e.oi) + tierOf(e);
-const sectionName = (s) => `${COLOR_NAME[s[0]]} · ${TIER_NAME[s[1]]}`;
-function typeRank(oi) { const t = mainTypes(DB.o[oi][5]); const idx = TYPES.findIndex(x => t.includes(x[0])); return idx < 0 ? 99 : idx; }
-function sectionCounts() { const c = Object.fromEntries(SECTIONS.map(s => [s, 0])); for (const e of S.cards) c[sectionOf(e)] += freeQty(e); return c; }
-function buildLayout() {
-  const cap = S.boxes.capacity, counts = sectionCounts(), boxes = []; let cur = { sections: [], n: 0 };
-  for (const s of SECTIONS) {
-    const n = counts[s];
-    if (cur.sections.length && cur.n + n > cap * 0.85) { boxes.push(cur); cur = { sections: [], n: 0 }; }
-    cur.sections.push(s); cur.n += n;
-  }
-  boxes.push(cur);
-  S.boxes.layout = boxes.map((b, i) => ({ n: i + 1, sections: b.sections }));
-  save();
+// ============ Endereço das cartas nas caixas ============
+// Cada cor tem as suas caixas (PTA, PTB… = caixa A e B do Preto). Cada caixa tem colunas; cada coluna guarda uma faixa de
+// custos de mana, com divisórias por custo e ordem alfabética dentro. Código de uma carta: PTA1·3 = Preto, caixa A, coluna 1, custo 3.
+const GROUP_ORDER = ["W", "U", "B", "R", "G", "M", "C", "L"];
+const GPFX = { W: "BR", U: "AZ", B: "PT", R: "VM", G: "VD", M: "MC", C: "IN", L: "TR" };
+const GNAME = { W: "Branco", U: "Azul", B: "Preto", R: "Vermelho", G: "Verde", M: "Multicolor", C: "Incolor", L: "Terrenos" };
+const BUCKETS = ["0–1", "2", "3", "4", "5", "6+"]; const LBUCKETS = ["Básicos", "Outros"];
+const bucketsOf = (g) => g === "L" ? LBUCKETS : BUCKETS;
+function bucketOf(oi) { const g = colorBucket(oi); if (g === "L") return /Basic/.test(DB.o[oi][5]) ? 0 : 1; const c = Math.floor(DB.o[oi][2] || 0); return c <= 1 ? 0 : Math.min(5, c - 1); }
+const BOXL = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const perCol = () => S.boxes.perCol || 300; const colsPerBox = () => S.boxes.cpb || 2;
+function boxCounts() { const c = {}; for (const g of GROUP_ORDER) c[g] = bucketsOf(g).map(() => 0); for (const e of S.cards) { const f = freeQty(e); if (f) c[colorBucket(e.oi)][bucketOf(e.oi)] += f; } return c; }
+// divide os custos de uma cor em colunas (cada uma com folga de 20%)
+function planGroup(g, counts) {
+  const cap = perCol() * 0.8, cs = counts[g]; const cols = []; let cur = null;
+  cs.forEach((n, k) => { if (!cur || (cur.n > 0 && cur.n + n > cap)) { cur = { a: k, b: k, n: 0 }; cols.push(cur); } cur.b = k; cur.n += n; });
+  return cols.map((c, i) => ({ box: BOXL[Math.floor(i / colsPerBox())], col: i % colsPerBox() + 1, a: c.a, b: c.b }));
 }
-function boxOfSection(s) {
-  if (!S.boxes.layout) buildLayout();
-  const b = S.boxes.layout.find(b => b.sections.includes(s)); return b ? b.n : 1;
+function planAll() { const counts = boxCounts(); S.boxes.map = {}; for (const g of GROUP_ORDER) S.boxes.map[g] = planGroup(g, counts); save(); }
+function ensureMap() { if (!S.boxes.map || !GROUP_ORDER.every(g => Array.isArray(S.boxes.map[g]) && S.boxes.map[g].length)) planAll(); return S.boxes.map; }
+function slotOf(oi) { const g = colorBucket(oi), k = bucketOf(oi); const m = ensureMap()[g]; const sl = m.find(x => k >= x.a && k <= x.b) || m[m.length - 1]; return { g, k, sl }; }
+const slotCode = (g, sl) => GPFX[g] + sl.box + sl.col;
+function whereLib(e) {
+  const { g, k, sl } = slotOf(e.oi); const col = slotCode(g, sl); const code = col + "·" + bucketsOf(g)[k];
+  const rank = GROUP_ORDER.indexOf(g) * 1e6 + BOXL.indexOf(sl.box) * 1e4 + sl.col * 100 + k;
+  return { box: GPFX[g] + sl.box, col, code, rank, section: col, text: `${code} · ${GNAME[g]}${g === "L" ? "" : " · custo " + bucketsOf(g)[k]}` };
 }
+const typeRank = (oi) => 0;
 // Onde estão as cópias de uma carta (caixas e outros decks) — selo na busca do editor
 function locInfo(oi, exceptDeck) {
   const boxes = new Map(), decks = new Map();
-  for (const e of S.cards) { if (e.oi !== oi) continue; const f = freeQty(e); if (f) { const w = whereLib(e); boxes.set(w.box, (boxes.get(w.box) || 0) + f); }
+  for (const e of S.cards) { if (e.oi !== oi) continue; const f = freeQty(e); if (f) { const w = whereLib(e); boxes.set(w.code, (boxes.get(w.code) || 0) + f); }
     for (const [did, q] of Object.entries(e.decks || {})) { if (!q || did === exceptDeck) continue; const dd = S.decks.find(x => x.id === did); if (dd) decks.set(dd.name || "Deck", (decks.get(dd.name || "Deck") || 0) + q); } }
   return { boxes, decks };
 }
 function locBadge(oi, exceptDeck) {
   const { boxes, decks } = locInfo(oi, exceptDeck); if (!boxes.size && !decks.size) return "";
-  const parts = []; if (boxes.size) parts.push("📦 Cx " + [...boxes.keys()].sort((a, b) => a - b).join(", "));
+  const parts = []; if (boxes.size) parts.push("📦 " + [...boxes.keys()].sort().join(", "));
   if (decks.size) parts.push("🃏 " + (decks.size === 1 ? [...decks.keys()][0] : decks.size + " decks"));
-  const full = [...[...boxes].map(([b, q]) => `Caixa ${b}: ${q}× livre(s)`), ...[...decks].map(([n, q]) => `Deck ${n}: ${q}×`)].join("\n");
+  const full = [...[...boxes].map(([b, q]) => `${b}: ${q}× livre(s)`), ...[...decks].map(([n, q]) => `Deck ${n}: ${q}×`)].join("\n");
   return `<span class="locb" title="${esc(full)}">${parts.map(x => `<i>${esc(x)}</i>`).join("")}</span>`;
 }
-function whereLib(e) { const s = sectionOf(e); const t = mainTypes(DB.o[e.oi][5])[0]; const tn = (TYPES.find(x => x[0] === t) || [, "Outros"])[1]; return { box: boxOfSection(s), section: s, text: `Caixa ${boxOfSection(s)} · ${sectionName(s)} · ${tn}` }; }
 
 // ============ Imagens (Scryfall, em lotes, guardadas no aparelho) ============
 let IMGS = {}; const imgQueue = new Set(); let imgTimer = 0, imgBusy = false;
@@ -1181,11 +1198,11 @@ function colFiltered() {
   if (F.type) arr = arr.filter(e => mainTypes(DB.o[e.oi][5]).includes(F.type));
   if (F.role) arr = arr.filter(e => oInfo(e.oi).roles.includes(F.role));
   if (F.where === "lib") arr = arr.filter(e => freeQty(e) > 0); else if (F.where === "deck") arr = arr.filter(e => inDecks(e) > 0);
-  else if (F.where.startsWith("box")) { const n = +F.where.slice(3); arr = arr.filter(e => freeQty(e) > 0 && boxOfSection(sectionOf(e)) === n); }
+  else if (F.where.startsWith("box")) { const n = F.where.slice(3); arr = arr.filter(e => freeQty(e) > 0 && (whereLib(e).box === n || whereLib(e).col === n)); }
   const by = {
     name: (a, b) => a.name.localeCompare(b.name), price: (a, b) => priceOf(b) - priceOf(a),
     recent: (a, b) => b.added - a.added, cmc: (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || a.name.localeCompare(b.name),
-    box: (a, b) => { const sa = SECTIONS.indexOf(sectionOf(a)), sb = SECTIONS.indexOf(sectionOf(b)); return boxOfSection(sectionOf(a)) - boxOfSection(sectionOf(b)) || sa - sb || typeRank(a.oi) - typeRank(b.oi) || a.name.localeCompare(b.name); },
+    box: (a, b) => whereLib(a).rank - whereLib(b).rank || a.name.localeCompare(b.name),
     set: (a, b) => a.set.localeCompare(b.set) || (parseInt(a.number) || 0) - (parseInt(b.number) || 0)
   }[F.sort];
   return arr.sort(by);
@@ -1218,8 +1235,8 @@ function renderCol() {
   $("q").value = F.q; $("sortSel").value = F.sort; $("typeSel").value = F.type; $("roleSel").value = F.role;
   $("colorChips").querySelectorAll("[data-c]").forEach(x => x.setAttribute("aria-pressed", F.colors.has(x.dataset.c)));
   $("colBars").classList.remove("hidden"); document.querySelectorAll("#bars > div:not(#colBars)").forEach(x => x.remove());
-  if (!S.boxes.layout) buildLayout();
-  $("whereSel").innerHTML = `<option value="">Em qualquer lugar</option><option value="lib">Nas caixas</option><option value="deck">Em decks</option>` + S.boxes.layout.map(b => `<option value="box${b.n}">Caixa ${b.n}</option>`).join("");
+  const bxs = GROUP_ORDER.flatMap(g => [...new Set(ensureMap()[g].map(sl => GPFX[g] + sl.box))]);
+  $("whereSel").innerHTML = `<option value="">Em qualquer lugar</option><option value="lib">Nas caixas</option><option value="deck">Em decks</option>` + bxs.map(b => `<option value="box${b}">Caixa ${b}</option>`).join("");
   $("whereSel").value = F.where;
   $("fab").classList.remove("hidden"); $("fab").onclick = () => go("scan");
   drawCol();
@@ -1859,7 +1876,7 @@ function releaseExtra(d, oi) {
 function allocate(d, oi, want) {
   const taken = []; let have = haveFor(d, oi);
   const pool = S.cards.filter(e => e.oi === oi && freeQty(e) > 0).sort((a, b) => (a.foil - b.foil) || priceOf(a) - priceOf(b));
-  for (const e of pool) { while (have < want && freeQty(e) > 0) { const w = whereLib(e).text; e.decks[d.id] = (e.decks[d.id] || 0) + 1; have++; taken.push({ name: e.name, where: w, box: whereLib(e).box, sec: SECTIONS.indexOf(sectionOf(e)), tr: typeRank(e.oi) }); } }
+  for (const e of pool) { while (have < want && freeQty(e) > 0) { const w = whereLib(e).text; e.decks[d.id] = (e.decks[d.id] || 0) + 1; have++; taken.push({ name: e.name, where: w, box: whereLib(e).rank, sec: 0, tr: typeRank(e.oi) }); } }
   return { taken, short: Math.max(0, want - have) };
 }
 function buildDeck(d) {
@@ -1874,7 +1891,7 @@ function buildDeck(d) {
 }
 function unbuildDeck(d) {
   const back = [];
-  for (const e of S.cards) { const q = (e.decks || {})[d.id] || 0; if (!q) continue; delete e.decks[d.id]; for (let i = 0; i < q; i++) back.push({ name: e.name, where: whereLib(e).text, box: whereLib(e).box, sec: SECTIONS.indexOf(sectionOf(e)), tr: typeRank(e.oi) }); }
+  for (const e of S.cards) { const q = (e.decks || {})[d.id] || 0; if (!q) continue; delete e.decks[d.id]; for (let i = 0; i < q; i++) back.push({ name: e.name, where: whereLib(e).text, box: whereLib(e).rank, sec: 0, tr: typeRank(e.oi) }); }
   d.built = false; save();
   back.sort((a, b) => a.box - b.box || a.sec - b.sec || a.tr - b.tr || a.name.localeCompare(b.name));
   openSheet(`<h3 style="margin:0">Guardar nas caixas (${back.length})</h3><div class="loc">${back.map(t => `<div><span>${esc(t.name)}</span><span class="meta">${esc(t.where.replace(/^Caixa /, "Cx "))}</span></div>`).join("") || `<div><span>Nenhuma carta da coleção estava neste deck.</span></div>`}</div>`, `<button class="btn primary" id="uOk">Pronto</button>`);
@@ -1920,7 +1937,7 @@ function deleteDeck(d) {
   $("xNo").onclick = closeSheet;
   $("xKeep").onclick = () => {
     const back = [];
-    for (const e of mine) { const q = e.decks[d.id]; delete e.decks[d.id]; const w = whereLib(e); for (let k = 0; k < q; k++) back.push({ name: e.name, where: w.text, box: w.box, sec: SECTIONS.indexOf(sectionOf(e)) }); }
+    for (const e of mine) { const q = e.decks[d.id]; delete e.decks[d.id]; const w = whereLib(e); for (let k = 0; k < q; k++) back.push({ name: e.name, where: w.text, box: w.rank, sec: 0 }); }
     S.decks = S.decks.filter(x => x !== d); save();
     back.sort((a, b) => a.box - b.box || a.sec - b.sec || a.name.localeCompare(b.name));
     if (!back.length) { toast("Deck excluído"); return go("decks"); }
@@ -1944,7 +1961,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.17p";
+const APP_VERSION = "2026.11.18a";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2011,7 +2028,7 @@ function renderCfg() {
     </div>
     <h2 class="sec">Decks e coleção</h2><div class="card cfg-card">
       ${row("Sugestões do EDHREC", "Comandantes populares e cartas recomendadas", tog("edhrec", p.edhrec))}
-      ${row("Capacidade de cada caixa", "Cartas por caixa da biblioteca", `<input type="number" id="cfCap" min="50" max="2000" step="10" value="${S.boxes.capacity || 250}" style="width:90px">`)}
+      ${row("Cartas por coluna", "Quantas cartas com sleeve cabem em cada coluna das caixas", `<input type="number" id="cfCap" min="50" max="2000" step="10" value="${perCol()}" style="width:90px">`)}
     </div>
     <h2 class="sec">Conta e dados</h2><div class="card cfg-card">
       ${row("Conta", CLOUD.user ? esc(CLOUD.user.email) + " · biblioteca compartilhada" : "Não conectado", CLOUD.user ? `<button class="btn small" id="cfOut">Sair</button>` : `<button class="btn small primary" id="cfIn">Entrar</button>`)}
@@ -2032,7 +2049,7 @@ function renderCfg() {
   m.querySelectorAll("[data-seg]").forEach(g => g.onclick = (e) => { const b = e.target.closest("[data-v]"); if (!b) return; g.querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); setPref(g.dataset.seg, b.dataset.v); });
   m.querySelectorAll("[data-theme]").forEach(b => b.onclick = () => { m.querySelectorAll("[data-theme]").forEach(x => x.setAttribute("aria-pressed", x === b)); setPref("theme", b.dataset.theme); });
   $("cfRate").onclick = async () => { S.settings.usdbrlAt = 0; await updateRate(); renderCfg(); toast("Cotação atualizada"); };
-  $("cfCap").onchange = (e) => { const v = Math.max(50, Math.min(2000, +e.target.value || 250)); S.boxes.capacity = v; S.boxes.layoutDirty = true; save(); toast("Capacidade: " + v + " cartas por caixa"); };
+  $("cfCap").onchange = (e) => { const v = Math.max(50, Math.min(2000, +e.target.value || 250)); S.boxes.perCol = v; save(); toast("Capacidade: " + v + " cartas por coluna"); };
   if ($("cfOut")) $("cfOut").onclick = async () => { if (!confirm("Sair da conta neste aparelho?")) return; try { await CLOUD.auth.signOut(); } catch (e) {} location.reload(); };
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
@@ -2102,7 +2119,7 @@ function oiFromEl(el) {
   const k = el.closest("[data-k]"); if (k) { const e = S.cards.find(x => x.key === k.dataset.k); if (e) return e.oi; }
   return undefined;
 }
-function locLines(oi) { const { boxes, decks } = locInfo(oi); return [...[...boxes].sort((a, b) => a[0] - b[0]).map(([b, q]) => `📦 Caixa ${b} · ${q}× livre`), ...[...decks].map(([n, q]) => `🃏 Deck ${n} · ${q}×`)]; }
+function locLines(oi) { const { boxes, decks } = locInfo(oi); return [...[...boxes].sort().map(([b, q]) => `📦 ${b} · ${q}× livre`), ...[...decks].map(([n, q]) => `🃏 Deck ${n} · ${q}×`)]; }
 function wishCtx(x, y, oi) {
   const loc = locLines(oi);
   ctxMenu(x, y, [{ head: DB.o[oi][0] }, ...(loc.length ? [{ head: "Onde vocês têm" }, ...loc.map(l => ({ hint: l })), "-"] : [{ hint: "Vocês não têm essa carta" }, "-"]), wishItem(oi), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
@@ -3700,26 +3717,57 @@ function renderStatsPane() {
 }
 
 // ============ CAIXAS ============
+function boxMoves(oldMap, newMap) {
+  const counts = boxCounts(); const out = [];
+  for (const g of GROUP_ORDER) bucketsOf(g).forEach((lab, k) => { const n = counts[g][k]; if (!n) return;
+    const f = (m) => { const sl = (m[g] || []).find(x => k >= x.a && k <= x.b); return sl ? slotCode(g, sl) : "?"; };
+    const a = f(oldMap || {}), b = f(newMap); if (a !== b) out.push({ g, lab, n, a, b }); });
+  return out;
+}
+function applyPlan(newMap, label) {
+  const mv = boxMoves(S.boxes.map, newMap);
+  if (!mv.length) { S.boxes.map = newMap; save(); renderBoxes(); return toast("Nada muda de lugar."); }
+  openSheet(`<h3 style="margin:0">${esc(label)}</h3><p class="meta" style="margin:0">Mova estas divisórias inteiras (com as cartas) para o novo lugar:</p>
+    <div class="loc">${mv.map(m => `<div><span><span class="sw" style="background:${COLOR_HEX[m.g]}"></span> ${esc(GNAME[m.g])} · ${esc(m.g === "L" ? m.lab : "custo " + m.lab)} <span class="meta">(${m.n})</span></span><b>${esc(m.a)} → ${esc(m.b)}</b></div>`).join("")}</div>`,
+    `<button class="btn" id="mvX">Cancelar</button><button class="btn primary" id="mvOk">Aplicar</button>`);
+  $("mvX").onclick = closeSheet; $("mvOk").onclick = () => { S.boxes.map = newMap; save(); closeSheet(); renderBoxes(); toast("Novo endereço salvo. Reimprima as etiquetas que mudaram."); };
+}
 function renderBoxes() {
   $("title").textContent = "Caixas"; $("bars").innerHTML = "";
-  setMenu([["Reorganizar caixas", () => { buildLayout(); renderBoxes(); toast("Caixas reorganizadas."); }], ["Capacidade por caixa", async () => { const n = parseInt(await askText("Quantas cartas com sleeve cabem em cada caixa?", String(S.boxes.capacity), { inputmode: "numeric" }), 10); if (n > 20) { S.boxes.capacity = n; save(); renderBoxes(); } }], ["Lista para etiquetas dos divisores", labelsSheet]]);
-  if (!S.boxes.layout) buildLayout();
-  const counts = sectionCounts(); const cap = S.boxes.capacity;
-  const inDeckTotal = S.cards.reduce((a, e) => a + inDecks(e), 0);
-  $("main").innerHTML = `
-    <div class="card"><b>Organização: cor → raridade → tipo → nome</b>
-      <span class="meta">Cada caixa tem divisores por cor e raridade (raras e míticas na frente, comuns e incomuns atrás). Dentro de cada divisor: criaturas, planeswalkers, instantâneas, feitiços, encantamentos, artefatos, batalhas e terrenos, cada grupo em ordem alfabética.</span>
-      <span class="meta">Capacidade: ${cap} cartas com sleeve por caixa. ${inDeckTotal} carta(s) estão em decks (fora das caixas).</span></div>
-    ${S.boxes.layout.map(b => { const n = b.sections.reduce((a, s) => a + counts[s], 0); const pct = Math.round(n * 100 / cap);
-      return `<div class="boxcard"><h3><span>Caixa ${b.n}</span><span class="meta">${n}/${cap}</span></h3><div class="bar ${pct > 100 ? "over" : ""}"><i style="width:${Math.min(100, pct)}%"></i></div>
-        ${b.sections.map(s => `<button class="secrow" data-s="${s}" style="border:0;background:transparent;color:inherit;text-align:left;width:100%"><span class="sw" style="background:${COLOR_HEX[s[0]]}"></span><span>${esc(sectionName(s))}</span><span class="meta">${counts[s]}</span></button>`).join("")}
-        ${pct > 100 ? `<span class="pill bad">Caixa cheia: use ⋮ → Reorganizar caixas</span>` : ""}</div>`; }).join("")}
-`;
-  $("main").onclick = (ev) => { const b = ev.target.closest("[data-s]"); if (!b) return; F.where = "box" + boxOfSection(b.dataset.s); F.q = ""; F.sort = "box"; go("col"); };
+  const map = ensureMap(); const counts = boxCounts(); const cap = perCol();
+  const replanAll = () => { const counts = boxCounts(); const nm = {}; for (const g of GROUP_ORDER) nm[g] = planGroup(g, counts); applyPlan(nm, "Reorganizar todas as cores"); };
+  setMenu([["🏷 Etiquetas para imprimir", labelsSheet], ["Cartas por coluna (" + cap + ")", async () => { const n = parseInt(await askText("Quantas cartas (com sleeve) cabem em cada coluna?", String(cap), { inputmode: "numeric" }), 10); if (n > 20) { S.boxes.perCol = n; save(); renderBoxes(); } }],
+    ["Colunas por caixa (" + colsPerBox() + ")", async () => { const n = parseInt(await askText("Quantas colunas cada caixa tem?", String(colsPerBox()), { inputmode: "numeric" }), 10); if (n >= 1 && n <= 6) { S.boxes.cpb = n; save(); replanAll(); } }],
+    ["Reorganizar todas as cores…", replanAll]]);
+  const inDeckTotal = S.cards.reduce((a, e) => a + inDecks(e), 0); const inBox = S.cards.reduce((a, e) => a + freeQty(e), 0);
+  const groupHTML = (g) => {
+    const cols = map[g]; const tot = counts[g].reduce((a, b) => a + b, 0);
+    const boxes = [...new Set(cols.map(c => c.box))];
+    const warn = cols.some(sl => counts[g].slice(sl.a, sl.b + 1).reduce((a, b) => a + b, 0) > cap * 0.85);
+    return `<div class="bxg"><h2 class="sec"><span><span class="sw" style="background:${COLOR_HEX[g]}"></span> ${GNAME[g]} <span class="meta">· ${GPFX[g]}</span></span><span>${tot}</span></h2>
+      ${warn ? `<div class="bxwarn">Uma coluna de ${GNAME[g]} passou de 85%. <button class="btn small primary" data-split="${g}">Dividir ${GNAME[g]}</button></div>` : ""}
+      <div class="bxrow">${boxes.map(bx => `<div class="boxcard"><h3><span>Caixa ${GPFX[g]}${bx}</span></h3><div class="bxcols">${cols.filter(c => c.box === bx).map(sl => { const n = counts[g].slice(sl.a, sl.b + 1).reduce((a, b) => a + b, 0); const pct = Math.round(n * 100 / cap); const code = slotCode(g, sl);
+        return `<button class="bxcol" data-col="${code}"><b>${code}</b><span class="meta">${g === "L" ? bucketsOf(g).slice(sl.a, sl.b + 1).join(", ") : "custo " + (sl.a === sl.b ? BUCKETS[sl.a] : BUCKETS[sl.a].split("–")[0] + " a " + BUCKETS[sl.b])}</span>
+          <div class="bar ${pct > 100 ? "over" : pct > 85 ? "warn" : ""}"><i style="width:${Math.min(100, pct)}%"></i></div><span class="meta">${n}/${cap}</span>
+          <span class="bxdiv">${bucketsOf(g).slice(sl.a, sl.b + 1).map((lab, i) => `<i>${esc(lab)} <small>${counts[g][sl.a + i]}</small></i>`).join("")}</span></button>`; }).join("")}</div></div>`).join("")}</div></div>`;
+  };
+  $("main").innerHTML = `<div class="card"><b>Endereço: cor → caixa → coluna → custo → nome</b>
+      <span class="meta">Cada cor tem as próprias caixas (ex.: <b>PTA</b> = Preto, caixa A). Cada coluna guarda uma faixa de custos, com uma divisória por custo; dentro da divisória, ordem alfabética. Código de uma carta: <b>PTA1·3</b> = Preto, caixa A, coluna 1, custo 3.</span>
+      <span class="meta">${inBox} carta(s) nas caixas · ${inDeckTotal} em decks (ficam com o deck) · ${cap} cartas por coluna, ${colsPerBox()} colunas por caixa (⋮ para mudar).</span></div>
+    ${GROUP_ORDER.map(groupHTML).join("")}`;
+  $("main").onclick = (ev) => {
+    const sp = ev.target.closest("[data-split]"); if (sp) { const g = sp.dataset.split; const nm = Object.assign({}, S.boxes.map, { [g]: planGroup(g, boxCounts()) }); return applyPlan(nm, "Dividir " + GNAME[g]); }
+    const c = ev.target.closest("[data-col]"); if (!c) return; F.where = "box" + c.dataset.col; F.q = ""; F.sort = "box"; go("col"); };
 }
 function labelsSheet() {
-  openSheet(`<h3 style="margin:0">Divisores</h3><div class="loc">${S.boxes.layout.map(b => b.sections.map(s => `<div><span>Caixa ${b.n}</span><span>${esc(sectionName(s))}</span></div>`).join("")).join("")}</div>`, `<button class="btn primary" id="lOk">OK</button>`);
-  $("lOk").onclick = closeSheet;
+  const map = ensureMap(); const counts = boxCounts();
+  const html = GROUP_ORDER.map(g => { const boxes = [...new Set(map[g].map(c => c.box))];
+    return boxes.map(bx => `<div class="lbl lbox" style="--c:${COLOR_HEX[g]}"><b>${GPFX[g]}${bx}</b><span>${GNAME[g]}</span><small>${map[g].filter(c => c.box === bx).map(c => slotCode(g, c)).join(" · ")}</small></div>`).join("") +
+      map[g].map(sl => bucketsOf(g).slice(sl.a, sl.b + 1).map(lab => `<div class="lbl ldiv" style="--c:${COLOR_HEX[g]}"><b>${slotCode(g, sl)}·${esc(lab)}</b><span>${GNAME[g]}${g === "L" ? " · " + esc(lab) : " · custo " + esc(lab)}</span></div>`).join("")).join(""); }).join("");
+  openSheet(`<h3 style="margin:0">Etiquetas</h3><p class="meta" style="margin:0">Etiquetas grandes: lombada das caixas. Pequenas: divisórias (uma por custo em cada coluna). Recorte e cole.</p><div class="lbls" id="lblPrev">${html}</div>`,
+    `<button class="btn" id="lX">Fechar</button><button class="btn primary" id="lPr">🖨 Imprimir</button>`);
+  $("lX").onclick = closeSheet;
+  $("lPr").onclick = () => { let pa = $("printArea"); if (!pa) { pa = document.createElement("div"); pa.id = "printArea"; document.body.appendChild(pa); } pa.innerHTML = `<div class="lbls">${html}</div>`; document.body.classList.add("printing"); setTimeout(() => { window.print(); setTimeout(() => document.body.classList.remove("printing"), 500); }, 100); };
 }
 
 // ============ SCANNER ============
@@ -4239,7 +4287,7 @@ function startSync() {
     if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/liga", JSON.stringify(d)); S.liga = Object.assign({}, S.liga, d.p || {}); store.set("liga", S.liga).catch(() => {}); }
   }, cloudError));
   CLOUD.unsub.push(base().collection("meta").doc("boxes").onSnapshot(doc => {
-    if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/boxes", JSON.stringify(d)); S.boxes.capacity = d.capacity || S.boxes.capacity; S.boxes.layout = d.layout || S.boxes.layout; }
+    if (doc.exists) { const d = doc.data(); CLOUD.last.set("meta/boxes", JSON.stringify(d)); S.boxes.capacity = d.capacity || S.boxes.capacity; S.boxes.layout = d.layout || S.boxes.layout; if (d.map) S.boxes.map = d.map; if (d.perCol) S.boxes.perCol = d.perCol; if (d.cpb) S.boxes.cpb = d.cpb; }
     else if (!CLOUD.synced.boxes) setTimeout(pushCloud, 500);
     CLOUD.synced.boxes = true; store.set("boxes", S.boxes).catch(() => {}); rerenderSoon();
   }, err => cloudError(err)));
@@ -4258,7 +4306,7 @@ async function pushCloud() {
     const want = new Map();
     S.cards.forEach(e => want.set("cards/" + docId(e.key), e));
     S.decks.forEach(d => want.set("decks/" + docId(d.id), d));
-    want.set("meta/boxes", { capacity: S.boxes.capacity, layout: S.boxes.layout || null });
+    want.set("meta/boxes", { capacity: S.boxes.capacity, layout: S.boxes.layout || null, map: S.boxes.map || null, perCol: S.boxes.perCol || null, cpb: S.boxes.cpb || null });
     want.set("meta/liga", { p: S.liga || {} });
     if (CLOUD.synced.wish) want.set("meta/wish", { list: S.wish || [] });
     for (const [path, obj] of want) { const j = JSON.stringify(obj); if (CLOUD.last.get(path) !== j) { ops.push(["set", path, JSON.parse(j)]); CLOUD.last.set(path, j); } }
