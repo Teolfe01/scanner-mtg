@@ -1284,6 +1284,7 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
     <div class="cedit"><h2 class="sec" style="margin-top:0">Editar</h2>
       <div class="two"><label class="meta">Idioma<select id="cLang">${LANG_OPTS.map(([v, n]) => `<option value="${v}"${(e.lang || "en") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
         <button class="btn" id="cVer" style="align-self:end">🎨 Edição / tratamento</button></div>
+      <button class="btn" id="cMoveTo" style="margin-top:8px;width:100%">↪ Mover para deck / caixas…</button>
       <button class="btn" id="cCopy" style="margin-top:8px;width:100%">➕ Adicionar cópia de outra edição / tratamento</button>
       ${e.qty > 1 ? `<div class="seg" id="cScope" style="margin-top:8px"><button data-v="all" aria-pressed="true">Mudar as ${e.qty} cópias</button><button data-v="one" aria-pressed="false">Só 1 cópia</button></div>` : ""}
     </div>
@@ -1303,6 +1304,7 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
   if ($("cScope")) $("cScope").onclick = (ev) => { const b = ev.target.closest("[data-v]"); if (!b) return; scope = b.dataset.v; $("cScope").querySelectorAll("[data-v]").forEach(x => x.setAttribute("aria-pressed", x === b)); };
   const apply = (patch) => { const nk = changeEntry(e, patch, scope === "one" ? 1 : e.qty); if (nk) { if (tab === "col") drawCol(); openCard(nk); } };
   $("cLang").onchange = (ev) => apply({ lang: ev.target.value });
+  $("cMoveTo").onclick = (ev) => { const r = ev.target.getBoundingClientRect(); closeSheet(); moveMenu(r.left, Math.min(r.top, innerHeight - 320), e.oi, undefined, e.key, () => { if (tab === "col") drawCol(); }); };
   // cópia nova (outra versão), sem mexer na que está aberta
   $("cCopy").onclick = () => pickVersion(e.oi, "", (r) => { const n = addToCollection({ oi: e.oi, set: r.set, number: normNum(r.number), lang: e.lang, foil: !!r.foilOnly, qty: 1 }); if (tab === "col") drawCol(); toast(`+1 ${n.name} (${r.set.toUpperCase()} #${normNum(r.number)}${n.foil ? " foil" : ""}) · ${whereLib(n).code}`, 2500); openCard(n.key); }, null);
   $("cVer").onclick = () => pickVersion(e.oi, "", (r) => apply({ set: r.set, number: normNum(r.number), ...(r.foilOnly ? { foil: true } : {}) }), { set: e.set, number: e.number });
@@ -1633,9 +1635,10 @@ function deckCardSheet(d, oi, board) { setTimeout(() => { if (!$("sheet").classL
     <div><h2 class="sec" style="margin-top:0">Suas cópias</h2><div class="loc">${where.map(w => `<div><span>${esc(w)}</span></div>`).join("") || `<div><span>Você não tem essa carta.</span></div>`}</div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}
     <div class="actions" style="align-items:center"><span class="meta">No deck</span><span class="stepper"><button id="dcM">−</button><span id="dcQ">${c.qty}</span><button id="dcP">+</button></span></div>
-    <div><h2 class="sec" style="margin-top:4px">Mover para</h2>${moveChipsHTML(d, c)}</div>`,
+    <div><h2 class="sec" style="margin-top:4px">Mover para</h2>${moveChipsHTML(d, c)}<button class="btn small" id="dcMoveTo" style="margin-top:8px">↪ Mover para outro deck / caixas…</button></div>`,
     `<button class="btn danger" id="dcDel">Tirar do deck</button><button class="btn" id="dcPrint">🎨 Edição</button><button class="btn" id="dcHave">✓ Tenho</button><button class="btn" id="dcPull">Pegar da caixa</button><button class="btn primary" id="dcOk">OK</button>`);
   $("dcHave").onclick = () => ownQuick(d, c, () => renderDeck(d.id));
+  $("dcMoveTo").onclick = (ev) => { const r = ev.target.getBoundingClientRect(); const from = haveFor(d, oi) > 0 ? d.id : undefined; closeSheet(); moveMenu(r.left, Math.min(r.top, innerHeight - 320), oi, from, null, () => renderDeck(d.id)); };
   $("dcPrint").onclick = () => changePrint(d, c, () => renderDeck(d.id));
   $("dcM").onclick = () => { if (c.qty > 1) { c.qty--; $("dcQ").textContent = c.qty; releaseExtra(d, oi); save(); } };
   $("dcP").onclick = () => { c.qty++; $("dcQ").textContent = c.qty; save(); };
@@ -1813,7 +1816,7 @@ function cardCtx(e, d, c, after, openFn) {
     ...(st === "ok" ? [["↩ Devolver para a caixa", () => { for (const x of S.cards.filter(x => x.oi === c.oi)) delete x.decks[d.id]; save(); after(); toast("Devolvida para a caixa"); }]]
       : [["✓ Tenho — já está no deck", () => ownMark(d, c, true, after), "pri"], ["✓ Tenho, mas está guardada", () => ownMark(d, c, false, after)], ...(st === "lib" ? [["📦 Pegar da caixa", () => { const r = allocate(d, c.oi, c.qty); save(); after(); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas.", 3000); }]] : [])]),
     "-", ["＋ 1 cópia", () => { c.qty++; save(); after(); }], ...(c.qty > 1 ? [["− 1 cópia", () => { c.qty--; releaseExtra(d, c.oi); save(); after(); }]] : []),
-    "-", { head: "Mover para" },
+    "-", ...(haveFor(d, c.oi) > 0 ? [["↪ Mover para outro deck / caixas…", () => moveMenu(e.clientX, e.clientY, c.oi, d.id, null, after), "pri"]] : []), { head: "Mover para" },
     ...(c.board !== "main" || c.cat ? [["Deck (por tipo)", () => mv("main")]] : []),
     ...cats.filter(k => !(c.board === "main" && c.cat === k)).map(k => ["🏷 " + k, () => mv("cat:" + k)]),
     ["＋ Nova categoria…", async () => { const n = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" }); if (n && n.trim()) mv("cat:" + n.trim()); }],
@@ -1969,7 +1972,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18c";
+const APP_VERSION = "2026.11.18d";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2128,9 +2131,50 @@ function oiFromEl(el) {
   return undefined;
 }
 function locLines(oi) { const { boxes, decks } = locInfo(oi); return [...[...boxes].sort().map(([b, q]) => `📦 ${b} · ${q}× livre`), ...[...decks].map(([n, q]) => `🃏 Deck ${n} · ${q}×`)]; }
+
+// ============ MOVER UMA CÓPIA: caixa ↔ deck ↔ outro deck ============
+// "from": id do deck de onde sai a cópia (ou null = das caixas). Tira 1 cópia física de lá e põe no destino,
+// atualizando as listas dos decks (sai da lista de origem, entra na de destino).
+function moveCopy(oi, from, toId, key) {
+  const name = DB.o[oi][0]; const src = from ? S.decks.find(x => x.id === from) : null; const dst = toId ? S.decks.find(x => x.id === toId) : null;
+  const pool = S.cards.filter(e => e.oi === oi && (from ? (e.decks || {})[from] > 0 : freeQty(e) > 0));
+  const e = pool.find(x => x.key === key) || pool[0];
+  if (!e) return toast(from ? `${name} não está montada em ${src ? src.name : "esse deck"}.` : `Não há cópia livre de ${name} nas caixas.`), false;
+  if (dst) { const c = dst.cards.find(x => x.oi === oi && x.board !== "maybe") || null; const need = c ? c.qty - haveFor(dst, oi) : 0;
+    if (c && need <= 0 && isCmdFormat(dst) && !/Basic Land/.test(DB.o[oi][5])) return toast(`${name} já está montada em ${dst.name}.`), false;
+    if (!c) dst.cards.push({ oi, qty: 1, board: "main", set: e.set, number: e.number, foil: !!e.foil }); else if (need <= 0) c.qty++; }
+  if (src) { e.decks[from]--; if (!e.decks[from]) delete e.decks[from];
+    const c = src.cards.find(x => x.oi === oi && x.board !== "cmd" && x.board !== "maybe") || src.cards.find(x => x.oi === oi);
+    if (c) { if (c.qty > 1) c.qty--; else src.cards = src.cards.filter(x => x !== c); } }
+  if (dst) { e.decks = e.decks || {}; e.decks[dst.id] = (e.decks[dst.id] || 0) + 1; }
+  save(); toast(`↪ ${name}: ${src ? src.name : "caixas"} → ${dst ? dst.name : whereLib(e).code}`, 2600);
+  return true;
+}
+// menu "Mover para…" (deck de origem conhecido ou escolhido)
+function moveMenu(x, y, oi, from, key, after) {
+  const name = DB.o[oi][0]; const owned = S.cards.filter(e => e.oi === oi);
+  if (from === undefined) { // descobrir de onde: caixas e/ou decks
+    const srcs = []; if (owned.some(e => freeQty(e) > 0)) srcs.push(null);
+    for (const d of S.decks) if (haveFor(d, oi) > 0) srcs.push(d.id);
+    if (!srcs.length) return toast(`Vocês não têm ${name} na coleção.`);
+    if (srcs.length > 1) return ctxMenu(x, y, [{ head: `Mover ${name} de onde?` }, ...srcs.map(id => [id ? "🃏 " + (S.decks.find(d => d.id === id).name || "Deck") : "📦 Das caixas", () => moveMenu(x, y, oi, id, key, after)])]);
+    from = srcs[0];
+  }
+  const decks = S.decks.filter(d => d.id !== from).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  const tag = (d) => { const c = d.cards.find(z => z.oi === oi); return c ? (haveFor(d, oi) >= c.qty ? " · já montada" : " · está faltando") : ""; };
+  const done = () => { after ? after() : rerenderSoon(); };
+  ctxMenu(x, y, [{ head: `Mover ${name} ${from ? "de " + (S.decks.find(d => d.id === from) || {}).name : "das caixas"} para…` },
+    ...(from ? [["📦 Caixas", () => { if (moveCopy(oi, from, null, key)) done(); }, "pri"]] : []),
+    ...decks.map(d => ["🃏 " + (d.name || "Deck sem nome") + tag(d), () => { if (moveCopy(oi, from, d.id, key)) done(); }]),
+    ...(decks.length ? [] : [{ hint: "Nenhum outro deck" }])]);
+}
+// deck de onde o clique veio (página do deck ou editor)
+const ctxDeckId = () => tab === "decks" && view && (view.kind === "deck" || view.kind === "edit") ? (view.id || ED.id) : null;
 function wishCtx(x, y, oi) {
   const loc = locLines(oi);
-  ctxMenu(x, y, [{ head: DB.o[oi][0] }, ...(loc.length ? [{ head: "Onde vocês têm" }, ...loc.map(l => ({ hint: l })), "-"] : [{ hint: "Vocês não têm essa carta" }, "-"]), wishItem(oi), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
+  const did = ctxDeckId(); const fromHere = did && haveFor(S.decks.find(d => d.id === did) || { id: "" }, oi) > 0;
+  ctxMenu(x, y, [{ head: DB.o[oi][0] }, ...(loc.length ? [{ head: "Onde vocês têm" }, ...loc.map(l => ({ hint: l })), "-"] : [{ hint: "Vocês não têm essa carta" }, "-"]),
+    ...(loc.length ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), wishItem(oi), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
 }
 // botão direito em qualquer carta que ainda não tenha menu próprio
 document.addEventListener("contextmenu", (e) => {
