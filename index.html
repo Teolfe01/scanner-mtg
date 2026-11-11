@@ -729,6 +729,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 .pt-life b[data-a] { cursor: text; }
 #wishBars .toolbar { grid-template-columns: 1fr repeat(4, auto); }
 .simgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; } .simgrid .res { position: relative; background: none; border: 0; padding: 0; color: inherit; cursor: pointer; text-align: center; } .simgrid .resname { font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kwchips { display: flex; flex-wrap: wrap; gap: 5px; } .kwchip { font-size: 12px; padding: 3px 8px; min-height: 0; } .kwchip b { opacity: .7; margin-left: 3px; }
 .wloc { cursor: pointer; } .wloc:hover { filter: brightness(1.25); }
 .wgh { display: flex; align-items: center; gap: 10px; margin: 18px 2px 8px; flex-wrap: wrap; } .wgh:first-child { margin-top: 2px; } .wgh b { font-size: 15px; } .wgh .meta { flex: 1; }
 .tile.wsel { outline: 2px solid var(--accent); outline-offset: -2px; background: rgba(var(--acc-rgb), .1); }
@@ -1975,7 +1976,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18h";
+const APP_VERSION = "2026.11.18i";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -3222,6 +3223,29 @@ const FUNC = [
 const FUNC_NAMES = FUNC.map(f => f.n);
 function funcKeys(oi) { const o = oInfo(oi); if (mainTypes(o.type).includes("Land")) return ["Terrenos"]; return FUNC.filter(f => f.roles.some(r => o.roles.includes(r))).map(f => f.n); }
 const CAT_MODES = ["func", "multi", "cat", "tpl"]; // modos em que arrastar para uma coluna define a categoria da carta
+// ============ Palavras-chave e mecânicas (lidas do texto da carta) ============
+const KW_LIST = ["First strike", "Double strike", "Flying", "Haste", "Trample", "Vigilance", "Deathtouch", "Lifelink", "Menace", "Reach", "Hexproof", "Indestructible", "Ward", "Flash", "Defender",
+  "Prowess", "Infect", "Toxic", "Wither", "Annihilator", "Exalted", "Undying", "Persist", "Afflict", "Afterlife", "Bushido", "Cascade", "Changeling", "Convoke", "Cycling", "Dash", "Delve", "Devoid", "Echo", "Embalm", "Eternalize", "Evoke", "Evolve", "Escape", "Fading", "Flanking", "Flashback", "Foretell", "Horsemanship", "Kicker", "Landwalk", "Living weapon", "Madness", "Melee", "Mentor", "Miracle", "Modular", "Morph", "Mutate", "Myriad", "Ninjutsu", "Outlast", "Partner", "Phasing", "Protection", "Provoke", "Rampage", "Rebound", "Riot", "Shadow", "Shroud", "Skulk", "Soulbond", "Split second", "Storm", "Sunburst", "Surge", "Training", "Tribute", "Unearth", "Vanishing", "Disturb", "Blitz", "Casualty", "Decayed", "Enlist", "Read ahead", "Ravenous", "Squad", "Backup", "Bargain", "Craft", "Disguise", "Plot", "Saddle", "Offspring", "Gift", "Impending", "Exhaust", "Equip", "Crew", "Reconfigure", "Encore", "Boast", "Daybound", "Cleave", "Islandwalk", "Swampwalk", "Forestwalk", "Mountainwalk", "Plainswalk", "Fear", "Intimidate", "Banding", "Bloodthirst", "Dethrone", "Extort", "Fabricate", "Graft", "Haunt", "Hideaway", "Improvise", "Jump-start", "Mobilize", "Prototype", "Spectacle", "Totem armor", "Umbra armor", "Affinity"];
+const KW_RX = new RegExp("^(" + KW_LIST.map(k => k.replace(/[-]/g, "\\-")).join("|") + ")\\b", "i");
+const MECH = [
+  ["Entra no campo (ETB)", /\b(enters|enters the battlefield)\b/i], ["Morre", /\bdies\b/i], ["Ao atacar", /whenever [^.]*\battacks?\b/i], ["Ao lançar mágica", /whenever you cast/i],
+  ["Fichas", /\bcreates? [^.]*tokens?\b/i], ["Marcadores +1/+1", /\+1\/\+1 counter/i], ["Sacrifício", /\bsacrific/i], ["Cemitério", /from (your|a|their|an opponent's) graveyard|graveyard to/i],
+  ["Ganho de vida", /\bgains? [^.]*life\b|you gain life/i], ["Compra", /\bdraws? (a|two|three|x|that many|cards?)\b/i], ["Descarte", /\bdiscards?\b/i], ["Landfall", /landfall|whenever a land [^.]*enters/i],
+  ["Amass", /\bamass\b/i], ["Proliferate", /\bproliferate\b/i], ["Scry", /\bscry\b/i], ["Surveil", /\bsurveil\b/i], ["Explore", /\bexplores?\b/i], ["Connive", /\bconnives?\b/i],
+  ["Investigate", /\binvestigate\b/i], ["Treasure", /\btreasure\b/i], ["Food", /\bfood\b/i], ["Populate", /\bpopulate\b/i], ["Adapt", /\badapt \d/i], ["Mill", /\bmills?\b/i],
+  ["Cópia", /\bcop(y|ies)\b/i], ["Turno extra", /extra turn/i], ["Venture / Masmorra", /venture into the dungeon|initiative/i], ["Monarca", /\bmonarch\b/i],
+  ["Raid", /\braid\b/i], ["Morbid", /\bmorbid\b/i], ["Magecraft", /\bmagecraft\b/i], ["Constellation", /\bconstellation\b/i], ["Heroic", /\bheroic\b/i], ["Metalcraft", /\bmetalcraft\b/i],
+  ["Revolt", /\brevolt\b/i], ["Threshold", /\bthreshold\b/i], ["Delirium", /\bdelirium\b/i], ["Ferocious", /\bferocious\b/i], ["Coven", /\bcoven\b/i], ["Alliance", /\balliance\b/i],
+];
+function kwOf(oi) {
+  const o = DB.o[oi]; if (!o) return []; const t = (o[6] || "").replace(/\([^)]*\)/g, ""); const out = new Set();
+  for (const line of t.split("\n")) { const parts = line.split(/,\s*|;\s*/).map(x => x.trim()).filter(Boolean); if (!parts.length) continue;
+    if (/\.$/.test(line.trim()) && !/—/.test(line)) continue;
+    const ks = parts.map(x => { const m = x.match(KW_RX); return m ? m[1] : null; });
+    if (ks.every(Boolean) && !/[.:]\s*\S/.test(line.replace(/—.*$/, ""))) ks.forEach(k => out.add(k.charAt(0).toUpperCase() + k.slice(1).toLowerCase())); }
+  return [...out];
+}
+function mechOf(oi) { const t = (DB.o[oi] && DB.o[oi][6] || "").replace(/\([^)]*\)/g, ""); return MECH.filter(([, rx]) => rx.test(t)).map(([n]) => n); }
 function groupKeys(c) {
   if (c.board === "cmd") return ["Comandante"]; if (c.board === "side") return ["Sideboard"]; if (c.board === "maybe") return ["Talvez"];
   const isLand = mainTypes(DB.o[c.oi][5]).includes("Land");
@@ -3230,6 +3254,8 @@ function groupKeys(c) {
   if (ED.group === "cmcs") return isLand ? ["Terrenos"] : ["Valor " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "")];
   if (ED.group === "cmc") return ["Valor " + Math.min(7, Math.floor(DB.o[c.oi][2])) + (DB.o[c.oi][2] >= 7 ? "+" : "")];
   if (ED.group === "full") return ["Deck"];
+  if (ED.group === "kw" || ED.group === "mech") { const isCre = /Creature/.test(DB.o[c.oi][5]); if (!isCre) return [isLand ? "Terrenos" : "Não-criaturas"];
+    const l = ED.group === "kw" ? kwOf(c.oi) : mechOf(c.oi); return l.length ? l : [ED.group === "kw" ? "Sem palavra-chave" : "Sem mecânica"]; }
   if (ED.group === "bracket") { if (!BR.ready) return ["Carregando…"]; const d = deckOf(); const r = d.__br || (d.__br = evalBracket(d));
     if (r.gcs.includes(c.oi)) return ["Game Changers"]; if (r.combos.some(x => x.a === c.oi || x.b === c.oi)) return ["Peças de combo"]; if (r.mld.includes(c.oi)) return ["Terrenos em massa"]; if (r.turns.includes(c.oi)) return ["Turnos extras"]; return ["Demais cartas"]; }
   return [groupKey(c)];
@@ -3659,7 +3685,7 @@ function renderDeckPane() {
   const main = d.cards.filter(c => c.board === "main" || c.board === "cmd").reduce((a, c) => a + c.qty, 0);
   const html = `
     <div class="ed-dbar"><b>${main} cartas</b><span class="meta">${d.format || "Commander"}</span>
-      <label class="edsel">Agrupar por <select id="edGroup">${[["func", "Categorias (funções)"], ["multi", "Categorias (múltiplas)"], ["cat", "Minhas categorias"], ["type", "Tipo"], ["cmc", "Valor de mana"], ["cmcs", "Valor de mana (mágicas)"], ["full", "Deck inteiro"], ["color", "Cor"], ["bracket", "Info de bracket"], ["tpl", "Template Command Zone"]].map(([v, n]) => `<option value="${v}"${ED.group === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label class="edsel">Agrupar por <select id="edGroup">${[["func", "Categorias (funções)"], ["multi", "Categorias (múltiplas)"], ["cat", "Minhas categorias"], ["type", "Tipo"], ["cmc", "Valor de mana"], ["cmcs", "Valor de mana (mágicas)"], ["full", "Deck inteiro"], ["color", "Cor"], ["kw", "Palavras-chave (criaturas)"], ["mech", "Mecânicas (criaturas)"], ["bracket", "Info de bracket"], ["tpl", "Template Command Zone"]].map(([v, n]) => `<option value="${v}"${ED.group === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
       <label class="edsel">Ordenar <select id="edSort">${[["cmc", "Valor de mana"], ["name", "Nome"], ["price", "Preço"], ["type", "Tipo"]].map(([v, n]) => `<option value="${v}"${(ED.dsort || "cmc") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
       <select id="edMode"><option value="stack">Pilhas</option><option value="list"${ED.mode === "list" ? " selected" : ""}>Lista</option></select></div>
     ${commanderBanner(d)}
@@ -3821,6 +3847,9 @@ function renderStatsPane() {
         <div class="meta" style="margin-top:4px">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<i class="ms ms-${k.toLowerCase()} ms-cost"></i> ${Math.round(n * 100 / ptot)}%`).join(" · ")}</div></div>
       <div><div class="meta" style="margin-bottom:4px">Tipos</div>${Object.entries(types).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<div class="hbar"><span>${esc(t)}</span><i style="width:${Math.round(n * 100 / Math.max(1, total))}%"></i><b>${n}</b></div>`).join("")}</div>
       <div><div class="meta" style="margin-bottom:4px">Todas as funções</div>${[...new Set([...Object.keys(GUIDE), ...Object.keys(roles)])].sort((a, b) => (roles[b] || 0) - (roles[a] || 0)).slice(0, 12).map(r => { const n = roles[r] || 0, g = GUIDE[r]; return `<div class="hbar"><span>${esc(ROLES[r])}</span><i style="width:${Math.min(100, Math.round(n * 100 / Math.max(10, g || 10)))}%;${g ? `background:${n >= g ? "var(--ok)" : "var(--warn)"}` : ""}"></i><b>${n}${g ? "/" + g : ""}</b></div>`; }).join("")}</div>
+      ${(() => { const kw = {}, me = {}; inMain.forEach(c => { kwOf(c.oi).forEach(k => kw[k] = (kw[k] || 0) + c.qty); mechOf(c.oi).forEach(k => me[k] = (me[k] || 0) + c.qty); });
+        const chips = (o, mode) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<button class="chip kwchip" data-kwg="${mode}" title="Agrupar o deck por ${mode === "kw" ? "palavras-chave" : "mecânicas"}">${esc(k)} <b>${n}</b></button>`).join("");
+        return (Object.keys(kw).length ? `<div><div class="meta" style="margin-bottom:4px">Palavras-chave</div><div class="kwchips">${chips(kw, "kw")}</div></div>` : "") + (Object.keys(me).length ? `<div><div class="meta" style="margin-bottom:4px">Mecânicas</div><div class="kwchips">${chips(me, "mech")}</div></div>` : ""); })()}
       ${value ? `<div class="meta">Valor estimado: <b>${fmtUSD(value)}</b></div>` : ""}
       <div class="actions"><button class="btn small primary" id="sBuild">Montar com a coleção</button><button class="btn small" id="sCopy">Copiar lista</button><button class="btn small" id="sMiss">Copiar faltantes</button></div>
     </div>`;
@@ -3829,6 +3858,7 @@ function renderStatsPane() {
     if (r === "__land") { ED.role = ""; ED.type = "Land"; } else { ED.role = r; ED.type = ""; }
     ED.pane = "busca"; renderEditor(); if (!isWide()) window.scrollTo(0, 0);
   });
+  $("edStats").querySelectorAll("[data-kwg]").forEach(b => b.onclick = () => { ED.group = b.dataset.kwg; S.settings.edGroup = ED.group; save(true); if ($("edGroup")) $("edGroup").value = ED.group; ED.pane = "deck"; renderDeckPane(); if (!isWide()) renderEditor(); });
   $("sBuild").onclick = () => buildDeck(d); $("sCopy").onclick = () => copyDeck(d); $("sMiss").onclick = () => copyMissing(d);
 }
 
