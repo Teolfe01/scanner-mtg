@@ -2011,7 +2011,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18t";
+const APP_VERSION = "2026.11.18u";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -3593,10 +3593,11 @@ function renderSearchPane() {
 function searchCards() {
   const d = deckOf(); const ci = ED.useCI ? deckCI(d) : null;
   const q = norm(ED.q); const ownedSet = ED.owned ? new Set(S.cards.map(e => e.oi)) : null;
+  const inDeck = new Set(d.cards.filter(c => c.board !== "maybe" && !/Basic Land/.test(DB.o[c.oi][5])).map(c => c.oi));
   const out = []; const LIM = 120; let total = 0;
   const list = ownedSet ? [...ownedSet] : DB.o.map((_, i) => i);
   for (const i of list) {
-    const o = DB.o[i];
+    const o = DB.o[i]; if (inDeck.has(i)) continue;
     if (q && !norm(o[0]).includes(q) && !ptN(i).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
     if (ci && o[4] && o[4].split("").some(c => !ci.has(c))) continue;
     if (ED.colors.size) { const cols = o[3]; if (ED.colors.has("C") ? cols : ![...ED.colors].every(c => cols.includes(c))) continue; }
@@ -3616,7 +3617,7 @@ async function drawEdhRecs(d) {
   $("edCount").textContent = "Carregando recomendações do EDHREC…"; if (!EDH.mem.has("commanders/" + slug)) $("edResults").innerHTML = "";
   let j; try { j = await edh("commanders/" + slug); } catch (e) { if (seq === ED.edhSeq) { $("edCount").textContent = "Não consegui acessar o EDHREC agora. Use a busca."; $("edResults").innerHTML = ""; } return; }
   if (seq !== ED.edhSeq || !$("edResults")) return;
-  const inDeck = new Set(d.cards.map(c => c.oi)); const own = ED.owned ? new Set(S.cards.map(e => e.oi)) : null; const hideIn = ED.hideIn !== false;
+  const inDeck = new Set(d.cards.map(c => c.oi)); const own = ED.owned ? new Set(S.cards.map(e => e.oi)) : null; const hideIn = true; // com um deck aberto, as que já estão nele nunca aparecem nas sugestões
   const lists = j.container.json_dict.cardlists; let shown = 0;
   const html = lists.map(l => {
     const cards = l.cardviews.map(v => ({ v, oi: edhOi(v.name) })).filter(x => x.oi !== undefined && !(hideIn && inDeck.has(x.oi)) && !(own && !own.has(x.oi)));
@@ -3627,8 +3628,7 @@ async function drawEdhRecs(d) {
     }).join("");
   }).join("");
   const deckN = (j.num_decks_avg || (j.container.json_dict.card || {}).num_decks || 0);
-  $("edCount").innerHTML = `<span class="edh-badge"><b>Sugestões do EDHREC</b>${deckN ? ` · ${deckN.toLocaleString("pt-BR")} decks` : ""} · % = decks que usam</span> <label class="meta ck" style="margin-top:4px"><input type="checkbox" id="edHideIn" ${hideIn ? "checked" : ""}> Esconder as que já estão no deck</label>`;
-  $("edHideIn").onchange = (e) => { ED.hideIn = e.target.checked; drawEdhRecs(d); };
+  $("edCount").innerHTML = `<span class="edh-badge"><b>Sugestões do EDHREC</b>${deckN ? ` · ${deckN.toLocaleString("pt-BR")} decks` : ""} · % = decks que usam</span>`;
   keepImgs($("edResults"), () => $("edResults").innerHTML = html || `<div class="meta" style="grid-column:1/-1">Nada a sugerir com esses filtros${own ? " entre as cartas que vocês têm" : ""}.</div>`);
   hoverBind($("edResults"));
 }
@@ -3643,6 +3643,20 @@ function drawResults() {
     return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}${locBadge(i, ED.id)}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
   }).join(""));
   hoverBind($("edResults"));
+}
+// Animação de movimento (FLIP): guarda onde cada carta estava e, depois de redesenhar, desliza da posição antiga para a nova
+function flipFirst(root) {
+  if (!root || document.documentElement.classList.contains("nomotion") || !root.animate) return () => {};
+  const sel = "[data-oi][data-b]"; const key = (el, seen) => { const k = el.dataset.oi + "|" + el.dataset.b; const n = seen[k] = (seen[k] || 0) + 1; return k + "|" + n; };
+  const els = root.querySelectorAll(sel); if (!els.length || els.length > 500) return () => {};
+  const old = new Map(); const seen = {}; els.forEach(el => { const r = el.getBoundingClientRect(); if (r.width) old.set(key(el, seen), r); });
+  return () => {
+    const seen2 = {}; const vh = innerHeight;
+    root.querySelectorAll(sel).forEach(el => { const r = el.getBoundingClientRect(); if (!r.width || r.bottom < -50 || r.top > vh + 50) return; const o = old.get(key(el, seen2));
+      if (!o) { el.animate([{ opacity: 0, transform: "scale(.85)" }, { opacity: 1, transform: "none" }], { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" }); return; }
+      const dx = o.left - r.left, dy = o.top - r.top; if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 280, easing: "cubic-bezier(.2,.8,.2,1)" }); });
+  };
 }
 // Redesenha sem recarregar as imagens: as que já estavam carregadas voltam para o lugar
 function keepImgs(root, apply) {
@@ -3867,7 +3881,9 @@ function renderDeckPane() {
     </div>
     <div class="dropbar"><div class="drop" data-g="Sideboard">Sideboard</div><div class="drop" data-g="Talvez">Talvez</div><div class="drop" data-g="__del">Remover</div></div>`;
   const tokOld = $("edTokL") ? $("edTokL").innerHTML : ""; const tokN = $("edTokN") ? $("edTokN").textContent : "";
+  const flip = flipFirst($("edDeck"));
   keepImgs($("edDeck"), () => { $("edDeck").innerHTML = html; if (tokOld && $("edTokL")) { $("edTokL").innerHTML = tokOld; $("edTokN").textContent = tokN; } });
+  flip();
   fillTokCol(d);
   $("edGroup").onchange = (e) => { ED.group = e.target.value; S.settings.edGroup = ED.group; save(true); renderDeckPane(); };
   $("edSort").onchange = (e) => { ED.dsort = e.target.value; S.settings.edSort = ED.dsort; save(true); renderDeckPane(); };
