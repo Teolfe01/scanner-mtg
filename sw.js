@@ -2,7 +2,7 @@
 const V = "bmtg-v3";
 const CORE = ["./", "index.html", "manifest.webmanifest", "icon-v2-192.png", "icon-v2-512.png", "icon-v2-maskable-512.png",
   "css/mana.css", "css/keyrune.css", "fonts/mana.woff2", "fonts/keyrune.woff2", "data/cards.json.gz",
-  "lib/tesseract.min.js", "lib/worker.min.js", "lib/eng.traineddata.gz"];
+  "lib/tesseract.min.js", "lib/pako_inflate.min.js", "lib/worker.min.js", "lib/eng.traineddata.gz"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(V).then(c => c.addAll(CORE)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== V && k !== "bmtg-imgs").map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 async function trimImgs() { const c = await caches.open("bmtg-imgs"); const ks = await c.keys(); if (ks.length > 4000) for (const k of ks.slice(0, ks.length - 3500)) await c.delete(k); }
