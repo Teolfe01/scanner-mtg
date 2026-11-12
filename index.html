@@ -659,6 +659,20 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 /* ===== Tela grande (PC): menu lateral, barra superior compacta, conteúdo na largura toda ===== */
 #cfgBtn { display: none; }
+nav.bottom > button.pconly { display: none; }
+.allwrap { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; align-items: start; }
+.allsets { position: sticky; top: 8px; max-height: calc(100vh - 120px); overflow: auto; background: var(--card); border-radius: 8px; padding: 8px; }
+.allsets input { width: 100%; margin-bottom: 6px; }
+.allsets .yr { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 10px 6px 4px; }
+.allsets button { display: grid; grid-template-columns: 22px 1fr auto; gap: 6px; align-items: center; width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 5px 6px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
+.allsets button:hover { background: rgba(255,255,255,.05); } .allsets button[aria-current="true"] { background: rgba(var(--acc-rgb),.18); color: #fff; }
+.allsets button .ss { font-size: 18px; text-align: center; } .allsets button small { color: var(--muted); font-size: 11px; }
+.allsets button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.allhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 2px 0 10px; } .allhead h2 { margin: 0; font-size: 20px; } .allhead .ss { font-size: 26px; }
+.tile.notown .cardimg img { filter: saturate(.35) brightness(.7); } .tile.notown:hover .cardimg img { filter: none; }
+.ownq { position: absolute; top: 6px; right: 6px; z-index: 2; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 12px; border-radius: 5px; padding: 1px 6px; }
+.rarchips .chip { min-width: 34px; font-weight: 700; }
+@media (min-width: 1000px) and (hover: hover) { nav.bottom > button.pconly:not(.hidden) { display: grid; } }
 @media (min-width: 1000px) {
   :root { --side: 88px; }
   body { padding-left: var(--side); }
@@ -820,6 +834,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
   <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
   <button data-tab="edh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 18h18l-1.5-10-4.5 4-3-6-3 6-4.5-4z"/><path d="M5 21h14"/></svg>EDH</button>
+  <button data-tab="all" class="pconly" title="Todas as cartas do jogo, por coleção"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 5h6v6H4zM14 5h6v6h-6zM4 15h6v4H4zM14 15h6v4h-6z"/></svg>Cartas</button>
   <button data-tab="wish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Desejos</button>
   <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
@@ -1159,12 +1174,12 @@ function cardImgHTML(e, opts = {}) {
 
 // ============ Navegação ============
 let tab = "col", view = null; // view: {kind:'deck', id}
-const views = { wish: (...a) => renderWish(...a), col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), edh: (...a) => renderEdh(...a), cfg: (...a) => renderCfg(...a) };
+const views = { all: (...a) => renderAll(...a), wish: (...a) => renderWish(...a), col: renderCol, scan: renderScan, decks: renderDecks, boxes: renderBoxes, deals: (...a) => renderDeals(...a), edh: (...a) => renderEdh(...a), cfg: (...a) => renderCfg(...a) };
 // Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
 const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
 function go(t, v = null, o = {}) { if (typeof UPD !== "undefined" && UPD.busyWait) setTimeout(() => { if (!updBusy()) { UPD.busyWait = false; checkUpdate(false); } }, 800);
-  if (t !== "scan" && tab === "scan") stopCamera();
+  if (t !== "scan") { if (tab === "scan" || stream) stopCamera(); SC.camOff = false; }
   tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide", "pt-on", "edfit"); { const pv = $("gfPv"); if (pv) pv.remove(); } if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null; $("main").onclick = null; $("main").onmouseover = null; { const wb = $("wBar"); if (wb) wb.remove(); }
   document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
   const scan = t === "scan";
@@ -1996,7 +2011,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18r";
+const APP_VERSION = "2026.11.18t";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2135,6 +2150,122 @@ async function bugsList() {
     $("bgList").innerHTML = qs.docs.filter(d => d.data().status !== "resolvido").map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${b.kind === "ideia" ? "💡" : "🐞"} ${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nada pendente 🎉</div>`;
     $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
   } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
+}
+
+// ============ TODAS AS CARTAS (só PC): o jogo inteiro organizado por coleção ============
+const AL = { set: "", q: "", colors: new Set(), rar: new Set(), type: "", own: "", sort: "num", stype: "", sq: "", more: 1, meta: null, counts: null };
+const STYPE = { "": "Todos os tipos de coleção", expansion: "Expansões", core: "Coleções básicas", commander: "Commander", masters: "Masters / reedições", draft_innovation: "Draft especiais", funny: "Engraçadas (Un-)", promo: "Promos", other: "Outras" };
+async function allMeta() {
+  if (AL.meta) return AL.meta;
+  if (!AL.counts) { AL.counts = {}; for (const p of DB.p) AL.counts[p[0]] = (AL.counts[p[0]] || 0) + 1; }
+  try { const c = await store.get("setsMeta"); if (c && Date.now() - c.at < 7 * 864e5) return (AL.meta = c.m); } catch (e) {}
+  try {
+    const j = await fetch("https://api.scryfall.com/sets").then(r => r.ok ? r.json() : Promise.reject());
+    const m = {}; for (const x of j.data || []) m[x.code] = { d: x.released_at || "", t: x.set_type || "", p: x.parent_set_code || "" };
+    AL.meta = m; store.set("setsMeta", { at: Date.now(), m }).catch(() => {});
+  } catch (e) { AL.meta = {}; }
+  return AL.meta;
+}
+const stypeOf = (code) => { const t = (AL.meta && AL.meta[code] || {}).t || ""; return STYPE[t] ? t : (t ? "other" : ""); };
+function renderAll() {
+  $("title").textContent = "Cartas"; $("fab").classList.add("hidden"); setMenu([]);
+  if (!AL.set && S.settings.allSet) AL.set = S.settings.allSet;
+  if (!$("allBars")) {
+    $("bars").innerHTML = `<div id="allBars"><div class="toolbar"><input type="search" id="aq" placeholder="Buscar carta em todas as coleções…" aria-label="Buscar">
+      <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg>
+        <select id="aSort"><option value="num">Número</option><option value="name">Nome</option><option value="color">Cor</option><option value="price">Preço</option><option value="rar">Raridade</option></select></span></div>
+      <div class="subbar"><div class="subrow"><span class="count" id="aCount"></span><button class="addfilter" id="aFT">Filtros <span class="plus">+</span></button></div>
+        <div class="filterpanel hidden" id="aFP">
+          <div class="chips" id="aCols">${COLOR_ORDER.map(([c, n]) => `<button class="chip" data-c="${c}" aria-pressed="false" title="${n}">${c === "M" ? "Multi" : c === "L" ? "Terreno" : `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`}</button>`).join("")}</div>
+          <div class="chips rarchips" id="aRar">${[["c", "Comum"], ["u", "Incomum"], ["r", "Rara"], ["m", "Mítica"]].map(([r, n]) => `<button class="chip" data-r="${r}" aria-pressed="false" title="${n}">${setHTML("default", r)} ${n}</button>`).join("")}</div>
+          <div class="two"><select id="aType"><option value="">Todos os tipos</option>${TYPES.map(t => `<option value="${t[0]}">${t[1]}</option>`).join("")}</select>
+            <select id="aOwn"><option value="">Tenho e não tenho</option><option value="own">Só as que tenho</option><option value="miss">Só as que não tenho</option></select></div>
+        </div></div></div>`;
+    $("aq").oninput = (e) => { AL.q = e.target.value; AL.more = 1; drawAll(); };
+    $("aSort").onchange = (e) => { AL.sort = e.target.value; drawAll(); };
+    $("aFT").onclick = () => $("aFP").classList.toggle("hidden");
+    $("aCols").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; AL.colors.has(c) ? AL.colors.delete(c) : AL.colors.add(c); b.setAttribute("aria-pressed", AL.colors.has(c)); AL.more = 1; drawAll(); };
+    $("aRar").onclick = (e) => { const b = e.target.closest("[data-r]"); if (!b) return; const r = b.dataset.r; AL.rar.has(r) ? AL.rar.delete(r) : AL.rar.add(r); b.setAttribute("aria-pressed", AL.rar.has(r)); AL.more = 1; drawAll(); };
+    $("aType").onchange = (e) => { AL.type = e.target.value; AL.more = 1; drawAll(); };
+    $("aOwn").onchange = (e) => { AL.own = e.target.value; AL.more = 1; drawAll(); };
+  }
+  $("aq").value = AL.q; $("aSort").value = AL.sort; $("aType").value = AL.type; $("aOwn").value = AL.own;
+  $("allBars").classList.remove("hidden"); document.querySelectorAll("#bars > div:not(#allBars)").forEach(x => x.remove());
+  $("main").innerHTML = `<div class="allwrap"><div class="allsets" id="aSets"><div class="meta" style="padding:8px">Carregando coleções…</div></div><div id="aMain"></div></div>`;
+  drawAll();
+  allMeta().then(() => { if (tab === "all") { drawSets(); if (!AL.set && !AL.q) drawAll(); } });
+}
+function setsSorted() {
+  const m = AL.meta || {}; const codes = Object.keys(AL.counts || {});
+  return codes.sort((a, b) => ((m[b] || {}).d || "").localeCompare((m[a] || {}).d || "") || (DB.sets[a] || a).localeCompare(DB.sets[b] || b));
+}
+function drawSets() {
+  const el = $("aSets"); if (!el) return; const m = AL.meta || {};
+  const q = norm(AL.sq); let list = setsSorted();
+  if (AL.stype) list = list.filter(c => stypeOf(c) === AL.stype);
+  if (q) list = list.filter(c => norm((DB.sets[c] || "") + " " + c).includes(q));
+  let yr = null; const rows = [];
+  for (const c of list) { const y = ((m[c] || {}).d || "").slice(0, 4) || "Sem data"; if (y !== yr) { yr = y; rows.push(`<div class="yr">${esc(y)}</div>`); }
+    rows.push(`<button data-set="${esc(c)}" aria-current="${c === AL.set}" title="${esc(DB.sets[c] || c)} (${esc(c.toUpperCase())})">${setHTML(c, "c")}<span>${esc(DB.sets[c] || c)}</span><small>${AL.counts[c]}</small></button>`); }
+  const types = Object.keys(STYPE).filter(t => !t || Object.keys(AL.counts).some(c => stypeOf(c) === t));
+  el.innerHTML = `<input type="search" id="aSq" placeholder="Filtrar coleções…" value="${esc(AL.sq)}"><select id="aSt" style="width:100%;margin-bottom:4px">${types.map(t => `<option value="${t}"${t === AL.stype ? " selected" : ""}>${STYPE[t]}</option>`).join("")}</select>
+    <button data-set="" aria-current="${!AL.set}"><span></span><span>Todas as coleções</span><small></small></button>${rows.join("") || `<div class="meta" style="padding:8px">Nenhuma coleção.</div>`}`;
+  $("aSq").oninput = (e) => { AL.sq = e.target.value; const pos = e.target.selectionStart; drawSets(); const n = $("aSq"); n.focus(); n.setSelectionRange(pos, pos); };
+  $("aSt").onchange = (e) => { AL.stype = e.target.value; drawSets(); };
+  el.onclick = (e) => { const b = e.target.closest("[data-set]"); if (!b) return; AL.set = b.dataset.set; AL.more = 1; S.settings.allSet = AL.set; save(true); el.querySelectorAll("[data-set]").forEach(x => x.setAttribute("aria-current", x === b)); drawAll(); window.scrollTo(0, 0); };
+  const cur = el.querySelector('[aria-current="true"][data-set]:not([data-set=""])'); if (cur && !el.__scrolled) { el.__scrolled = true; cur.scrollIntoView({ block: "center" }); }
+}
+function allFiltered() {
+  const q = norm(AL.q); const out = [];
+  const cs = [...AL.colors].filter(c => "WUBRG".includes(c)), multi = AL.colors.has("M") || cs.length > 1, other = [...AL.colors].filter(c => c === "C" || c === "L");
+  const own = new Map(); for (const e of S.cards) if (e.qty > 0) { const k = e.set + "|" + normNum(e.number); own.set(k, (own.get(k) || 0) + e.qty); }
+  for (let pi = 0; pi < DB.p.length; pi++) {
+    const p = DB.p[pi]; if (AL.set && p[0] !== AL.set) continue; const oi = p[3];
+    if (AL.rar.size && !AL.rar.has(p[2])) continue;
+    if (q && !norm(DB.o[oi][0]).includes(q) && !ptN(oi).includes(q)) continue;
+    if (AL.colors.size) { const b = colorBucket(oi); if (!(other.includes(b) || (multi ? b === "M" && cs.every(c => DB.o[oi][3].includes(c)) : cs.length === 1 && b === cs[0]))) continue; }
+    if (AL.type && !mainTypes(DB.o[oi][5]).includes(AL.type)) continue;
+    const n = own.get(p[0] + "|" + normNum(p[1])) || 0;
+    if (AL.own === "own" && !n) continue; if (AL.own === "miss" && n) continue;
+    out.push({ pi, oi, n });
+  }
+  const num = (x) => { const v = parseInt(DB.p[x.pi][1], 10); return isNaN(v) ? 1e9 : v; }; const RO = { m: 0, r: 1, u: 2, c: 3 };
+  const cmp = { num: (a, b) => num(a) - num(b) || String(DB.p[a.pi][1]).localeCompare(String(DB.p[b.pi][1])),
+    name: (a, b) => DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]),
+    color: (a, b) => GROUP_ORDER.indexOf(colorBucket(a.oi)) - GROUP_ORDER.indexOf(colorBucket(b.oi)) || (DB.o[a.oi][2] || 0) - (DB.o[b.oi][2] || 0) || DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]),
+    price: (a, b) => brlOf(DB.p[b.pi][0], DB.p[b.pi][1], false) - brlOf(DB.p[a.pi][0], DB.p[a.pi][1], false),
+    rar: (a, b) => (RO[DB.p[a.pi][2]] ?? 4) - (RO[DB.p[b.pi][2]] ?? 4) || num(a) - num(b) }[AL.sort] || ((a, b) => 0);
+  if (!AL.set && !q && AL.sort === "num") out.sort((a, b) => { const m = AL.meta || {}; return ((m[DB.p[b.pi][0]] || {}).d || "").localeCompare((m[DB.p[a.pi][0]] || {}).d || "") || cmp(a, b); }); else out.sort(cmp);
+  return out;
+}
+function drawAll() {
+  const M = $("aMain"); if (!M) return; if (!AL.counts) { AL.counts = {}; for (const p of DB.p) AL.counts[p[0]] = (AL.counts[p[0]] || 0) + 1; }
+  if ($("aSets") && !$("aSets").querySelector("[data-set]")) drawSets();
+  const anyF = AL.q || AL.colors.size || AL.rar.size || AL.type || AL.own;
+  if (!AL.set && !anyF) { $("aCount").textContent = `${DB.p.length.toLocaleString("pt-BR")} versões em ${Object.keys(AL.counts).length} coleções`; M.innerHTML = `<div class="empty">Escolha uma coleção à esquerda<br>ou busque uma carta pelo nome.</div>`; return; }
+  const arr = allFiltered(); const owned = arr.filter(x => x.n).length;
+  $("aCount").textContent = `${arr.length.toLocaleString("pt-BR")} carta${arr.length === 1 ? "" : "s"} · vocês têm ${owned}`;
+  const LIM = 360 * AL.more; const shown = arr.slice(0, LIM);
+  const head = AL.set ? `<div class="allhead">${setHTML(AL.set, "m")}<h2>${esc(DB.sets[AL.set] || AL.set)}</h2><span class="meta">${esc(AL.set.toUpperCase())}${(AL.meta && AL.meta[AL.set] || {}).d ? " · " + new Date(AL.meta[AL.set].d + "T12:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : ""} · ${AL.counts[AL.set]} cartas · vocês têm ${owned}${arr.length < AL.counts[AL.set] ? " (dos filtros)" : ""}</span></div>` : "";
+  M.innerHTML = head + (arr.length ? `<div class="grid">${shown.map(x => { const p = DB.p[x.pi]; const pr = brlOf(p[0], p[1], false);
+    return `<button class="tile${x.n ? "" : " notown"}" data-oi="${x.oi}" data-pi="${x.pi}"><span class="tname">${esc(DB.o[x.oi][0])}</span>${cardImgHTML({ oi: x.oi, set: p[0], number: p[1], foil: false, lang: "en" }, { bare: true })}${x.n ? `<span class="ownq" title="Vocês têm ${x.n}">${x.n}×</span>` : ""}
+      <span class="setline">${setHTML(p[0], p[2])}<span>${esc(p[0].toUpperCase())}</span><span class="num">#${esc(p[1])}</span>${pr ? `<span class="num" style="margin-left:auto">${fmtUSD(pr)}</span>` : ""}</span></button>`; }).join("")}</div>` : `<div class="empty">Nenhuma carta com esses filtros.</div>`);
+  if (arr.length > LIM) { M.insertAdjacentHTML("beforeend", `<p class="meta" style="text-align:center">Mostrando ${LIM} de ${arr.length}. <button class="btn small" id="aMore">Mostrar mais</button></p>`); $("aMore").onclick = () => { AL.more++; drawAll(); }; }
+  M.onclick = (ev) => { const b = ev.target.closest("[data-pi]"); if (!b) return; const p = DB.p[+b.dataset.pi]; allCard(+b.dataset.oi, p[0], p[1]); };
+}
+// abre a carta daquela edição: ver grande, pôr na coleção, desejar, mandar para deck
+function allCard(oi, set, number) {
+  const o = oInfo(oi); const pr = brlOf(set, number, false); const own = S.cards.filter(e => e.oi === oi && e.qty > 0);
+  const here = own.filter(e => e.set === set && normNum(e.number) === normNum(number)).reduce((a, e) => a + e.qty, 0), tot = own.reduce((a, e) => a + e.qty, 0);
+  openSheet(`<div class="detail">${cardImgHTML({ oi, set, number, foil: false, lang: "en" }, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div>
+    <div class="meta">${setHTML(set, (DB.p[DB.bySetNum.get(set + "|" + normNum(number))] || [])[2])} ${esc(DB.sets[set] || set)} #${esc(number)}${pr ? " · " + fmtUSD(pr) : ""}</div>
+    <div class="meta">${here ? `Vocês têm ${here}× desta edição` : "Vocês não têm esta edição"}${tot > here ? ` · ${tot}× no total` : ""}</div></div></div>
+    ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}${locLines(oi).length ? `<div class="meta">${locLines(oi).map(esc).join("<br>")}</div>` : ""}`,
+    `<button class="btn" id="acZ">🔍 Ver grande</button><button class="btn" id="acW">${wishHas(oi) ? "⭐ Nas desejadas" : "⭐ Desejar"}</button><button class="btn" id="acD">🃏 Mandar para um deck…</button><button class="btn primary" id="acA">＋ Pôr na coleção</button>`);
+  $("acZ").onclick = () => { const ci = $("sheetBody").querySelector(".cardimg"); if (ci) zoomImg(ci); };
+  $("acW").onclick = () => { const w = wishHas(oi); if (w) { wishDel(w.id); toast("Removida das desejadas"); } else wishAdd(oi); $("acW").textContent = wishHas(oi) ? "⭐ Nas desejadas" : "⭐ Desejar"; };
+  $("acD").onclick = (ev) => { const r = ev.target.getBoundingClientRect(); closeSheet(); deckPickMenu(r.left, Math.min(r.top, innerHeight - 340), oi); };
+  $("acA").onclick = () => { const n = addToCollection({ oi, set, number: normNum(number), lang: "en", foil: false, qty: 1 }); toast(`+1 ${n.name} na coleção · ${whereLib(n).code}`, 2500); closeSheet(); drawAll(); };
 }
 
 // ============ CARTAS DESEJADAS ============
@@ -3951,7 +4082,7 @@ function labelsSheet() {
 }
 
 // ============ SCANNER ============
-const SC = { busy: false, paused: false, last: null, streak: 0, lastOi: -1, clearSeen: true, timer: 0, session: [] };
+const SC = { camGen: 0, busy: false, paused: false, last: null, streak: 0, lastOi: -1, clearSeen: true, timer: 0, session: [] };
 let stream = null, track = null, worker = null, worker2 = null;
 const LANG_CODES = { EN: "en", PT: "pt", SP: "es", ES: "es", FR: "fr", DE: "de", IT: "it", JP: "ja", JA: "ja", KO: "ko", RU: "ru", CS: "zhs", CT: "zht" };
 const SUB_NUM = { O: "0", Q: "0", D: "0", I: "1", L: "1", "|": "1", Z: "2", S: "5", B: "8", G: "6", T: "7" };
@@ -4047,17 +4178,24 @@ async function startScanner() {
   let saved = S.settings.camId || "";
   try { try { await startCamera(saved || undefined); } catch (e0) { if (!saved) throw e0; await startCamera(); } }
   catch (e) { $("scanStatus").textContent = e.name === "NotAllowedError" ? "Permissão de câmera negada. Libere nas configurações do navegador." : "Não consegui abrir a câmera."; return; }
+  if (!stream) return;
   $("scanStatus").textContent = "Aponte para uma carta (segure a ~15–20 cm)";
   clearInterval(SC.timer); SC.timer = setInterval(tick, 250); SC.paused = false;
 }
-function stopCamera() { if (VOICE.running) { try { VOICE.rec.stop(); } catch {} VOICE.running = false; } clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; }
+function stopCamera() { SC.camGen++; if (VOICE.rec) { try { VOICE.rec.abort(); } catch {} } VOICE.running = false; clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; const v = $("video"); if (v) { try { v.pause(); } catch {} v.srcObject = null; } }
+// Câmera e microfone só ficam ligados com a aba Escanear aberta e a janela visível
+const camWanted = () => tab === "scan" && !document.hidden;
+document.addEventListener("visibilitychange", () => { if (document.hidden) { if (stream || VOICE.running) { stopCamera(); SC.camOff = true; } } else if (SC.camOff && tab === "scan") { SC.camOff = false; startScanner().then(voiceSync); } });
+window.addEventListener("pagehide", () => stopCamera());
 const ZOOM = { levels: [1], cur: 1 }, FOCUS = { modes: [], dist: null, manual: false }, CAMS = { list: [], idx: 0, auto: false };
 async function startCamera(deviceId) {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error("sem câmera");
   if (stream) stream.getTracks().forEach(t => t.stop());
   const video = { width: { ideal: 3840 }, height: { ideal: 2160 } };
   if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: "environment" };
-  stream = await navigator.mediaDevices.getUserMedia({ audio: false, video }); track = stream.getVideoTracks()[0];
+  const gen = ++SC.camGen; const st = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+  if (gen !== SC.camGen || !camWanted()) { st.getTracks().forEach(t => t.stop()); if (gen === SC.camGen) stopCamera(); return; } // saiu da aba enquanto abria
+  stream = st; track = stream.getVideoTracks()[0];
   const v = $("video"); v.srcObject = stream; await v.play().catch(() => {});
   const caps = track.getCapabilities ? track.getCapabilities() : {};
   $("torchBtn").classList.toggle("hidden", !caps.torch);
@@ -4362,6 +4500,7 @@ function voiceSync() {
   if (!VOICE.rec) return;
   if (S.settings.voice && !VOICE.on && tab === "scan") { VOICE.on = true; $("voiceBtn").setAttribute("aria-pressed", "true"); }
   const want = VOICE.on && tab === "scan";
+  if (want && document.hidden) return;
   if (want && !VOICE.running) { try { VOICE.rec.start(); VOICE.running = true; } catch {} }
   if (!want && VOICE.running) { try { VOICE.rec.stop(); } catch {} VOICE.running = false; }
 }
