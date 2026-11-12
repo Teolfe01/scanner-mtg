@@ -1834,11 +1834,8 @@ function cardCtx(e, d, c, after, openFn) {
     ["☑ Selecionar várias", () => selToggle(c), "", "Ctrl + Clique"],
     ["🎨 Trocar edição / tratamento…", () => changePrint(d, c, after)],
     [c.foil ? "✨ Foil: sim (tirar)" : "✨ Marcar como foil", () => { c.foil = !c.foil; save(); after(); }],
-    ["👁 Comparar com…", () => comparePick(c)],
-    ["↗ Ver página da carta", () => window.open(sfURL, "_blank")],
     ["↗ Ver na LigaMagic", () => window.open(ligaURL(c.oi), "_blank")],
     wishItem(c.oi),
-    ["⧉ Copiar nome", () => navigator.clipboard.writeText(name).then(() => toast("Nome copiado: " + name), () => toast(name))],
     "-",
     ...(st === "ok" ? [["↩ Devolver para a caixa", () => { for (const x of S.cards.filter(x => x.oi === c.oi)) delete x.decks[d.id]; save(); after(); toast("Devolvida para a caixa"); }]]
       : [["✓ Tenho — já está no deck", () => ownMark(d, c, true, after), "pri"], ["✓ Tenho, mas está guardada", () => ownMark(d, c, false, after)], ...(st === "lib" ? [["📦 Pegar da caixa", () => { const r = allocate(d, c.oi, c.qty); save(); after(); toast(r.taken.length ? "Pegue: " + r.taken.map(t => t.where).join("; ") : "Nenhuma cópia livre nas caixas.", 3000); }]] : [])]),
@@ -1849,7 +1846,7 @@ function cardCtx(e, d, c, after, openFn) {
     ["＋ Nova categoria…", async () => { const n = await askText("Nova categoria", "", { hint: "Ex.: Ramp, Remoção, Combo" }); if (n && n.trim()) mv("cat:" + n.trim()); }],
     ...(c.board !== "side" ? [["Sideboard", () => mv("side")]] : []), ...(c.board !== "maybe" ? [["Talvez", () => mv("maybe")]] : []),
     ...(c.board !== "cmd" && isCmdFormat(d) && cmdCandidates().includes(c.oi) ? [["Comandante", () => mv("cmd")]] : []),
-    "-", ["🗑 Remover do deck", () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); save(); after(); }, "danger"], { hint: "Ctrl + botão direito: menu padrão do navegador" }];
+    "-", ["🗑 Remover do deck", () => { d.cards = d.cards.filter(x => x !== c); releaseExtra(d, c.oi); save(); after(); }, "danger"]];
   ctxMenu(e.clientX, e.clientY, items);
 }
 function ownMark(d, c, mount, after) {
@@ -1999,7 +1996,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18q";
+const APP_VERSION = "2026.11.18r";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2128,13 +2125,14 @@ async function bugsList() {
   $("blNew").onclick = bugDialog;
   if (!CLOUD.user) { $("bgList").innerHTML = `<div class="meta">Entre com a conta para ver a lista.</div>`; $("blCopy").onclick = () => toast("Entre com a conta primeiro"); return; }
   try {
-    const qs = await base().collection("bugs").orderBy("at", "desc").limit(60).get();
+    const qs = await base().collection("bugs").orderBy("at", "desc").limit(200).get();
     const open = qs.docs.map(d => d.data()).filter(b => b.status !== "resolvido");
     $("blCopy").onclick = async () => {
       const txt = `PACOTE DE MELHORIAS — Biblioteca MTG (${new Date().toLocaleDateString("pt-BR")})\n\n` + (open.map((b, i) => `${i + 1}. [${b.kind === "ideia" ? "SUGESTÃO" : "BUG"}] ${b.text}\n   — ${(b.by || "").split("@")[0]}, ${new Date(b.at).toLocaleDateString("pt-BR")}${b.kind !== "ideia" && b.diag ? "\n   " + b.diag.split("\n").slice(0, 3).join(" | ") : ""}`).join("\n\n") || "Nada pendente.");
       try { await navigator.clipboard.writeText(txt); toast(`${open.length} item(ns) copiados — cole na conversa com o Claude`, 3000); } catch (e) { toast("Não consegui copiar"); }
     };
-    $("bgList").innerHTML = qs.docs.map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${b.kind === "ideia" ? "💡" : "🐞"} ${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nada por aqui ainda.</div>`;
+    // os resolvidos ficam guardados na nuvem (documentação), mas não aparecem aqui
+    $("bgList").innerHTML = qs.docs.filter(d => d.data().status !== "resolvido").map(d => { const b = d.data(); return `<div class="row" style="grid-template-columns:1fr auto"><span><span class="rn" style="white-space:normal">${b.kind === "ideia" ? "💡" : "🐞"} ${esc(b.text)}</span><span class="rs">${new Date(b.at).toLocaleString("pt-BR")} · ${esc((b.by || "").split("@")[0])} · ${b.status === "resolvido" ? "✓ resolvido" : "aberto"}</span></span>${b.status === "resolvido" ? "" : `<button class="btn small" data-res="${d.id}">Resolvido</button>`}</div>`; }).join("") || `<div class="meta">Nada pendente 🎉</div>`;
     $("bgList").onclick = async (e) => { const b = e.target.closest("[data-res]"); if (!b) return; await base().collection("bugs").doc(b.dataset.res).update({ status: "resolvido" }); bugsList(); };
   } catch (e) { $("bgList").innerHTML = `<div class="meta">Não consegui carregar agora.</div>`; }
 }
@@ -3393,20 +3391,20 @@ function addToAnyDeck(dd, oi, board) {
 }
 function searchCtx(e, oi) {
   if (e.ctrlKey || e.metaKey) return; e.preventDefault();
-  const d = deckOf(); const name = DB.o[oi][0]; const others = S.decks.filter(x => x.id !== d.id).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-  const cats = [...new Set(d.cards.filter(x => x.board === "main" && x.cat).map(x => x.cat))].sort((a, b) => a.localeCompare(b));
-  const pickDeck = (board) => () => ctxMenu(e.clientX, e.clientY, [{ head: `${BOARD_NAME[board]} de qual deck?` }, ...(others.length ? others.map(dd => [dd.name || "Deck sem nome", () => addToAnyDeck(dd, oi, board)]) : [["Nenhum outro deck", () => {}]])]);
-  const pi = defaultPrint(oi);
-  ctxMenu(e.clientX, e.clientY, [{ head: name },
+  const d = deckOf(); const name = DB.o[oi][0]; const x = e.clientX, y = e.clientY;
+  const cats = [...new Set(d.cards.filter(c => c.board === "main" && c.cat).map(c => c.cat))].sort((a, b) => a.localeCompare(b));
+  const canCmd = isCmdFormat(d) && cmdCandidates().includes(oi);
+  const other = S.decks.filter(o => o.id !== d.id && haveFor(o, oi) > 0);
+  ctxMenu(x, y, [{ head: name },
     ["＋ Adicionar a este deck", () => addToDeck(oi, "main"), "pri", "Clique"],
-    ...cats.map(k => ["🏷 Adicionar em " + k, () => dropNew(oi, k)]),
-    ["Sideboard deste deck", () => addToDeck(oi, "side")], ["Talvez (deste deck)", () => addToDeck(oi, "maybe")],
-    ...(isCmdFormat(d) && cmdCandidates().includes(oi) ? [["Definir como comandante", () => setCommander(d, oi, d.cards.some(c => c.board === "cmd"))]] : []),
-    "-", { head: "Outro deck" }, ["Sideboard de outro deck…", pickDeck("side")], ["Deck principal de outro deck…", pickDeck("main")], ["Talvez de outro deck…", pickDeck("maybe")],
-    "-", wishItem(oi), ["→ Detalhes da carta", () => cardInfo(oi)], ["👁 Comparar com…", () => comparePick({ oi })],
-    ["↗ Ver página da carta", () => window.open(pi >= 0 ? `https://scryfall.com/card/${DB.p[pi][0]}/${encodeURIComponent(DB.p[pi][1])}` : `https://scryfall.com/search?q=${encodeURIComponent('!"' + name + '"')}`, "_blank")],
-    ["↗ Ver na LigaMagic", () => window.open(ligaURL(oi), "_blank")], ["⧉ Copiar nome", () => navigator.clipboard.writeText(name).then(() => toast("Nome copiado"))],
-    { hint: "Ctrl + botão direito: menu padrão do navegador" }]);
+    ["Adicionar em…", () => ctxMenu(x, y, [{ head: "Adicionar em" }, ...cats.map(k => ["🏷 " + k, () => dropNew(oi, k)]), ["Sideboard", () => addToDeck(oi, "side")], ["Talvez", () => addToDeck(oi, "maybe")], ...(canCmd ? [["Comandante", () => setCommander(d, oi, d.cards.some(c => c.board === "cmd"))]] : [])])],
+    ...other.map(o => ["↪ Trazer do deck " + (o.name || "sem nome"), () => { if (!d.cards.some(c => c.oi === oi && c.board !== "maybe")) d.cards.push({ oi, qty: 1, board: "main", ...(() => { const pi = defaultPrint(oi); return pi >= 0 ? { set: DB.p[pi][0], number: DB.p[pi][1] } : {}; })() }); if (moveCopy(oi, o.id, d.id)) { renderDeckPane(); renderStatsPane(); drawResults(); } }]),
+    ["🃏 Mandar para outro deck…", () => deckPickMenu(x, y, oi)],
+    "-",
+    ["🔍 Abrir a carta", () => cardInfo(oi)],
+    wishItem(oi),
+    ["＋ Tenho mais uma (pôr na coleção)", () => pickVersion(oi, "", (r) => { const n = addToCollection({ oi, set: r.set, number: normNum(r.number), lang: "en", foil: !!r.foilOnly, qty: 1 }); toast(`+1 ${n.name} na coleção · ${whereLib(n).code}`, 2500); drawResults(); }, null)],
+    ["↗ Ver na LigaMagic", () => window.open(ligaURL(oi), "_blank")]]);
 }
 // PC: editor ocupa a altura da janela e cada coluna rola sozinha (a busca nunca sai da tela)
 function fitEditor() {
@@ -3533,8 +3531,19 @@ async function dropNew(oi, g) {
   addToDeck(oi, board);
   const c = d.cards.find(x => x.oi === oi && x.board === board);
   if (cat && c && board === "main") { c.cat = cat; save(); renderDeckPane(); renderStatsPane(); }
-  // pergunta se já temos a carta (e se ela já está fisicamente no deck)
-  if (c && c.qty > q0 && ownStatus(d, c) !== "ok") setTimeout(() => ownQuick(d, c, () => { renderDeckPane(); renderStatsPane(); }, true), 120);
+
+}
+// Ao pôr uma carta no deck: se há cópia livre na caixa, ela passa a contar como deste deck (e diz de onde pegar);
+// se só há cópia em outro deck, pergunta se quer trazer de lá; se vocês não têm, fica como faltando (sem perguntar nada)
+function autoPlace(d, oi) {
+  const name = DB.o[oi][0]; const want = d.cards.filter(c => c.oi === oi && c.board !== "maybe").reduce((a, c) => a + c.qty, 0);
+  if (haveFor(d, oi) >= want) return toast("+1 " + name, 900);
+  if (libFor(oi) > 0) { const r = allocate(d, oi, want); save(); return toast(`+1 ${name} · pegue na caixa: ${r.taken.map(t => t.where.split(" · ")[0]).join(", ")}`, 3200); }
+  const other = S.decks.find(x => x.id !== d.id && haveFor(x, oi) > 0);
+  if (!other) return toast(`+1 ${name} · vocês não têm (fica como faltando)`, 2200);
+  openSheet(`<h3 style="margin:0">${esc(name)}</h3><p class="meta" style="margin:0">Adicionada. Vocês têm essa carta no deck <b>${esc(other.name || "sem nome")}</b>. Trazer de lá para este deck?</p>`,
+    `<button class="btn" id="apN">Não, deixar faltando</button><button class="btn primary" id="apY">Trazer de ${esc(other.name || "lá")}</button>`);
+  $("apN").onclick = closeSheet; $("apY").onclick = () => { closeSheet(); if (moveCopy(oi, other.id, d.id)) { renderDeckPane(); renderStatsPane(); } };
 }
 function addToDeck(oi, board) {
   const d = deckOf(); if (!d) return;
@@ -3542,7 +3551,7 @@ function addToDeck(oi, board) {
   const ex = d.cards.find(c => c.oi === oi && c.board === board);
   if (ex) { if (!isBasic && /commander/i.test(d.format || "Commander") && board === "main") { toast(`${DB.o[oi][0]} já está no deck (Commander é 1 de cada).`); return; } ex.qty++; }
   else { const pi = defaultPrint(oi); d.cards.push({ oi, qty: 1, board, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "" }); }
-  save(); toast("+1 " + DB.o[oi][0], 900); renderDeckPane(); renderStatsPane(); drawResults(); const nb = document.querySelector(`#edDeck [data-oi="${oi}"]`); if (nb) { nb.classList.add("added"); nb.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
+  save(); if (board !== "maybe") autoPlace(d, oi); else toast("+1 " + DB.o[oi][0], 900); renderDeckPane(); renderStatsPane(); drawResults(); const nb = document.querySelector(`#edDeck [data-oi="${oi}"]`); if (nb) { nb.classList.add("added"); nb.scrollIntoView({ block: "nearest", behavior: "smooth" }); }
 }
 // ---- EDHREC (json.edhrec.com, dados públicos) ----
 const EDH = { mem: new Map() };
