@@ -1101,24 +1101,33 @@ function imgSrc(set, number) {
   if (IMGS[k] !== "") { imgQueue.add(k); clearTimeout(imgTimer); imgTimer = setTimeout(fetchImgs, 150); }
   return "";
 }
+// Busca os links das imagens no Scryfall. Se o Scryfall estiver fora do ar (manutenção, 5xx, sem internet),
+// as cartas ficam na fila e o app tenta de novo sozinho com intervalos crescentes — nada é marcado como "sem imagem".
+const IMGDOWN = { n: 0, warned: false, t: 0 };
 async function fetchImgs() {
-  if (imgBusy || !imgQueue.size) return; imgBusy = true;
+  if (imgBusy || !imgQueue.size) return; imgBusy = true; let down = false;
   try {
     while (imgQueue.size) {
       const keys = [...imgQueue].slice(0, 75); keys.forEach(k => imgQueue.delete(k));
-      try {
-        const r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ identifiers: keys.map(k => { const [set, collector_number] = k.split("|"); return { set, collector_number }; }) }) });
-        if (r.status === 429) { keys.forEach(k => imgQueue.add(k)); await sleep(1500); continue; }
-        const j = await r.json();
-        for (const c of (j.data || [])) { const u = (c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {}).normal; if (u) IMGS[imgKey(c.set, c.collector_number)] = u; }
-        for (const nf of (j.not_found || [])) if (nf.set) IMGS[imgKey(nf.set, nf.collector_number)] = "";
-      } catch { await sleep(2000); }
-      await sleep(150);
+      let r;
+      try { r = await fetch("https://api.scryfall.com/cards/collection", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify({ identifiers: keys.map(k => { const [set, collector_number] = k.split("|"); return { set, collector_number }; }) }) }); }
+      catch (e) { r = null; }
+      if (r && r.status === 429) { keys.forEach(k => imgQueue.add(k)); await sleep(1500); continue; }
+      if (!r || !r.ok) { keys.forEach(k => imgQueue.add(k)); down = true; break; }
+      let j; try { j = await r.json(); } catch (e) { keys.forEach(k => imgQueue.add(k)); down = true; break; }
+      for (const c of (j.data || [])) { const u = (c.image_uris || (c.card_faces && c.card_faces[0].image_uris) || {}).normal; if (u) IMGS[imgKey(c.set, c.collector_number)] = u; }
+      for (const nf of (j.not_found || [])) if (nf.set) IMGS[imgKey(nf.set, nf.collector_number)] = "";
+      await sleep(120);
     }
     store.set("imgs", IMGS).catch(() => {});
-    document.querySelectorAll("img[data-ik]").forEach(im => { const u = IMGS[im.dataset.ik]; if (u && !im.getAttribute("src")) im.src = u; else if (u === "" || (u === undefined && !imgQueue.has(im.dataset.ik))) im.parentNode.classList.add("noimg"); });
+    document.querySelectorAll("img[data-ik]").forEach(im => { const u = IMGS[im.dataset.ik] || altImg(im); if (u && !im.getAttribute("src")) im.src = u; else if (!u && IMGS[im.dataset.ik] === "") im.parentNode.classList.add("noimg"); });
   } finally { imgBusy = false; }
+  if (down) { IMGDOWN.n++; if (!IMGDOWN.warned) { IMGDOWN.warned = true; toast("O Scryfall (de onde vêm as imagens) está fora do ar agora. As imagens aparecem sozinhas quando ele voltar.", 5000); }
+    clearTimeout(IMGDOWN.t); IMGDOWN.t = setTimeout(fetchImgs, Math.min(300000, 15000 * IMGDOWN.n)); }
+  else if (IMGDOWN.n) { IMGDOWN.n = 0; IMGDOWN.warned = false; }
 }
+// imagem de outra edição da mesma carta, quando a edição exata não tem imagem
+function altImg(im) { const ci = im.closest("[data-woi]"); const oi = ci ? +ci.dataset.woi : NaN; if (isNaN(oi)) return ""; for (const pi of (DB.prints[oi] || [])) { const u = IMGS[imgKey(DB.p[pi][0], DB.p[pi][1])]; if (u) return u; } return ""; }
 async function fillImages(entries) { entries.forEach(e => imgSrc(e.set, e.number)); }
 
 // ============ Componentes visuais ============
@@ -1131,10 +1140,11 @@ function manaHTML(cost) {
 function setHTML(set, rar) { const r = RAR[rar] || "common"; return `<i class="ss ss-${esc(String(set).replace(/[^a-z0-9]/g, "")) || "default"} ss-${["common","uncommon","rare","mythic"].includes(r) ? r : "common"} ss-grad"></i>`; }
 function cardImgHTML(e, opts = {}) {
   const o = DB.o[e.oi]; const fc = "f-" + colorBucket(e.oi);
-  const src = e.set ? imgSrc(e.set, e.number) : "";
+  let src = e.set ? imgSrc(e.set, e.number) : "";
+  if (!src && e.set && IMGS[imgKey(e.set, e.number)] === "") for (const pi of (DB.prints[e.oi] || [])) { const u = IMGS[imgKey(DB.p[pi][0], DB.p[pi][1])]; if (u) { src = u; break; } }
   const inner = e.set ? `<img ${src ? `src="${esc(src)}"` : ""} data-ik="${esc(imgKey(e.set, e.number))}" alt="${esc(o[0])}" loading="lazy" onload="this.style.opacity=1;this.parentNode.classList.add('ok')" onerror="this.removeAttribute('src');if(this.dataset.fail)this.parentNode.classList.add('noimg');this.dataset.fail=1" style="position:absolute;inset:0;opacity:0;transition:opacity .45s ease">` : "";
   const drawn = `<div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i><span class="skn">${esc(o[0])}</span></div>`;
-  const cls = e.set && IMGS[imgKey(e.set, e.number)] !== "" ? "cardimg" : "cardimg noimg";
+  const cls = e.set && (IMGS[imgKey(e.set, e.number)] !== "" || src) ? "cardimg" : "cardimg noimg";
   const gc = BR.gc.has(e.oi) ? `<span class="gcb" title="Game Changer (Commander Brackets)">GC</span>` : "";
   if (opts.bare) return `<div class="${cls}" data-woi="${e.oi}">${drawn}${inner}${gc}</div>`;
   const price = priceOf(e); const dq = inDecks(e);
@@ -1229,7 +1239,7 @@ function colFiltered() {
 }
 function renderCol() {
   $("title").textContent = "Coleção";
-  setMenu([...(isInstalled() ? [] : [["📲 Instalar o app", installApp]]), ...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Backups automáticos", backupsDialog], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); toast("Buscando imagens…"); drawCol(); }]]);
+  setMenu([...(isInstalled() ? [] : [["📲 Instalar o app", installApp]]), ...accountMenu(), ["Importar lista (CSV ou texto)", importDialog], ["Exportar CSV (Moxfield/Archidekt)", exportCSV], ["Backups automáticos", backupsDialog], ["Buscar imagens que faltam", () => { Object.keys(IMGS).forEach(k => { if (IMGS[k] === "") delete IMGS[k]; }); IMGDOWN.n = 0; IMGDOWN.warned = false; toast("Buscando imagens…"); drawCol(); }]]);
   if (!$("colBars")) {
     $("bars").innerHTML = `<div id="colBars">
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
@@ -1989,7 +1999,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18o";
+const APP_VERSION = "2026.11.18p";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
