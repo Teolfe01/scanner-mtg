@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Diagnóstico · Biblioteca MTG</title>
+<style>
+body{background:#121316;color:#eee;font:15px system-ui,-apple-system,sans-serif;margin:0;padding:18px;line-height:1.45}
+h1{font-size:20px;margin:0 0 6px}p{opacity:.8;margin:0 0 12px}
+button{font:inherit;font-weight:700;border:0;border-radius:8px;padding:12px 16px;margin:4px 6px 4px 0;background:#f07a3c;color:#1a1205}
+button.sec{background:#2a2d33;color:#eee}
+#log{white-space:pre-wrap;font:12px ui-monospace,Menlo,monospace;background:#1c1e23;border-radius:8px;padding:10px;margin-top:12px}
+.ok{color:#7bd88f}.bad{color:#ff7b7b}.prev{color:#f0c060}
+</style></head><body>
+<h1>Diagnóstico do app</h1>
+<p>Toque em <b>Rodar teste</b> e espere. Se o Safari travar no meio, abra esta página de novo: ela mostra em que passo parou. Depois tire um print desta tela.</p>
+<button id="run">Rodar teste</button><button class="sec" id="clr">Limpar dados do site</button><button class="sec" id="app">Abrir o app</button>
+<div id="log"></div>
+<script>
+var KEY = "bmtgDiag";
+var L = document.getElementById("log");
+function out(t, cls) { var d = document.createElement("div"); if (cls) d.className = cls; d.textContent = t; L.appendChild(d); }
+function mark(step) { try { var a = JSON.parse(localStorage.getItem(KEY) || "[]"); a.push(step); localStorage.setItem(KEY, JSON.stringify(a)); } catch (e) {} }
+var prev = []; try { prev = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch (e) {}
+out("Aparelho: " + navigator.userAgent);
+out("Memória (deviceMemory): " + (navigator.deviceMemory || "?") + " · DecompressionStream: " + (typeof DecompressionStream !== "undefined" ? "sim" : "não") + " · ServiceWorker: " + (navigator.serviceWorker ? "sim" : "não"));
+if (prev.length) { out("— Teste anterior (antes de travar/recarregar) —", "prev"); prev.forEach(function (s) { out(s, "prev"); }); out("Último passo registrado acima é onde parou.", "prev"); }
+function t0() { return performance.now(); }
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function loadScript(src) { return new Promise(function (ok, no) { var s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = function () { no(new Error("falhou " + src)); }; document.head.appendChild(s); }); }
+async function step(name, fn) {
+  mark("INÍCIO: " + name); out("… " + name); await sleep(150);
+  var a = t0(); try { var r = await fn(); var msg = "✓ " + name + " (" + Math.round(t0() - a) + " ms)" + (r ? " · " + r : ""); out(msg, "ok"); mark(msg); }
+  catch (e) { var m = "✗ " + name + ": " + (e && e.message || e); out(m, "bad"); mark(m); window.__diagErr = true; }
+  await sleep(150);
+}
+async function gunzip(blob) {
+  if (typeof DecompressionStream !== "undefined" && blob.stream) return await new Response(blob.stream().pipeThrough(new DecompressionStream("gzip"))).text();
+  if (!window.pako) await loadScript("lib/pako_inflate.min.js");
+  return window.pako.ungzip(new Uint8Array(await blob.arrayBuffer()), { to: "string" });
+}
+document.getElementById("run").onclick = async function () {
+  localStorage.setItem(KEY, "[]"); L.innerHTML = ""; window.__diagErr = false; out("Aparelho: " + navigator.userAgent);
+  var blob, txt, db;
+  try {
+    await step("Baixar lista de cartas", async function () { var r = await fetch("data/cards.json.gz?d=" + Date.now()); blob = await r.blob(); return (blob.size / 1e6).toFixed(1) + " MB"; });
+    await step("Descompactar", async function () { txt = await gunzip(blob); blob = null; return (txt.length / 1e6).toFixed(1) + " M caracteres"; });
+    await step("Ler cartas (JSON)", async function () { db = JSON.parse(txt); txt = null; return (db.o ? db.o.length : "?") + " cartas"; });
+    await step("Baixar nomes em outros idiomas", async function () { var r = await fetch("data/foreign.json.gz"); var b = await r.blob(); var t = await gunzip(b); var j = JSON.parse(t); return (j.rows ? j.rows.length : "?") + " linhas"; });
+    await step("Carregar Firebase", async function () { await loadScript("https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"); await loadScript("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"); await loadScript("https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"); return "ok"; });
+    await step("Banco local (IndexedDB)", async function () { return await new Promise(function (ok, no) { var q = indexedDB.open("bmtg-diag", 1); q.onupgradeneeded = function () { q.result.createObjectStore("x"); }; q.onsuccess = function () { q.result.close(); ok("ok"); }; q.onerror = function () { no(q.error); }; }); });
+    await step("Service worker", async function () { if (!navigator.serviceWorker) return "não suportado"; var rs = await navigator.serviceWorker.getRegistrations(); return rs.length + " registrado(s)"; });
+    await step("Abrir o app dentro desta página", async function () {
+      var f = document.createElement("iframe"); f.style.cssText = "width:100%;height:420px;border:1px solid #333;border-radius:8px;margin-top:10px"; f.src = "index.html?diag=" + Date.now(); document.body.appendChild(f);
+      for (var i = 0; i < 60; i++) { await sleep(1000); try { var sp = f.contentDocument && f.contentDocument.getElementById("splash"); if (sp && sp.className.indexOf("hidden") >= 0) return "abriu em " + (i + 1) + " s"; } catch (e) {} mark("app carregando… " + (i + 1) + " s"); }
+      throw new Error("não terminou de abrir em 60 s");
+    });
+    out(window.__diagErr ? "Terminou, mas com erro(s) acima. Tire um print e mande." : "Tudo certo neste aparelho. Tire um print e mande.", window.__diagErr ? "bad" : "ok");
+  } catch (e) { out("Parou com erro. Tire um print e mande.", "bad"); }
+};
+document.getElementById("clr").onclick = async function () {
+  try { if (navigator.serviceWorker) { var rs = await navigator.serviceWorker.getRegistrations(); for (var i = 0; i < rs.length; i++) await rs[i].unregister(); } } catch (e) {}
+  try { if (window.caches) { var ks = await caches.keys(); for (var j = 0; j < ks.length; j++) await caches.delete(ks[j]); } } catch (e) {}
+  try { indexedDB.deleteDatabase("biblioteca-mtg"); indexedDB.deleteDatabase("firestore/[DEFAULT]/mtg-biblioteca/main"); } catch (e) {}
+  out("Dados do site apagados (o login pode precisar ser refeito).", "ok");
+};
+document.getElementById("app").onclick = function () { location.href = "index.html"; };
+</script>
+</body></html>
