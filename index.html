@@ -850,7 +850,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
     var d = document.createElement("div"); d.id = "bootErr";
     d.style.cssText = "position:fixed;inset:0;z-index:9999;background:#121316;color:#eee;font:15px system-ui;display:grid;place-items:center;padding:24px;text-align:center";
     d.innerHTML = '<div style="max-width:420px"><h2 style="margin:0 0 8px">' + title + '</h2><p style="opacity:.8;margin:0 0 14px">Tente recarregar. Se continuar, mande um print desta tela.</p>' +
-      '<pre style="white-space:pre-wrap;text-align:left;font-size:11px;opacity:.7;max-height:30vh;overflow:auto;background:#1c1e23;padding:8px;border-radius:8px">' + (errs.join("\n") || "(sem mensagem de erro)").replace(/</g, "&lt;") + '</pre>' +
+      '<pre style="white-space:pre-wrap;text-align:left;font-size:11px;opacity:.7;max-height:30vh;overflow:auto;background:#1c1e23;padding:8px;border-radius:8px">' + (errs.join("\n") || "(sem mensagem de erro)") + "\nParou em: " + (window.__bootStep || "início") + (window.__storeErr ? "\n" + window.__storeErr : "").replace(/</g, "&lt;") + '</pre>' +
       '<button id="bootR" style="margin:12px 6px 0;padding:10px 16px;border:0;border-radius:8px;background:#f07a3c;color:#1a1205;font-weight:700">Recarregar</button>' +
       '<button id="bootC" style="margin:12px 6px 0;padding:10px 16px;border:0;border-radius:8px;background:#2a2d33;color:#eee">Limpar cache e recarregar</button></div>';
     document.body.appendChild(d);
@@ -1013,9 +1013,12 @@ const rarityOf = (e) => { const pi = DB.bySetNum.get(e.set + "|" + normNum(e.num
 // ============ Armazenamento local (IndexedDB) ============
 const store = {
   db: null,
-  async open() { this.db = await new Promise((res, rej) => { const r = indexedDB.open("biblioteca-mtg", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
-  async get(k) { return new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); }); },
-  async set(k, v) { return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
+  // se o banco local não abrir em 5 s (acontece no iPhone depois de um travamento), segue só com a nuvem, em memória
+  mem: null,
+  async open() { try { this.db = await Promise.race([new Promise((res, rej) => { const r = indexedDB.open("biblioteca-mtg", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("bloqueado")); }), new Promise((_, rej) => setTimeout(() => rej(new Error("tempo esgotado")), 5000))]); }
+    catch (e) { this.db = null; this.mem = new Map(); window.__storeErr = "Banco local indisponível (" + (e && e.message || e) + ")"; } },
+  async get(k) { if (!this.db) return this.mem.get(k); return Promise.race([new Promise(r => setTimeout(() => r(undefined), 4000)), new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); })]); },
+  async set(k, v) { if (!this.db) { this.mem.set(k, v); return; } return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 };
 const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {}, wish: [] };
 let saveT = 0;
@@ -1982,7 +1985,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18j";
+const APP_VERSION = "2026.11.18k";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -4494,16 +4497,16 @@ function accountMenu() {
 // ============ Início ============
 (async () => {
   try {
-    await store.open();
-    S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; S.liga = (await store.get("liga")) || {}; S.wish = (await store.get("wish")) || []; IMGS = (await store.get("imgs")) || {};
+    window.__bootStep = "abrindo banco local"; await store.open();
+    window.__bootStep = "lendo dados locais"; S.cards = (await store.get("cards")) || []; S.decks = (await store.get("decks")) || []; S.boxes = (await store.get("boxes")) || S.boxes; S.settings = (await store.get("settings")) || {}; S.liga = (await store.get("liga")) || {}; S.wish = (await store.get("wish")) || []; IMGS = (await store.get("imgs")) || {};
     S.cards.forEach(e => { if (e.img && !IMGS[imgKey(e.set, e.number)]) IMGS[imgKey(e.set, e.number)] = e.img; });
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
     const old = localStorage.getItem("mtgscan.list");
-    await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; }); loadBrackets();
+    window.__bootStep = "baixando lista de cartas"; await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; }); loadBrackets();
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
-    $("splash").classList.add("hidden"); window.__bootDone = true; undoBaseline(); if (S.settings.edGroup) ED.group = S.settings.edGroup; if (S.settings.edSort) ED.dsort = S.settings.edSort;
+    window.__bootStep = "abrindo a tela"; $("splash").classList.add("hidden"); window.__bootDone = true; if (window.__storeErr) setTimeout(() => toast(window.__storeErr + " — usando só a nuvem nesta sessão", 5000), 1500); undoBaseline(); if (S.settings.edGroup) ED.group = S.settings.edGroup; if (S.settings.edSort) ED.dsort = S.settings.edSort;
     applyPrefs();
     const startTab = new URLSearchParams(location.search).get("tab") || (P().startTab !== "last" && !(S.settings.resume && S.settings.resume.fromLink) ? P().startTab : null); const lv = S.settings.lastView;
     if (views[startTab]) go(startTab, null, { init: true });
