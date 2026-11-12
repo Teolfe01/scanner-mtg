@@ -915,6 +915,9 @@ const TYPES = [["Creature", "Criaturas"], ["Planeswalker", "Planeswalkers"], ["I
 const RAR = { c: "common", u: "uncommon", r: "rare", m: "mythic", s: "special", b: "bonus" };
 // Nomes em português (Brasil): gerados do MTGJSON por tools/build_pt.py
 let PT_READY = null;
+// iPhone/iPad: a página tem pouca memória; o app carrega o mínimo ao abrir e o resto quando precisa
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+function ensurePT() { if (PT_READY === null) PT_READY = loadPT().then(() => { PT_READY = true; }); return PT_READY; }
 // Nomes em outros idiomas (pt, es, fr, de, it) — gerados do MTGJSON por tools/build_pt.py.
 // Servem para a busca digitada e para o scanner reconhecer cartas não inglesas pelo nome.
 const FLAG = { pt: "🇧🇷", es: "🇪🇸", fr: "🇫🇷", de: "🇩🇪", it: "🇮🇹" };
@@ -990,6 +993,7 @@ function matchName(text, strict = true) {
   return best;
 }
 function searchNames(q, limit = 12) {
+  if (PT_READY === null && q && q.length > 2) ensurePT();
   const k = norm(q); if (k.length < 2) return [];
   const out = []; const has = new Set(); const push = (i) => { if (!has.has(i)) { has.add(i); out.push(i); } };
   for (let i = 0; i < DB.o.length && out.length < limit; i++) if (norm(DB.o[i][0]).startsWith(k) || ptN(i).startsWith(k) || ptN(i).includes("|" + k)) push(i);
@@ -1239,7 +1243,7 @@ function renderCol() {
             <select id="roleSel"><option value="">Todas as funções</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></div>
           <select id="whereSel"></select>
         </div></div></div>`;
-    $("q").oninput = (e) => { F.q = e.target.value; drawCol(); };
+    $("q").oninput = (e) => { F.q = e.target.value; if (PT_READY === null && F.q.length > 2) ensurePT().then(() => drawCol()); drawCol(); };
     $("sortSel").onchange = (e) => { F.sort = e.target.value; drawCol(); };
     $("viewBtn").onclick = () => { F.view = F.view === "grid" ? "list" : "grid"; drawCol(); };
     $("filterToggle").onclick = () => $("filterPanel").classList.toggle("hidden");
@@ -1264,7 +1268,7 @@ function drawCol() {
   $("viewBtn").innerHTML = F.view === "grid" ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>`;
   if (!S.cards.length) { $("main").innerHTML = `<div class="empty">Sua coleção está vazia.<br>Toque no + ou em Escanear para começar.</div>`; return; }
   if (!arr.length) { $("main").innerHTML = `<div class="empty">Nenhuma carta com esses filtros.</div>`; return; }
-  const LIM = 600; const shown = arr.slice(0, LIM);
+  const LIM = (IS_IOS ? 120 : 600) * (F.more || 1); const shown = arr.slice(0, LIM);
   if (F.view === "list") {
     $("main").innerHTML = `<div class="rows">${shown.map(e => `<button class="row" data-k="${esc(e.key)}">${cardImgHTML(e, { bare: true })}
       <span><span class="rn">${esc(e.name)}</span><span class="rs">${manaHTML(DB.o[e.oi][1])}${setHTML(e.set, rarityOf(e))}<span>${esc(e.set.toUpperCase())} #${esc(e.number)}</span>${e.foil ? `<span class="pill">foil</span>` : ""}${inDecks(e) ? `<span class="pill acc">deck</span>` : ""}</span><span class="rs">${esc(freeQty(e) ? whereLib(e).text : "")}</span></span>
@@ -1273,7 +1277,7 @@ function drawCol() {
     $("main").innerHTML = `<div class="grid">${shown.map(e => `<button class="tile" data-k="${esc(e.key)}"><span class="tname">${esc(e.name)}</span>${cardImgHTML(e)}
       <span class="setline">${setHTML(e.set, rarityOf(e))}<span>${esc(e.set.toUpperCase())}</span><span class="num">#${esc(e.number)}</span></span></button>`).join("")}</div>`;
   }
-  if (arr.length > LIM) $("main").insertAdjacentHTML("beforeend", `<p class="meta" style="text-align:center">Mostrando ${LIM} de ${arr.length}. Use o filtro para achar o resto.</p>`);
+  if (arr.length > LIM) { $("main").insertAdjacentHTML("beforeend", `<p class="meta" style="text-align:center">Mostrando ${LIM} de ${arr.length}. <button class="btn small" id="colMore">Mostrar mais</button></p>`); $("colMore").onclick = (ev) => { ev.stopPropagation(); F.more = (F.more || 1) + 1; drawCol(); }; }
   $("main").onclick = (ev) => { const b = ev.target.closest("[data-k]"); if (b) openCard(b.dataset.k); };
 }
 function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("hidden")) NAV.reopen = ["card", key]; }, 0);
@@ -1985,7 +1989,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18m";
+const APP_VERSION = "2026.11.18n";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -4017,6 +4021,7 @@ function finishScanDeck(d) {
 }
 function scanForDeck(d) { S.settings.scanDest = d.id; save(true); go("scan"); }
 async function startScanner() {
+  ensurePT();
   try { await ensureOCR(); } catch (e) { $("scanStatus").textContent = "Não consegui carregar o leitor."; return; }
   let saved = S.settings.camId || "";
   try { try { await startCamera(saved || undefined); } catch (e0) { if (!saved) throw e0; await startCamera(); } }
@@ -4505,7 +4510,7 @@ function accountMenu() {
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     // Migra a lista do scanner antigo, se houver
     const old = localStorage.getItem("mtgscan.list");
-    window.__bootStep = "baixando lista de cartas"; await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); PT_READY = loadPT().then(() => { PT_READY = true; }); loadBrackets();
+    window.__bootStep = "baixando lista de cartas"; await loadDB((p) => $("splashBar").style.width = Math.round(p * 100) + "%"); if (!IS_IOS) { ensurePT(); loadBrackets(); } else setTimeout(loadBrackets, 4000);
     if (old && !S.settings.migrated) { try { for (const x of JSON.parse(old)) { const pi = DB.bySetNum.get(x.set + "|" + normNum(x.number)); if (pi !== undefined) addToCollection({ oi: DB.p[pi][3], set: x.set, number: x.number, lang: x.lang, foil: x.foil, qty: x.qty }); } } catch {} S.settings.migrated = true; save(); }
     $("autoBtn").setAttribute("aria-pressed", !!S.settings.autoBtn); $("foilBtn").setAttribute("aria-pressed", !!S.settings.foilBtn);
     window.__bootStep = "abrindo a tela"; $("splash").classList.add("hidden"); window.__bootDone = true; if (window.__storeErr) setTimeout(() => toast(window.__storeErr + " — usando só a nuvem nesta sessão", 5000), 1500); undoBaseline(); if (S.settings.edGroup) ED.group = S.settings.edGroup; if (S.settings.edSort) ED.dsort = S.settings.edSort;
