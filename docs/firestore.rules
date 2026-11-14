@@ -1,0 +1,40 @@
+rules_version = '2';
+
+// Biblioteca MTG — permissões
+// Admin (teolfe@gmail.com): pode tudo, é o único que muda permissões.
+// Editores e convidados: lista em libs/principal/meta/access ({ editors: [...], guests: [...] }), editada pelo admin no app.
+// Editor: mexe em tudo da biblioteca principal (menos permissões).
+// Convidado: só lê a principal; decks que monta vão para "pending" (aprovação); pode reportar bugs; tem biblioteca própria (libs/u_<uid>).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null && request.auth.token.email_verified; }
+    function email() { return request.auth.token.email.lower(); }
+    function access() { return get(/databases/$(database)/documents/libs/principal/meta/access).data; }
+    function admin() { return signed() && email() == 'teolfe@gmail.com'; }
+    function editor() { return signed() && (admin() || email() in access().get('editors', [])); }
+    function guest() { return signed() && email() in access().get('guests', []); }
+
+    // admin: tudo
+    match /{document=**} {
+      allow read, write: if admin();
+    }
+    // biblioteca principal: editores leem e escrevem; convidados só leem
+    match /libs/principal/{document=**} {
+      allow read: if editor() || guest();
+      allow write: if editor() && request.path != /databases/$(database)/documents/libs/principal/meta/access;
+    }
+    // decks para aprovação: o convidado cria/altera/apaga só os dele
+    match /libs/principal/pending/{id} {
+      allow create, update: if guest() && request.resource.data.by == email();
+      allow delete: if guest() && resource.data.by == email();
+    }
+    // bugs e sugestões
+    match /libs/principal/bugs/{id} {
+      allow create: if guest();
+    }
+    // biblioteca própria de cada pessoa com acesso
+    match /libs/{lib}/{document=**} {
+      allow read, write: if (editor() || guest()) && lib == 'u_' + request.auth.uid;
+    }
+  }
+}
