@@ -2026,7 +2026,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18x";
+const APP_VERSION = "2026.11.18y";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2168,7 +2168,7 @@ async function bugsList() {
 }
 
 // ============ TODAS AS CARTAS (só PC): o jogo inteiro organizado por coleção ============
-const AL = { set: "", q: "", colors: new Set(), rar: new Set(), type: "", own: "", sort: "num", stype: "", sq: "", more: 1, meta: null, counts: null, scope: "main", ssort: "new", sgroup: "year", open: new Set() };
+const AL = { set: "", q: "", colors: new Set(), rar: new Set(), type: "", own: "", sort: "num", stype: "", sq: "", more: 1, roles: new Set(), meta: null, counts: null, scope: "main", ssort: "new", sgroup: "year", open: new Set() };
 const STYPE = { "": "Todos os tipos", expansion: "Expansões", core: "Coleções básicas", commander: "Commander", masters: "Masters / reedições", draft_innovation: "Draft especiais", funny: "Engraçadas (Un-)", starter: "Iniciantes / Duel Decks", promo: "Promos", other: "Outras" };
 const STYPE_MAP = { duel_deck: "starter", premium_deck: "starter", from_the_vault: "masters", spellbook: "masters", eternal: "masters", arsenal: "masters" };
 const MAIN_T = new Set(["expansion", "core", "commander", "masters", "draft_innovation", "funny", "starter"]);
@@ -2198,6 +2198,8 @@ function renderAll() {
         <div class="filterpanel hidden" id="aFP">
           <div class="chips" id="aCols">${COLOR_ORDER.map(([c, n]) => `<button class="chip" data-c="${c}" aria-pressed="false" title="${n}">${c === "M" ? "Multi" : c === "L" ? "Terreno" : `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`}</button>`).join("")}</div>
           <div class="chips rarchips" id="aRar">${[["c", "Comum"], ["u", "Incomum"], ["r", "Rara"], ["m", "Mítica"]].map(([r, n]) => `<button class="chip" data-r="${r}" aria-pressed="false" title="${n}">${setHTML("default", r)} ${n}</button>`).join("")}</div>
+          <div class="meta" style="margin:4px 0 2px">Função da carta</div>
+          <div class="chips" id="aRole">${Object.entries(ROLES).map(([k, v]) => `<button class="chip" data-role="${k}" aria-pressed="false">${{ removal: "Remoção com alvo", wipe: "Remoção global" }[k] || v}</button>`).join("")}</div>
           <div class="two"><select id="aType"><option value="">Todos os tipos</option>${TYPES.map(t => `<option value="${t[0]}">${t[1]}</option>`).join("")}</select>
             <select id="aOwn"><option value="">Tenho e não tenho</option><option value="own">Só as que tenho</option><option value="miss">Só as que não tenho</option></select></div>
         </div></div></div>`;
@@ -2207,6 +2209,7 @@ function renderAll() {
     $("aCols").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; AL.colors.has(c) ? AL.colors.delete(c) : AL.colors.add(c); b.setAttribute("aria-pressed", AL.colors.has(c)); AL.more = 1; drawAll(); };
     $("aRar").onclick = (e) => { const b = e.target.closest("[data-r]"); if (!b) return; const r = b.dataset.r; AL.rar.has(r) ? AL.rar.delete(r) : AL.rar.add(r); b.setAttribute("aria-pressed", AL.rar.has(r)); AL.more = 1; drawAll(); };
     $("aType").onchange = (e) => { AL.type = e.target.value; AL.more = 1; drawAll(); };
+    $("aRole").onclick = (e) => { const b = e.target.closest("[data-role]"); if (!b) return; const r = b.dataset.role; AL.roles.has(r) ? AL.roles.delete(r) : AL.roles.add(r); b.setAttribute("aria-pressed", AL.roles.has(r)); AL.more = 1; drawAll(); };
     $("aOwn").onchange = (e) => { AL.own = e.target.value; AL.more = 1; drawAll(); };
   }
   $("aq").value = AL.q; $("aSort").value = AL.sort; $("aType").value = AL.type; $("aOwn").value = AL.own;
@@ -2273,6 +2276,7 @@ function drawSetHome(M) {
   $("aSg").onchange = (e) => { AL.sgroup = e.target.value; AL.open.clear(); re(); };
   M.onclick = (e) => { const j = e.target.closest("[data-j]"); if (j) { const s = $("sg" + j.dataset.j); if (s) window.scrollTo({ top: s.getBoundingClientRect().top + scrollY - 110, behavior: "smooth" }); return; } const b = e.target.closest("[data-set]"); if (b) pickSet(b.dataset.set); };
 }
+const roleCache = [];
 function allFiltered() {
   const q = norm(AL.q); const out = [];
   const cs = [...AL.colors].filter(c => "WUBRG".includes(c)), multi = AL.colors.has("M") || cs.length > 1, other = [...AL.colors].filter(c => c === "C" || c === "L");
@@ -2283,6 +2287,7 @@ function allFiltered() {
     if (q && !norm(DB.o[oi][0]).includes(q) && !ptN(oi).includes(q)) continue;
     if (AL.colors.size) { const b = colorBucket(oi); if (!(other.includes(b) || (multi ? b === "M" && cs.every(c => DB.o[oi][3].includes(c)) : cs.length === 1 && b === cs[0]))) continue; }
     if (AL.type && !mainTypes(DB.o[oi][5]).includes(AL.type)) continue;
+    if (AL.roles.size) { const rs = roleCache[oi] || (roleCache[oi] = DB.o[oi][8].split("").map(ch => DB.roles[parseInt(ch, 36)])); if (!rs.some(r => AL.roles.has(r))) continue; }
     const n = own.get(p[0] + "|" + normNum(p[1])) || 0;
     if (AL.own === "own" && !n) continue; if (AL.own === "miss" && n) continue;
     out.push({ pi, oi, n });
@@ -2299,7 +2304,7 @@ function allFiltered() {
 function drawAll() {
   const M = $("aMain"); if (!M) return; if (!AL.counts) { AL.counts = {}; for (const p of DB.p) AL.counts[p[0]] = (AL.counts[p[0]] || 0) + 1; }
   if ($("aSets") && !$("aSets").querySelector("[data-set]")) drawSets();
-  const anyF = AL.q || AL.colors.size || AL.rar.size || AL.type || AL.own;
+  const anyF = AL.q || AL.colors.size || AL.rar.size || AL.type || AL.own || AL.roles.size;
   if (!AL.set && !anyF) return drawSetHome(M);
   const arr = allFiltered(); const owned = arr.filter(x => x.n).length;
   $("aCount").textContent = `${arr.length.toLocaleString("pt-BR")} carta${arr.length === 1 ? "" : "s"} · vocês têm ${owned}`;
