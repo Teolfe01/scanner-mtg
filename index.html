@@ -1260,11 +1260,11 @@ function colFiltered() {
   if (F.where === "lib") arr = arr.filter(e => freeQty(e) > 0); else if (F.where === "deck") arr = arr.filter(e => inDecks(e) > 0);
   else if (F.where.startsWith("box")) { const n = F.where.slice(3); arr = arr.filter(e => freeQty(e) > 0 && (whereLib(e).box === n || whereLib(e).col === n)); }
   const by = {
-    name: (a, b) => a.name.localeCompare(b.name), price: (a, b) => priceOf(b) - priceOf(a),
-    recent: (a, b) => b.added - a.added, cmc: (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || a.name.localeCompare(b.name),
+    name: (a, b) => a.name.localeCompare(b.name), price: (a, b) => priceOf(b) - priceOf(a), price_r: (a, b) => (priceOf(a) || 1e9) - (priceOf(b) || 1e9) || a.name.localeCompare(b.name),
+    recent: (a, b) => b.added - a.added, cmc: (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || a.name.localeCompare(b.name), cmc_r: (a, b) => DB.o[b.oi][2] - DB.o[a.oi][2] || a.name.localeCompare(b.name),
     box: (a, b) => whereLib(a).rank - whereLib(b).rank || a.name.localeCompare(b.name),
     set: (a, b) => a.set.localeCompare(b.set) || (parseInt(a.number) || 0) - (parseInt(b.number) || 0)
-  }[F.sort];
+  }[F.sort] || ((a, b) => a.name.localeCompare(b.name));
   return arr.sort(by);
 }
 function renderCol() {
@@ -1275,7 +1275,7 @@ function renderCol() {
       <div class="toolbar"><input type="search" id="q" placeholder="Filtrar…" aria-label="Filtrar">
         <button class="iconbtn" id="viewBtn" aria-label="Grade ou lista"></button>
         <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg>
-          <select id="sortSel" aria-label="Ordenar"><option value="name">Nome</option><option value="box">Ordem das caixas</option><option value="price">Preço</option><option value="recent">Recentes</option><option value="cmc">Custo de mana</option><option value="set">Coleção e número</option></select></span></div>
+          <select id="sortSel" aria-label="Ordenar"><option value="name">Nome</option><option value="box">Ordem das caixas</option><option value="price">Preço: mais caro</option><option value="price_r">Preço: mais barato</option><option value="recent">Recentes</option><option value="cmc">Custo de mana: menor</option><option value="cmc_r">Custo de mana: maior</option><option value="set">Coleção e número</option></select></span></div>
       <div class="subbar"><div class="subrow"><span class="count" id="colCount"></span><button class="addfilter" id="filterToggle">Filtros <span class="plus">+</span></button></div>
         <div class="filterpanel hidden" id="filterPanel">
           <div class="chips" id="colorChips">${COLOR_ORDER.slice(0, 5).map(([c, n]) => `<button class="chip" data-c="${c}" aria-pressed="false" aria-label="${n}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="M" aria-pressed="false">Multi</button><button class="chip" data-c="C" aria-pressed="false">Incolor</button><button class="chip" data-c="L" aria-pressed="false">Terrenos</button></div>
@@ -2026,7 +2026,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18z";
+const APP_VERSION = "2026.11.19a";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2199,7 +2199,7 @@ function renderAll() {
   if (!$("allBars")) {
     $("bars").innerHTML = `<div id="allBars"><div class="toolbar"><input type="search" id="aq" placeholder="Buscar carta em todas as coleções…" aria-label="Buscar">
       <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg>
-        <select id="aSort"><option value="num">Número</option><option value="name">Nome</option><option value="color">Cor</option><option value="price">Preço</option><option value="rar">Raridade</option></select></span>
+        <select id="aSort"><option value="num">Número</option><option value="name">Nome</option><option value="color">Cor</option><option value="cmc">Custo de mana: menor</option><option value="cmc_r">Custo de mana: maior</option><option value="price">Preço: mais caro</option><option value="price_r">Preço: mais barato</option><option value="rar">Raridade</option></select></span>
       <button class="chip" id="aUB" aria-pressed="false" title="Esconder as versões de coleções Universes Beyond (Senhor dos Anéis, Final Fantasy, Marvel, Warhammer…)">🚫 Sem Universes Beyond</button></div>
       <div class="subbar"><div class="subrow"><span class="count" id="aCount"></span><button class="addfilter" id="aFT">Filtros <span class="plus">+</span></button></div>
         <div class="filterpanel hidden" id="aFP">
@@ -2307,6 +2307,9 @@ function allFiltered() {
     name: (a, b) => DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]),
     color: (a, b) => GROUP_ORDER.indexOf(colorBucket(a.oi)) - GROUP_ORDER.indexOf(colorBucket(b.oi)) || (DB.o[a.oi][2] || 0) - (DB.o[b.oi][2] || 0) || DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]),
     price: (a, b) => brlOf(DB.p[b.pi][0], DB.p[b.pi][1], false) - brlOf(DB.p[a.pi][0], DB.p[a.pi][1], false),
+    price_r: (a, b) => (brlOf(DB.p[a.pi][0], DB.p[a.pi][1], false) || 1e9) - (brlOf(DB.p[b.pi][0], DB.p[b.pi][1], false) || 1e9),
+    cmc: (a, b) => (DB.o[a.oi][2] || 0) - (DB.o[b.oi][2] || 0) || DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]),
+    cmc_r: (a, b) => (DB.o[b.oi][2] || 0) - (DB.o[a.oi][2] || 0) || DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]),
     rar: (a, b) => (RO[DB.p[a.pi][2]] ?? 4) - (RO[DB.p[b.pi][2]] ?? 4) || num(a) - num(b) }[AL.sort] || ((a, b) => 0);
   if (!AL.set && !q && AL.sort === "num") out.sort((a, b) => { const m = AL.meta || {}; return ((m[DB.p[b.pi][0]] || {}).d || "").localeCompare((m[DB.p[a.pi][0]] || {}).d || "") || cmp(a, b); }); else out.sort(cmp);
   return out;
@@ -2439,7 +2442,7 @@ function renderWish() {
   setMenu([["Copiar lista inteira (para a LigaMagic)", () => wishCopy()], ["Selecionar cartas para copiar", () => { WS.on = true; drawWish(); }], ["Adicionar as faltantes de um deck…", wishFromDeck], ["Adicionar carta pelo nome…", wishByName], ...(S.wish.length ? [["Limpar a lista…", () => { if (confirm(`Tirar as ${S.wish.length} cartas da lista de desejadas?`)) { S.wish = []; save(); renderWish(); } }]] : [])]);
   if (!$("wishBars")) {
     $("bars").innerHTML = `<div id="wishBars"><div class="toolbar"><input type="search" id="wq" placeholder="Filtrar desejadas…" aria-label="Filtrar">
-      <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg><select id="wSort"><option value="recent">Recentes</option><option value="price">Preço</option><option value="name">Nome</option></select></span>
+      <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg><select id="wSort"><option value="recent">Recentes</option><option value="price">Preço: mais caro</option><option value="price_r">Preço: mais barato</option><option value="cmc">Custo de mana: menor</option><option value="cmc_r">Custo de mana: maior</option><option value="name">Nome</option></select></span>
       <span class="iconbtn" title="Agrupar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M14 17.5h7"/></svg><select id="wGroup"><option value="">Sem grupos</option><option value="price">Faixa de preço</option><option value="note">Anotação (deck)</option><option value="color">Cor</option></select></span>
       <button class="iconbtn" id="wSelBtn" title="Selecionar cartas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="m8 12 3 3 5-6"/></svg></button>
       <button class="iconbtn" id="wAdd" title="Adicionar pelo nome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button></div>
@@ -2462,7 +2465,7 @@ function wishGroupOf(w, g) {
 function drawWish() {
   const q = norm(($("wq") || {}).value || ""); const k = S.settings.wishSort || "recent"; const g = S.settings.wishGroup || "";
   let list = S.wish.filter(w => !q || norm(w.name).includes(q) || ptN(w.oi).includes(q) || norm(w.note || "").includes(q));
-  list.sort(k === "price" ? (a, b) => wishPrice(b) * b.qty - wishPrice(a) * a.qty : k === "name" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.at - a.at);
+  list.sort(k === "price" ? (a, b) => wishPrice(b) * b.qty - wishPrice(a) * a.qty : k === "price_r" ? (a, b) => (wishPrice(a) * a.qty || 1e9) - (wishPrice(b) * b.qty || 1e9) : k === "cmc" ? (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || a.name.localeCompare(b.name) : k === "cmc_r" ? (a, b) => DB.o[b.oi][2] - DB.o[a.oi][2] || a.name.localeCompare(b.name) : k === "name" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.at - a.at);
   for (const id of [...WS.sel]) if (!S.wish.some(w => w.id === id)) WS.sel.delete(id);
   const want = S.wish.filter(w => !w.buy), onway = S.wish.filter(w => w.buy);
   const tot = want.reduce((a, w) => a + wishPrice(w) * w.qty, 0);
@@ -3659,7 +3662,7 @@ function renderSearchPane() {
       <div class="two"><select id="edType"><option value="">Tipo</option>${TYPES.map(t => `<option value="${t[0]}"${ED.type === t[0] ? " selected" : ""}>${t[1]}</option>`).join("")}</select>
         <select id="edRole"><option value="">Função</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}"${ED.role === k ? " selected" : ""}>${v}</option>`).join("")}</select></div>
       <div class="two"><select id="edCmc"><option value="">CMC</option>${["0", "1", "2", "3", "4", "5", "6", "7+"].map(v => `<option${ED.cmc === v ? " selected" : ""}>${v}</option>`).join("")}</select>
-        <select id="edSort"><option value="name">Nome</option><option value="cmc"${ED.sort === "cmc" ? " selected" : ""}>CMC</option><option value="price"${ED.sort === "price" ? " selected" : ""}>Preço</option></select></div>
+        <select id="edQSort"><option value="name">Nome</option>${[["cmc", "Custo: menor"], ["cmc_r", "Custo: maior"], ["price", "Preço: mais caro"], ["price_r", "Preço: mais barato"]].map(([v, n]) => `<option value="${v}"${ED.sort === v ? " selected" : ""}>${n}</option>`).join("")}</select></div>
       <label class="meta ck"><input type="checkbox" id="edOwned" ${ED.owned ? "checked" : ""}> Só cartas que temos</label>
       ${ci ? `<label class="meta ck"><input type="checkbox" id="edCI" ${ED.useCI ? "checked" : ""}> Só na identidade do comandante ${[...ci].map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost"></i>`).join("")}</label>` : ""}
     </div>
@@ -3669,7 +3672,7 @@ function renderSearchPane() {
   $("edQ").oninput = (e) => { ED.q = e.target.value; rerun(); };
   $("edSearch").querySelector(".chips").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; ED.colors.has(c) ? ED.colors.delete(c) : ED.colors.add(c); b.setAttribute("aria-pressed", ED.colors.has(c)); rerun(); };
   $("edType").onchange = (e) => { ED.type = e.target.value; rerun(); }; $("edRole").onchange = (e) => { ED.role = e.target.value; rerun(); };
-  $("edCmc").onchange = (e) => { ED.cmc = e.target.value; rerun(); }; $("edSort").onchange = (e) => { ED.sort = e.target.value; rerun(); };
+  $("edCmc").onchange = (e) => { ED.cmc = e.target.value; rerun(); }; $("edQSort").onchange = (e) => { ED.sort = e.target.value; rerun(); };
   $("edOwned").onchange = (e) => { ED.owned = e.target.checked; rerun(); }; if ($("edCI")) $("edCI").onchange = (e) => { ED.useCI = e.target.checked; rerun(); };
   $("edResults").onclick = (e) => {
     const info = e.target.closest("[data-info]"); if (info) { cardInfo(+info.dataset.info); return; }
@@ -3695,7 +3698,7 @@ function searchCards() {
     total++; if (out.length < 600) out.push(i);
   }
   const pr = (i) => { const pi = defaultPrint(i); return pi >= 0 ? DB.p[pi][6] || 0 : 0; };
-  out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : q ? (a, b) => ((norm(DB.o[b][0]).startsWith(q) || ptN(b).startsWith(q)) - (norm(DB.o[a][0]).startsWith(q) || ptN(a).startsWith(q))) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
+  out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "cmc_r" ? (a, b) => DB.o[b][2] - DB.o[a][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : ED.sort === "price_r" ? (a, b) => (pr(a) || 1e9) - (pr(b) || 1e9) : q ? (a, b) => ((norm(DB.o[b][0]).startsWith(q) || ptN(b).startsWith(q)) - (norm(DB.o[a][0]).startsWith(q) || ptN(a).startsWith(q))) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
   return { list: out.slice(0, LIM), total };
 }
 async function drawEdhRecs(d) {
@@ -3946,13 +3949,13 @@ function renderDeckPane() {
   d.__br = null; const groups = {}; d.cards.forEach(c => { if (c.board === "cmd" && isCmdFormat(d)) return; for (const k of groupKeys(c)) (groups[k] = groups[k] || []).push(c); });
   const keys = groupOrder(Object.keys(groups));
   const byName = (a, b) => DB.o[a.oi][0].localeCompare(DB.o[b.oi][0]);
-  const sortIn = ED.dsort === "name" ? byName : ED.dsort === "price" ? (a, b) => cardPriceC(b) - cardPriceC(a) || byName(a, b) : ED.dsort === "type" ? (a, b) => (primaryType(a.oi) || "").localeCompare(primaryType(b.oi) || "") || byName(a, b) : (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || byName(a, b);
+  const sortIn = ED.dsort === "name" ? byName : ED.dsort === "price" ? (a, b) => cardPriceC(b) - cardPriceC(a) || byName(a, b) : ED.dsort === "price_r" ? (a, b) => (cardPriceC(a) || 1e9) - (cardPriceC(b) || 1e9) || byName(a, b) : ED.dsort === "cmc_r" ? (a, b) => DB.o[b.oi][2] - DB.o[a.oi][2] || byName(a, b) : ED.dsort === "type" ? (a, b) => (primaryType(a.oi) || "").localeCompare(primaryType(b.oi) || "") || byName(a, b) : (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || byName(a, b);
   const fdesc = Object.fromEntries(FUNC.map(f => [f.n, f.tip]));
   const main = d.cards.filter(c => c.board === "main" || c.board === "cmd").reduce((a, c) => a + c.qty, 0);
   const html = `
     <div class="ed-dbar"><b>${main} cartas</b><span class="meta">${d.format || "Commander"}</span>
       <label class="edsel">Agrupar por <select id="edGroup">${[["func", "Categorias (funções)"], ["multi", "Categorias (múltiplas)"], ["cat", "Minhas categorias"], ["type", "Tipo"], ["cmc", "Valor de mana"], ["cmcs", "Valor de mana (mágicas)"], ["full", "Deck inteiro"], ["color", "Cor"], ["kw", "Palavras-chave (criaturas)"], ["mech", "Mecânicas (criaturas)"], ["bracket", "Info de bracket"], ["tpl", "Template Command Zone"]].map(([v, n]) => `<option value="${v}"${ED.group === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
-      <label class="edsel">Ordenar <select id="edSort">${[["cmc", "Valor de mana"], ["name", "Nome"], ["price", "Preço"], ["type", "Tipo"]].map(([v, n]) => `<option value="${v}"${(ED.dsort || "cmc") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
+      <label class="edsel">Ordenar <select id="edSort">${[["cmc", "Custo: menor"], ["cmc_r", "Custo: maior"], ["name", "Nome"], ["price", "Preço: mais caro"], ["price_r", "Preço: mais barato"], ["type", "Tipo"]].map(([v, n]) => `<option value="${v}"${(ED.dsort || "cmc") === v ? " selected" : ""}>${n}</option>`).join("")}</select></label>
       <select id="edMode"><option value="stack">Pilhas</option><option value="list"${ED.mode === "list" ? " selected" : ""}>Lista</option></select></div>
     ${commanderBanner(d)}
     ${d.cards.some(c => c.board !== "cmd") ? "" : `<div class="empty">Deck vazio. Use a busca para adicionar cartas${isWide() ? " (painel da esquerda)" : ""}.</div>`}
