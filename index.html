@@ -692,14 +692,15 @@ nav.bottom > .navfoot { display: none; }
 @media (min-width: 1000px) { nav.bottom > .navfoot { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: auto; padding-top: 10px; }
   .navfoot button { border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 3px 10px; border-radius: 6px; cursor: pointer; } .navfoot button:hover { color: #fff; border-color: rgba(var(--acc-rgb),.6); }
   .navfoot span { font-size: 10px; color: var(--muted); opacity: .7; letter-spacing: .02em; } }
-#about { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(5,6,8,.72); backdrop-filter: blur(6px); animation: abIn .25s ease; }
-#about .ab { width: min(560px, 92vw); max-height: 90vh; overflow: auto; background: radial-gradient(120% 80% at 50% 0%, rgba(var(--acc-rgb),.22), transparent 60%), var(--surface, #17191d); border: 1px solid var(--line); border-radius: 14px; padding: 28px 28px 22px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: abUp .35s cubic-bezier(.2,.8,.2,1); }
-#about .ab img { width: 84px; height: 84px; border-radius: 18px; box-shadow: 0 10px 30px rgba(var(--acc-rgb),.35); }
-#about h2 { margin: 12px 0 2px; font-size: 26px; } #about .ver { color: var(--muted); font-size: 13px; }
-#about .tag { margin: 12px auto 16px; color: var(--ink); max-width: 44ch; line-height: 1.45; }
-#about ul { list-style: none; padding: 0; margin: 0 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
-#about li { background: rgba(255,255,255,.04); border-radius: 8px; padding: 9px 11px; font-size: 13px; line-height: 1.35; } #about li b { display: block; font-size: 14px; margin-bottom: 2px; }
-#about .foot { color: var(--muted); font-size: 12px; margin: 10px 0 14px; }
+#about { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(0,0,0,.82); animation: abIn .2s ease; }
+#about .ab { width: min(520px, 92vw); max-height: 90vh; overflow: auto; background: #0c0d0f; border: 1px solid rgba(255,255,255,.06); border-radius: 10px; padding: 32px 30px 24px; text-align: center; box-shadow: 0 24px 60px rgba(0,0,0,.7); animation: abUp .3s cubic-bezier(.2,.8,.2,1); }
+#about .ab img { width: 64px; height: 64px; border-radius: 14px; }
+#about h2 { margin: 14px 0 2px; font-size: 22px; font-weight: 600; letter-spacing: .01em; } #about .ver { color: #6b7079; font-size: 12px; letter-spacing: .04em; }
+#about .tag { margin: 14px auto 20px; color: #a8adb5; max-width: 42ch; line-height: 1.5; font-size: 14px; }
+#about ul { list-style: none; padding: 0; margin: 0 0 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; text-align: left; border-top: 1px solid rgba(255,255,255,.06); }
+#about li { padding: 11px 0; font-size: 12.5px; line-height: 1.4; color: #7d828b; border-bottom: 1px solid rgba(255,255,255,.06); } #about li b { display: block; font-size: 13px; font-weight: 600; color: #d6d9de; margin-bottom: 2px; }
+#about .foot { color: #5b6068; font-size: 11.5px; margin: 6px 0 18px; }
+#about #abX { background: transparent; border: 1px solid rgba(255,255,255,.14); color: #d6d9de; box-shadow: none; padding: 7px 22px; } #about #abX:hover { border-color: rgba(255,255,255,.3); }
 @media (max-width: 520px) { #about ul { grid-template-columns: 1fr; } }
 @keyframes abIn { from { opacity: 0; } } @keyframes abUp { from { opacity: 0; transform: translateY(16px) scale(.97); } }
 @media (min-width: 1000px) {
@@ -2041,7 +2042,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19b";
+const APP_VERSION = "2026.11.19c";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2050,16 +2051,16 @@ function showAbout() {
   el.innerHTML = `<div class="ab" role="dialog" aria-label="Sobre o Biblioteca MTG"><img src="icon-v2-192.png" alt=""><h2>Biblioteca MTG</h2><div class="ver">versão ${APP_VERSION}</div>
     <p class="tag">Catálogo da coleção de Magic: The Gathering e ferramentas de deckbuilding — tudo sincronizado entre PC e celular, para jogar e montar decks juntos.</p>
     <ul>
-      <li><b>📷 Escanear</b>Aponte a câmera para a carta e ela entra na coleção, com edição e idioma.</li>
-      <li><b>🗂 Coleção</b>Filtros por cor, tipo, função e preço, e o endereço de cada carta nas caixas.</li>
-      <li><b>🃏 Decks</b>Editor estilo Archidekt, estatísticas, bracket, sugestões do EDHREC e testar mãos.</li>
-      <li><b>👑 EDH</b>Comandantes por cor, preço e precon, com as cartas mais usadas.</li>
-      <li><b>📚 Coleções MTG</b>O jogo inteiro organizado por coleção e ano (no PC).</li>
-      <li><b>⭐ Desejos</b>Lista de compras com faixas de preço, "comprada · a caminho" e cópia para a LigaMagic.</li>
-      <li><b>🏷 Ofertas</b>Cartas que caíram de preço, com histórico em reais.</li>
-      <li><b>📦 Caixas</b>Organização física por cor e custo, com etiquetas para imprimir.</li>
+      <li><b>Escanear</b>Aponte a câmera para a carta e ela entra na coleção, com edição e idioma.</li>
+      <li><b>Coleção</b>Filtros por cor, tipo, função e preço, e o endereço de cada carta nas caixas.</li>
+      <li><b>Decks</b>Editor estilo Archidekt, estatísticas, bracket, sugestões do EDHREC e testar mãos.</li>
+      <li><b>EDH</b>Comandantes por cor, preço e precon, com as cartas mais usadas.</li>
+      <li><b>Coleções MTG</b>O jogo inteiro organizado por coleção e ano (no PC).</li>
+      <li><b>Desejos</b>Lista de compras com faixas de preço, "comprada · a caminho" e cópia para a LigaMagic.</li>
+      <li><b>Ofertas</b>Cartas que caíram de preço, com histórico em reais.</li>
+      <li><b>Caixas</b>Organização física por cor e custo, com etiquetas para imprimir.</li>
     </ul>
-    <div class="foot">${n.toLocaleString("pt-BR")} cartas na coleção · ${S.decks.length} decks<br>Dados e imagens: Scryfall · sugestões: EDHREC · preços: Scryfall (convertidos para R$)<br>Magic: The Gathering é marca da Wizards of the Coast. App de fã, sem vínculo oficial.</div>
+    <div class="foot">${n.toLocaleString("pt-BR")} cartas na coleção · ${S.decks.length} decks</div>
     <button class="btn primary" id="abX">Fechar</button></div>`;
   document.body.appendChild(el);
   const close = () => { el.remove(); document.removeEventListener("keydown", esc_); }; const esc_ = (e) => { if (e.key === "Escape") close(); };
