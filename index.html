@@ -2026,7 +2026,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.18y";
+const APP_VERSION = "2026.11.18z";
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2186,6 +2186,12 @@ async function allMeta() {
 const smeta = (c) => (AL.meta && AL.meta[c]) || {};
 const stypeOf = (code) => { const t = smeta(code).t || ""; const t2 = STYPE_MAP[t] || t; return STYPE[t2] ? t2 : (t ? "other" : ""); };
 const setIcon = (c, cls = "") => smeta(c).i ? `<img class="seticon ${cls}" src="${esc(smeta(c).i)}" alt="" loading="lazy">` : setHTML(c, "c");
+// Universes Beyond: coleções de outras franquias (Senhor dos Anéis, Final Fantasy, Marvel, Warhammer…)
+const UB_RE = /Lord of the Rings|Middle-earth|Warhammer|Doctor Who|Fallout|Assassin's Creed|Final Fantasy|Spider-Man|Marvel|Avatar: The Last|Transformers|Jurassic|Ninja Turtles|Stranger Things|Street Fighter|Fortnite|Godzilla|Hellboy|Walking Dead|Monty Python|Sonic|Hatsune|Star Trek/i;
+const UB_CODES = new Set(["bot", "rex", "40k", "pza"]);
+const ubCache = {};
+function isUB(c) { if (c in ubCache) return ubCache[c]; const par = smeta(c).p; return (ubCache[c] = UB_CODES.has(c) || UB_RE.test(DB.sets[c] || smeta(c).n || "") || (!!par && par !== c && isUB(par))); }
+const noUB = () => !!S.settings.allNoUB;
 function ownBySet() { const m = {}; const seen = new Set(); for (const e of S.cards) if (e.qty > 0) { const k = e.set + "|" + normNum(e.number); if (seen.has(k)) continue; seen.add(k); m[e.set] = (m[e.set] || 0) + 1; } return m; }
 function renderAll() {
   $("title").textContent = "Coleções MTG"; $("fab").classList.add("hidden"); setMenu([]);
@@ -2193,7 +2199,8 @@ function renderAll() {
   if (!$("allBars")) {
     $("bars").innerHTML = `<div id="allBars"><div class="toolbar"><input type="search" id="aq" placeholder="Buscar carta em todas as coleções…" aria-label="Buscar">
       <span class="iconbtn" title="Ordenar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M4 7h16M4 12h11M4 17h6"/></svg>
-        <select id="aSort"><option value="num">Número</option><option value="name">Nome</option><option value="color">Cor</option><option value="price">Preço</option><option value="rar">Raridade</option></select></span></div>
+        <select id="aSort"><option value="num">Número</option><option value="name">Nome</option><option value="color">Cor</option><option value="price">Preço</option><option value="rar">Raridade</option></select></span>
+      <button class="chip" id="aUB" aria-pressed="false" title="Esconder as versões de coleções Universes Beyond (Senhor dos Anéis, Final Fantasy, Marvel, Warhammer…)">🚫 Sem Universes Beyond</button></div>
       <div class="subbar"><div class="subrow"><span class="count" id="aCount"></span><button class="addfilter" id="aFT">Filtros <span class="plus">+</span></button></div>
         <div class="filterpanel hidden" id="aFP">
           <div class="chips" id="aCols">${COLOR_ORDER.map(([c, n]) => `<button class="chip" data-c="${c}" aria-pressed="false" title="${n}">${c === "M" ? "Multi" : c === "L" ? "Terreno" : `<i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i>`}</button>`).join("")}</div>
@@ -2205,6 +2212,7 @@ function renderAll() {
         </div></div></div>`;
     $("aq").oninput = (e) => { AL.q = e.target.value; AL.more = 1; drawAll(); };
     $("aSort").onchange = (e) => { AL.sort = e.target.value; drawAll(); };
+    $("aUB").onclick = () => { S.settings.allNoUB = !noUB(); save(true); $("aUB").setAttribute("aria-pressed", noUB()); if (AL.set && noUB() && isUB(AL.set)) AL.set = ""; AL.more = 1; drawSets(); drawAll(); };
     $("aFT").onclick = () => $("aFP").classList.toggle("hidden");
     $("aCols").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; AL.colors.has(c) ? AL.colors.delete(c) : AL.colors.add(c); b.setAttribute("aria-pressed", AL.colors.has(c)); AL.more = 1; drawAll(); };
     $("aRar").onclick = (e) => { const b = e.target.closest("[data-r]"); if (!b) return; const r = b.dataset.r; AL.rar.has(r) ? AL.rar.delete(r) : AL.rar.add(r); b.setAttribute("aria-pressed", AL.rar.has(r)); AL.more = 1; drawAll(); };
@@ -2212,6 +2220,7 @@ function renderAll() {
     $("aRole").onclick = (e) => { const b = e.target.closest("[data-role]"); if (!b) return; const r = b.dataset.role; AL.roles.has(r) ? AL.roles.delete(r) : AL.roles.add(r); b.setAttribute("aria-pressed", AL.roles.has(r)); AL.more = 1; drawAll(); };
     $("aOwn").onchange = (e) => { AL.own = e.target.value; AL.more = 1; drawAll(); };
   }
+  $("aUB").setAttribute("aria-pressed", noUB());
   $("aq").value = AL.q; $("aSort").value = AL.sort; $("aType").value = AL.type; $("aOwn").value = AL.own;
   $("allBars").classList.remove("hidden"); document.querySelectorAll("#bars > div:not(#allBars)").forEach(x => x.remove());
   const st = S.settings.allOpts || {}; Object.assign(AL, { scope: st.scope || AL.scope, ssort: st.ssort || AL.ssort, sgroup: st.sgroup || AL.sgroup });
@@ -2226,6 +2235,7 @@ function setGroups() {
   const hasMeta = AL.meta && Object.keys(AL.meta).length;
   if (AL.scope === "main" && hasMeta) list = list.filter(c => MAIN_T.has(smeta(c).t) || (STYPE_MAP[smeta(c).t] && MAIN_T.has(STYPE_MAP[smeta(c).t])));
   if (AL.stype) list = list.filter(c => stypeOf(c) === AL.stype);
+  if (noUB()) list = list.filter(c => !isUB(c));
   if (q) list = list.filter(c => norm((DB.sets[c] || "") + " " + c).includes(q));
   const d = (c) => smeta(c).d || "";
   const cmp = { new: (a, b) => d(b).localeCompare(d(a)), old: (a, b) => (d(a) || "9").localeCompare(d(b) || "9"), name: (a, b) => (DB.sets[a] || a).localeCompare(DB.sets[b] || b), own: (a, b) => (own[b] || 0) / AL.counts[b] - (own[a] || 0) / AL.counts[a] }[AL.ssort];
@@ -2278,11 +2288,11 @@ function drawSetHome(M) {
 }
 const roleCache = [];
 function allFiltered() {
-  const q = norm(AL.q); const out = [];
+  const q = norm(AL.q); const out = []; const ub = noUB();
   const cs = [...AL.colors].filter(c => "WUBRG".includes(c)), multi = AL.colors.has("M") || cs.length > 1, other = [...AL.colors].filter(c => c === "C" || c === "L");
   const own = new Map(); for (const e of S.cards) if (e.qty > 0) { const k = e.set + "|" + normNum(e.number); own.set(k, (own.get(k) || 0) + e.qty); }
   for (let pi = 0; pi < DB.p.length; pi++) {
-    const p = DB.p[pi]; if (AL.set && p[0] !== AL.set) continue; const oi = p[3];
+    const p = DB.p[pi]; if (AL.set && p[0] !== AL.set) continue; if (ub && isUB(p[0])) continue; const oi = p[3];
     if (AL.rar.size && !AL.rar.has(p[2])) continue;
     if (q && !norm(DB.o[oi][0]).includes(q) && !ptN(oi).includes(q)) continue;
     if (AL.colors.size) { const b = colorBucket(oi); if (!(other.includes(b) || (multi ? b === "M" && cs.every(c => DB.o[oi][3].includes(c)) : cs.length === 1 && b === cs[0]))) continue; }
