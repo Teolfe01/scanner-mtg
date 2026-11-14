@@ -1260,7 +1260,7 @@ function closeSheet(o = {}) { NAV.reopen = null; if (NAV.sheet) { NAV.sheet = fa
 $("scrim").onclick = () => closeSheet();
 
 // ============ COLEÇÃO ============
-const F = { q: "", colors: new Set(), type: "", role: "", where: "", sort: "name", view: "grid", open: false };
+const F = { q: "", colors: new Set(), type: "", roles: new Set(), where: "", sort: "name", view: "grid", open: false };
 function colFiltered() {
   const q = norm(F.q);
   let arr = S.cards.filter(e => e.qty > 0);
@@ -1272,7 +1272,7 @@ function colFiltered() {
       if (multi) return b === "M" && cs.every(c => DB.o[e.oi][3].includes(c));
       return cs.length === 1 && b === cs[0]; }); }
   if (F.type) arr = arr.filter(e => mainTypes(DB.o[e.oi][5]).includes(F.type));
-  if (F.role) arr = arr.filter(e => oInfo(e.oi).roles.includes(F.role));
+  if (F.roles.size) arr = arr.filter(e => oInfo(e.oi).roles.some(r => F.roles.has(r)));
   if (F.where === "lib") arr = arr.filter(e => freeQty(e) > 0); else if (F.where === "deck") arr = arr.filter(e => inDecks(e) > 0);
   else if (F.where.startsWith("box")) { const n = F.where.slice(3); arr = arr.filter(e => freeQty(e) > 0 && (whereLib(e).box === n || whereLib(e).col === n)); }
   const by = {
@@ -1295,8 +1295,9 @@ function renderCol() {
       <div class="subbar"><div class="subrow"><span class="count" id="colCount"></span><button class="addfilter" id="filterToggle">Filtros <span class="plus">+</span></button></div>
         <div class="filterpanel hidden" id="filterPanel">
           <div class="chips" id="colorChips">${COLOR_ORDER.slice(0, 5).map(([c, n]) => `<button class="chip" data-c="${c}" aria-pressed="false" aria-label="${n}"><i class="ms ms-${c.toLowerCase()} ms-cost ms-shadow"></i></button>`).join("")}<button class="chip" data-c="M" aria-pressed="false">Multi</button><button class="chip" data-c="C" aria-pressed="false">Incolor</button><button class="chip" data-c="L" aria-pressed="false">Terrenos</button></div>
+          <div class="meta" style="margin:4px 0 2px">Função da carta</div>
+          <div class="chips" id="roleChips">${Object.entries(ROLES).map(([k, v]) => `<button class="chip" data-role="${k}" aria-pressed="false">${{ removal: "Remoção com alvo", wipe: "Remoção global" }[k] || v}</button>`).join("")}</div>
           <div class="two"><select id="typeSel"><option value="">Todos os tipos</option>${TYPES.map(t => `<option value="${t[0]}">${t[1]}</option>`).join("")}</select>
-            <select id="roleSel"><option value="">Todas as funções</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select></div>
           <select id="whereSel"></select>
         </div></div></div>`;
     $("q").oninput = (e) => { F.q = e.target.value; if (PT_READY === null && F.q.length > 2) ensurePT().then(() => drawCol()); drawCol(); };
@@ -1305,10 +1306,11 @@ function renderCol() {
     $("filterToggle").onclick = () => $("filterPanel").classList.toggle("hidden");
     $("colorChips").onclick = (e) => { const b = e.target.closest("[data-c]"); if (!b) return; const c = b.dataset.c; F.colors.has(c) ? F.colors.delete(c) : F.colors.add(c); b.setAttribute("aria-pressed", F.colors.has(c)); drawCol(); };
     $("typeSel").onchange = (e) => { F.type = e.target.value; drawCol(); };
-    $("roleSel").onchange = (e) => { F.role = e.target.value; drawCol(); };
+    $("roleChips").onclick = (e) => { const b = e.target.closest("[data-role]"); if (!b) return; const r = b.dataset.role; F.roles.has(r) ? F.roles.delete(r) : F.roles.add(r); b.setAttribute("aria-pressed", F.roles.has(r)); drawCol(); };
     $("whereSel").onchange = (e) => { F.where = e.target.value; drawCol(); };
   }
-  $("q").value = F.q; $("sortSel").value = F.sort; $("typeSel").value = F.type; $("roleSel").value = F.role;
+  $("q").value = F.q; $("sortSel").value = F.sort; $("typeSel").value = F.type;
+  $("roleChips").querySelectorAll("[data-role]").forEach(x => x.setAttribute("aria-pressed", F.roles.has(x.dataset.role)));
   $("colorChips").querySelectorAll("[data-c]").forEach(x => x.setAttribute("aria-pressed", F.colors.has(x.dataset.c)));
   $("colBars").classList.remove("hidden"); document.querySelectorAll("#bars > div:not(#colBars)").forEach(x => x.remove());
   const bxs = GROUP_ORDER.flatMap(g => [...new Set(ensureMap()[g].map(sl => GPFX[g] + sl.box))]);
@@ -2042,7 +2044,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19c";
+const APP_VERSION = "2026.11.19d";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -3353,7 +3355,7 @@ async function drawPreconDeals() {
 function saveResume() {
   try {
     S.settings.resume = { at: Date.now(), t: tab, v: view, y: Math.round(window.scrollY), reopen: NAV.reopen || null, DF: DF.f, DFid: DF.id,
-      F: { q: F.q, colors: [...F.colors], type: F.type, role: F.role, where: F.where, sort: F.sort, view: F.view },
+      F: { q: F.q, colors: [...F.colors], type: F.type, roles: [...F.roles], where: F.where, sort: F.sort, view: F.view },
       ED: { pane: ED.pane, group: ED.group, mode: ED.mode, q: ED.q } };
     store.set("settings", S.settings).catch(() => {});
   } catch (e) {}
@@ -3374,7 +3376,7 @@ function restoreResume() {
   // abrindo de novo depois disso, começa limpo, na tela inicial, sem busca nem filtros
   const r = S.settings.resume; if (!r || Date.now() - r.at > 3 * 60e3 || !views[r.t]) return false;
   if (r.v && r.v.id && !S.decks.some(d => d.id === r.v.id)) return false;
-  if (r.F) { Object.assign(F, r.F); F.colors = new Set(r.F.colors || []); }
+  if (r.F) { Object.assign(F, r.F); F.colors = new Set(r.F.colors || []); F.roles = new Set(r.F.roles || (r.F.role ? [r.F.role] : [])); delete F.role; }
   if (r.ED) Object.assign(ED, r.ED);
   if (r.v && r.v.kind === "gold") r.v = { kind: "deck", id: r.v.id };
   if (r.v && r.v.kind === "edit") ED.id = r.v.id;
