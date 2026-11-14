@@ -688,6 +688,20 @@ nav.bottom > button.pconly { display: none; }
 .ownq { position: absolute; top: 6px; right: 6px; z-index: 2; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 12px; border-radius: 5px; padding: 1px 6px; }
 .rarchips .chip { min-width: 34px; font-weight: 700; }
 @media (min-width: 1000px) and (hover: hover) { nav.bottom > button.pconly:not(.hidden) { display: grid; } }
+nav.bottom > .navfoot { display: none; }
+@media (min-width: 1000px) { nav.bottom > .navfoot { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: auto; padding-top: 10px; }
+  .navfoot button { border: 1px solid var(--line); background: transparent; color: var(--muted); font: inherit; font-size: 11px; padding: 3px 10px; border-radius: 6px; cursor: pointer; } .navfoot button:hover { color: #fff; border-color: rgba(var(--acc-rgb),.6); }
+  .navfoot span { font-size: 10px; color: var(--muted); opacity: .7; letter-spacing: .02em; } }
+#about { position: fixed; inset: 0; z-index: 9000; display: grid; place-items: center; background: rgba(5,6,8,.72); backdrop-filter: blur(6px); animation: abIn .25s ease; }
+#about .ab { width: min(560px, 92vw); max-height: 90vh; overflow: auto; background: radial-gradient(120% 80% at 50% 0%, rgba(var(--acc-rgb),.22), transparent 60%), var(--surface, #17191d); border: 1px solid var(--line); border-radius: 14px; padding: 28px 28px 22px; text-align: center; box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: abUp .35s cubic-bezier(.2,.8,.2,1); }
+#about .ab img { width: 84px; height: 84px; border-radius: 18px; box-shadow: 0 10px 30px rgba(var(--acc-rgb),.35); }
+#about h2 { margin: 12px 0 2px; font-size: 26px; } #about .ver { color: var(--muted); font-size: 13px; }
+#about .tag { margin: 12px auto 16px; color: var(--ink); max-width: 44ch; line-height: 1.45; }
+#about ul { list-style: none; padding: 0; margin: 0 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
+#about li { background: rgba(255,255,255,.04); border-radius: 8px; padding: 9px 11px; font-size: 13px; line-height: 1.35; } #about li b { display: block; font-size: 14px; margin-bottom: 2px; }
+#about .foot { color: var(--muted); font-size: 12px; margin: 10px 0 14px; }
+@media (max-width: 520px) { #about ul { grid-template-columns: 1fr; } }
+@keyframes abIn { from { opacity: 0; } } @keyframes abUp { from { opacity: 0; transform: translateY(16px) scale(.97); } }
 @media (min-width: 1000px) {
   :root { --side: 88px; }
   body { padding-left: var(--side); }
@@ -853,6 +867,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   <button data-tab="wish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Desejos</button>
   <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
+  <div class="navfoot"><button id="aboutBtn" title="Sobre o app">Sobre</button><span id="navVer"></span></div>
 </nav>
 
 <div class="scrim hidden" id="scrim"></div>
@@ -2026,7 +2041,31 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19a";
+const APP_VERSION = "2026.11.19b";
+// ============ SOBRE ============
+function showAbout() {
+  if ($("about")) return;
+  const el = document.createElement("div"); el.id = "about";
+  const n = S.cards.reduce((a, e) => a + (e.qty || 0), 0);
+  el.innerHTML = `<div class="ab" role="dialog" aria-label="Sobre o Biblioteca MTG"><img src="icon-v2-192.png" alt=""><h2>Biblioteca MTG</h2><div class="ver">versão ${APP_VERSION}</div>
+    <p class="tag">Catálogo da coleção de Magic: The Gathering e ferramentas de deckbuilding — tudo sincronizado entre PC e celular, para jogar e montar decks juntos.</p>
+    <ul>
+      <li><b>📷 Escanear</b>Aponte a câmera para a carta e ela entra na coleção, com edição e idioma.</li>
+      <li><b>🗂 Coleção</b>Filtros por cor, tipo, função e preço, e o endereço de cada carta nas caixas.</li>
+      <li><b>🃏 Decks</b>Editor estilo Archidekt, estatísticas, bracket, sugestões do EDHREC e testar mãos.</li>
+      <li><b>👑 EDH</b>Comandantes por cor, preço e precon, com as cartas mais usadas.</li>
+      <li><b>📚 Coleções MTG</b>O jogo inteiro organizado por coleção e ano (no PC).</li>
+      <li><b>⭐ Desejos</b>Lista de compras com faixas de preço, "comprada · a caminho" e cópia para a LigaMagic.</li>
+      <li><b>🏷 Ofertas</b>Cartas que caíram de preço, com histórico em reais.</li>
+      <li><b>📦 Caixas</b>Organização física por cor e custo, com etiquetas para imprimir.</li>
+    </ul>
+    <div class="foot">${n.toLocaleString("pt-BR")} cartas na coleção · ${S.decks.length} decks<br>Dados e imagens: Scryfall · sugestões: EDHREC · preços: Scryfall (convertidos para R$)<br>Magic: The Gathering é marca da Wizards of the Coast. App de fã, sem vínculo oficial.</div>
+    <button class="btn primary" id="abX">Fechar</button></div>`;
+  document.body.appendChild(el);
+  const close = () => { el.remove(); document.removeEventListener("keydown", esc_); }; const esc_ = (e) => { if (e.key === "Escape") close(); };
+  el.onclick = (e) => { if (e.target === el || e.target.id === "abX") close(); }; document.addEventListener("keydown", esc_);
+}
+setTimeout(() => { const v = document.getElementById("navVer"); if (v) v.textContent = "v" + APP_VERSION; const b = document.getElementById("aboutBtn"); if (b) b.onclick = showAbout; }, 0);
 const THEMES = {
   fogo: { n: "Fogo", c: ["#e8413a", "#ff7a45", "#ffc24b"], ink: "#2a0d05", tint: "#ffe2cf", hot: "#221a18" },
   oceano: { n: "Oceano", c: ["#2f7fe0", "#3cc4e0", "#7ff0d6"], ink: "#04222a", tint: "#d4f6fb", hot: "#141f27" },
@@ -2106,7 +2145,7 @@ function renderCfg() {
       ${btnRow("cfBug", "🐞 Reportar bug ou 💡 sugerir melhoria", "Vai junto um diagnóstico do app")}
       ${btnRow("cfBugs", "Bugs e sugestões", "Lista para o pacote de atualização (a cada 2 dias)")}
       ${window.bmtgDesktop || isInstalled() ? "" : /Android|iPhone|iPad/i.test(navigator.userAgent) ? btnRow("cfInst", "📲 Instalar o app", "") : btnRow("cfExe", "💻 Baixar app para Windows (.exe)", "Programa que abre direto, sem instalar · atualiza sozinho") + btnRow("cfInst", "Ou instalar pelo Chrome", "Vira um app do PC pelo próprio navegador")}
-      <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION}<br><button class="btn small" id="cfUpd" style="margin-top:8px">⟳ Procurar atualização</button> <button class="btn small" id="cfForce" style="margin-top:8px">Forçar atualização</button></div>
+      <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION} · <a href="#" id="cfAbout" style="color:var(--accent)">Sobre</a><br><button class="btn small" id="cfUpd" style="margin-top:8px">⟳ Procurar atualização</button> <button class="btn small" id="cfForce" style="margin-top:8px">Forçar atualização</button></div>
     </div></div>`;
   const m = $("main");
   m.querySelectorAll("[data-tgl]").forEach(b => b.onclick = () => { const k = b.dataset.tgl; const on = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", on);
@@ -2119,7 +2158,7 @@ function renderCfg() {
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
-  $("cfUpd").onclick = () => checkUpdate(true); $("cfForce").onclick = forceUpdate;
+  $("cfUpd").onclick = () => checkUpdate(true); $("cfForce").onclick = forceUpdate; $("cfAbout").onclick = (e) => { e.preventDefault(); closeSheet(); showAbout(); };
   $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp; if ($("cfExe")) $("cfExe").onclick = () => window.open("https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe", "_blank");
 }
 function diagText() {
