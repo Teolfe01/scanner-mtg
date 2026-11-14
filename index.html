@@ -2046,7 +2046,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19g";
+const APP_VERSION = "2026.11.19h";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -3475,7 +3475,7 @@ $("zoom").onclick = () => closeZoom();
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeZoom(); });
 document.addEventListener("click", (e) => { const c = e.target.closest(".detail .cardimg, .ed-preview .cardimg"); if (c) { e.stopPropagation(); zoomImg(c); } }, true);
 // ============ EDITOR DE DECKS (estilo Archidekt) ============
-const ED = { id: null, pane: "deck", group: "func", dsort: "cmc", asked: new Set(), mode: "stack", q: "", colors: new Set(), useCI: true, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
+const ED = { id: null, pane: "deck", group: "func", dsort: "cmc", asked: new Set(), mode: "stack", q: "", colors: new Set(), useCI: true, syn: false, type: "", role: "", cmc: "", owned: false, sort: "name", text: false, hover: null };
 const BOARD_NAME = { cmd: "Comandante", main: "Principal", side: "Sideboard", maybe: "Talvez" };
 const isWide = () => window.innerWidth >= 1000;
 const deckOf = () => S.decks.find(d => d.id === ED.id);
@@ -3706,7 +3706,7 @@ function renderEditor() {
 }
 // ---- Busca ----
 function renderSearchPane() {
-  const d = deckOf(); const ci = deckCI(d);
+  const d = deckOf(); const ci = deckCI(d); if (!ED.synInit) { ED.synInit = true; ED.syn = !!S.settings.edSyn; }
   $("edSearch").innerHTML = `
     <input type="search" id="edQ" class="edq" placeholder="Buscar carta — vazio mostra sugestões do EDHREC" value="${esc(ED.q)}">
     <div class="ed-sbox">
@@ -3716,6 +3716,7 @@ function renderSearchPane() {
       <div class="two"><select id="edCmc"><option value="">CMC</option>${["0", "1", "2", "3", "4", "5", "6", "7+"].map(v => `<option${ED.cmc === v ? " selected" : ""}>${v}</option>`).join("")}</select>
         <select id="edQSort"><option value="name">Nome</option>${[["cmc", "Custo: menor"], ["cmc_r", "Custo: maior"], ["price", "Preço: mais caro"], ["price_r", "Preço: mais barato"]].map(([v, n]) => `<option value="${v}"${ED.sort === v ? " selected" : ""}>${n}</option>`).join("")}</select></div>
       <label class="meta ck"><input type="checkbox" id="edOwned" ${ED.owned ? "checked" : ""}> Só cartas que temos</label>
+      ${d.cards.some(c => c.board === "cmd") ? `<label class="meta ck" title="Cartas que o EDHREC marca com sinergia alta com este comandante (aparecem bem mais nos decks dele do que em decks da mesma cor)"><input type="checkbox" id="edSyn" ${ED.syn ? "checked" : ""}> Só com alta sinergia com o comandante <span class="edh-badge" style="padding:1px 6px">EDHREC</span></label>` : ""}
       ${ci ? `<label class="meta ck"><input type="checkbox" id="edCI" ${ED.useCI ? "checked" : ""}> Só na identidade do comandante ${[...ci].map(c => `<i class="ms ms-${c.toLowerCase()} ms-cost"></i>`).join("")}</label>` : ""}
     </div>
     <div class="meta" id="edCount"></div>
@@ -3726,20 +3727,33 @@ function renderSearchPane() {
   $("edType").onchange = (e) => { ED.type = e.target.value; rerun(); }; $("edRole").onchange = (e) => { ED.role = e.target.value; rerun(); };
   $("edCmc").onchange = (e) => { ED.cmc = e.target.value; rerun(); }; $("edQSort").onchange = (e) => { ED.sort = e.target.value; rerun(); };
   $("edOwned").onchange = (e) => { ED.owned = e.target.checked; rerun(); }; if ($("edCI")) $("edCI").onchange = (e) => { ED.useCI = e.target.checked; rerun(); };
+  if ($("edSyn")) $("edSyn").onchange = (e) => { ED.syn = e.target.checked; S.settings.edSyn = ED.syn; save(true); rerun(); };
   $("edResults").onclick = (e) => {
     const info = e.target.closest("[data-info]"); if (info) { cardInfo(+info.dataset.info); return; }
     const b = e.target.closest("[data-add]"); if (!b) return; addToDeck(+b.dataset.add, "main");
   };
   drawResults();
 }
+// Sinergia com o comandante (EDHREC): mapa carta → sinergia, a partir da página do comandante
+const SYN_MIN = 0.2;
+function synMap(d) {
+  const cmd = d.cards.filter(c => c.board === "cmd").map(c => c.oi); if (!cmd.length) return null; const slug = cmdSlug(cmd);
+  if (ED.synSlug === slug && ED.synMap) return ED.synMap;
+  if (ED.synLoading === slug) return undefined; ED.synLoading = slug;
+  edh("commanders/" + slug).then(j => { const m = new Map();
+    for (const l of j.container.json_dict.cardlists || []) for (const v of l.cardviews || []) { const oi = edhOi(v.name); if (oi === undefined) continue; const sy = v.synergy || 0; const hi = /high synergy/i.test(l.header || ""); if (sy >= SYN_MIN || hi) m.set(oi, Math.max(m.get(oi) || 0, sy)); }
+    ED.synMap = m; ED.synSlug = slug; ED.synLoading = null; if ($("edResults")) drawResults();
+  }).catch(() => { ED.synLoading = null; ED.synMap = new Map(); ED.synSlug = slug; toast("Não consegui acessar o EDHREC agora."); if ($("edResults")) drawResults(); });
+  return undefined;
+}
 function searchCards() {
-  const d = deckOf(); const ci = ED.useCI ? deckCI(d) : null;
+  const d = deckOf(); const ci = ED.useCI ? deckCI(d) : null; const syn = ED.syn ? synMap(d) : null;
   const q = norm(ED.q); const ownedSet = ED.owned ? new Set(S.cards.map(e => e.oi)) : null;
   const inDeck = new Set(d.cards.filter(c => c.board !== "maybe" && !/Basic Land/.test(DB.o[c.oi][5])).map(c => c.oi));
   const out = []; const LIM = 120; let total = 0;
-  const list = ownedSet ? [...ownedSet] : DB.o.map((_, i) => i);
+  const list = syn ? [...syn.keys()] : ownedSet ? [...ownedSet] : DB.o.map((_, i) => i);
   for (const i of list) {
-    const o = DB.o[i]; if (inDeck.has(i)) continue;
+    const o = DB.o[i]; if (inDeck.has(i)) continue; if (syn && ownedSet && !ownedSet.has(i)) continue;
     if (q && !norm(o[0]).includes(q) && !ptN(i).includes(q) && !norm(o[5]).includes(q) && !(q.length > 3 && norm(o[6]).includes(q))) continue;
     if (ci && o[4] && o[4].split("").some(c => !ci.has(c))) continue;
     if (ED.colors.size) { const cols = o[3]; if (ED.colors.has("C") ? cols : ![...ED.colors].every(c => cols.includes(c))) continue; }
@@ -3750,7 +3764,7 @@ function searchCards() {
     total++; if (out.length < 600) out.push(i);
   }
   const pr = (i) => { const pi = defaultPrint(i); return pi >= 0 ? DB.p[pi][6] || 0 : 0; };
-  out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "cmc_r" ? (a, b) => DB.o[b][2] - DB.o[a][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : ED.sort === "price_r" ? (a, b) => (pr(a) || 1e9) - (pr(b) || 1e9) : q ? (a, b) => ((norm(DB.o[b][0]).startsWith(q) || ptN(b).startsWith(q)) - (norm(DB.o[a][0]).startsWith(q) || ptN(a).startsWith(q))) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
+  if (syn && ED.sort === "name") out.sort((a, b) => syn.get(b) - syn.get(a)); else out.sort(ED.sort === "cmc" ? (a, b) => DB.o[a][2] - DB.o[b][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "cmc_r" ? (a, b) => DB.o[b][2] - DB.o[a][2] || DB.o[a][0].localeCompare(DB.o[b][0]) : ED.sort === "price" ? (a, b) => pr(b) - pr(a) : ED.sort === "price_r" ? (a, b) => (pr(a) || 1e9) - (pr(b) || 1e9) : q ? (a, b) => ((norm(DB.o[b][0]).startsWith(q) || ptN(b).startsWith(q)) - (norm(DB.o[a][0]).startsWith(q) || ptN(a).startsWith(q))) || DB.o[a][0].localeCompare(DB.o[b][0]) : (a, b) => DB.o[a][0].localeCompare(DB.o[b][0]));
   return { list: out.slice(0, LIM), total };
 }
 async function drawEdhRecs(d) {
@@ -3762,7 +3776,7 @@ async function drawEdhRecs(d) {
   const inDeck = new Set(d.cards.map(c => c.oi)); const own = ED.owned ? new Set(S.cards.map(e => e.oi)) : null; const hideIn = true; // com um deck aberto, as que já estão nele nunca aparecem nas sugestões
   const lists = j.container.json_dict.cardlists; let shown = 0;
   const html = lists.map(l => {
-    const cards = l.cardviews.map(v => ({ v, oi: edhOi(v.name) })).filter(x => x.oi !== undefined && !(hideIn && inDeck.has(x.oi)) && !(own && !own.has(x.oi)));
+    const cards = l.cardviews.map(v => ({ v, oi: edhOi(v.name) })).filter(x => x.oi !== undefined && !(hideIn && inDeck.has(x.oi)) && !(own && !own.has(x.oi)) && !(ED.syn && !((x.v.synergy || 0) >= SYN_MIN || /high synergy/i.test(l.header || ""))));
     if (!cards.length) return ""; shown += cards.length;
     return `<div class="edh-h" style="grid-column:1/-1"><span>${esc(EDH_PT[l.header] || l.header)}</span><span class="meta">${cards.length}</span></div>` + cards.map(({ v, oi }) => {
       const pct = v.potential_decks ? Math.round(v.num_decks * 100 / v.potential_decks) : 0; const lib = libFor(oi); const n = d.cards.filter(c => c.oi === oi).reduce((a, c) => a + c.qty, 0);
@@ -3777,9 +3791,11 @@ async function drawEdhRecs(d) {
 function drawResults() {
   if (!$("edResults")) return;
   const hasFilter = ED.q || ED.colors.size || ED.type || ED.role || ED.cmc || ED.owned;
+  const dd0 = deckOf(); const synOn = ED.syn && dd0.cards.some(c => c.board === "cmd");
+  if (synOn && (ED.q || ED.colors.size || ED.type || ED.role || ED.cmc) && synMap(dd0) === undefined) { $("edCount").textContent = "Carregando sinergias do EDHREC…"; return; }
   if (!hasFilter || (ED.owned && !ED.q && !ED.colors.size && !ED.type && !ED.role && !ED.cmc)) { const dd = deckOf(); if (P().edhrec && dd.cards.some(c => c.board === "cmd")) return drawEdhRecs(dd); if (!hasFilter) { $("edCount").textContent = "Digite um nome ou use os filtros."; $("edResults").innerHTML = ""; return; } }
   const { list, total } = searchCards(); const d = deckOf();
-  $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
+  $("edCount").textContent = `${total} carta${total === 1 ? "" : "s"}${synOn ? " com alta sinergia" : ""}${total > list.length ? ` (mostrando ${list.length})` : ""}`;
   keepImgs($("edResults"), () => $("edResults").innerHTML = list.map(i => {
     const inD = d.cards.filter(c => c.oi === i).reduce((a, c) => a + c.qty, 0); const lib = libFor(i);
     return `<div class="res" data-oi="${i}"><button class="resimg" data-add="${i}" title="Adicionar ao deck">${cardImgHTML(fakeEntry({ oi: i }), { bare: true })}${inD ? `<span class="inb">${inD}</span>` : ""}${lib ? `<span class="ownb" title="Temos ${lib} livre(s)">✓</span>` : ""}${locBadge(i, ED.id)}</button><button class="resname" data-info="${i}">${esc(DB.o[i][0])}</button></div>`;
