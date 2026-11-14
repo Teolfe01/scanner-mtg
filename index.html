@@ -2044,7 +2044,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19d";
+const APP_VERSION = "2026.11.19e";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2450,18 +2450,29 @@ function moveMenu(x, y, oi, from, key, after) {
 }
 // deck de onde o clique veio (página do deck ou editor)
 const ctxDeckId = () => tab === "decks" && view && (view.kind === "deck" || view.kind === "edit") ? (view.id || ED.id) : null;
+// "Trocar edição" vale em qualquer lugar: desejada, carta da coleção (ou, se for só referência, a desejada dessa carta)
+let CTXEL = null;
+function editionItem(oi) {
+  const el = CTXEL; CTXEL = null;
+  const we = el && el.closest && el.closest("[data-wid]"); const w = we ? S.wish.find(x => x.id === we.dataset.wid) : null;
+  if (w) return [["🎨 Trocar edição…", () => wishPickPrint(w, false)]];
+  const ke = el && el.closest && el.closest("[data-k]"); const e = ke ? S.cards.find(x => x.key === ke.dataset.k) : null;
+  if (e) return [["🎨 Trocar edição / tratamento…", () => pickVersion(e.oi, "", (r) => { const nk = changeEntry(e, { set: r.set, number: normNum(r.number), ...(r.foilOnly ? { foil: true } : {}) }, e.qty); if (nk) { toast(`${DB.o[e.oi][0]} → ${r.set.toUpperCase()} #${r.number}`, 1600); if (tab === "col") drawCol(); } }, { set: e.set, number: e.number })]];
+  const w2 = wishHas(oi); if (w2) return [["🎨 Trocar edição da desejada…", () => wishPickPrint(w2, false)]];
+  return [];
+}
 function wishCtx(x, y, oi) {
-  const loc = locLines(oi);
+  const loc = locLines(oi); const ed = editionItem(oi);
   const did = ctxDeckId(); const fromHere = did && haveFor(S.decks.find(d => d.id === did) || { id: "" }, oi) > 0;
   ctxMenu(x, y, [{ head: DB.o[oi][0] }, ...(loc.length ? [{ head: "Onde vocês têm" }, ...loc.map(l => ({ hint: l })), "-"] : [{ hint: "Vocês não têm essa carta" }, "-"]),
-    ...(loc.length ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), ...wishBuyItems(oi), wishItem(oi), ...(S.decks.length ? [["⭐ Desejar + Talvez de um deck…", () => { const did = ctxDeckId(); const d = did && S.decks.find(z => z.id === did); d ? maybeWish(d, oi) : maybeWishMenu(x, y, oi); }]] : []), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
+    ...(loc.length ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), ...wishBuyItems(oi), ...ed, wishItem(oi), ...(S.decks.length ? [["⭐ Desejar + Talvez de um deck…", () => { const did = ctxDeckId(); const d = did && S.decks.find(z => z.id === did); d ? maybeWish(d, oi) : maybeWishMenu(x, y, oi); }]] : []), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
 }
 // botão direito em qualquer carta que ainda não tenha menu próprio
 document.addEventListener("contextmenu", (e) => {
   if (e.defaultPrevented || e.target.closest("input, textarea, .ctxm, #pt")) return;
-  if (Date.now() - LP.touchAt < 1200) { const oi = oiFromEl(e.target); if (oi === undefined) return; e.preventDefault(); clearTimeout(LP.t); if (DRAG.on || $("ctxm")) return; if (navigator.vibrate) navigator.vibrate(12); LP.eat = Date.now(); wishCtx(e.clientX, e.clientY - 10, oi); return; }
+  if (Date.now() - LP.touchAt < 1200) { const oi = oiFromEl(e.target); if (oi === undefined) return; e.preventDefault(); clearTimeout(LP.t); if (DRAG.on || $("ctxm")) return; if (navigator.vibrate) navigator.vibrate(12); LP.eat = Date.now(); CTXEL = e.target; wishCtx(e.clientX, e.clientY - 10, oi); return; }
   const oi = oiFromEl(e.target); if (oi === undefined) return;
-  e.preventDefault(); wishCtx(e.clientX, e.clientY, oi);
+  e.preventDefault(); CTXEL = e.target; wishCtx(e.clientX, e.clientY, oi);
 });
 // toque longo (celular): mesmo menu
 const LP = { touchAt: 0, t: 0, eat: 0 };
@@ -2475,7 +2486,7 @@ document.addEventListener("pointerdown", (e) => {
   const cancel = () => { clearTimeout(LP.t); window.removeEventListener("pointermove", mv, true); window.removeEventListener("pointerup", cancel, true); window.removeEventListener("pointercancel", cancel, true); };
   const mv = (ev) => { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 10) cancel(); };
   window.addEventListener("pointermove", mv, true); window.addEventListener("pointerup", cancel, true); window.addEventListener("pointercancel", cancel, true);
-  LP.t = setTimeout(() => { cancel(); if (DRAG.on || $("ctxm")) return; if (navigator.vibrate) navigator.vibrate(12); LP.eat = Date.now(); wishCtx(x0, y0 - 10, oi); }, 520);
+  LP.t = setTimeout(() => { cancel(); if (DRAG.on || $("ctxm")) return; if (navigator.vibrate) navigator.vibrate(12); LP.eat = Date.now(); CTXEL = LP.el; wishCtx(x0, y0 - 10, oi); }, 520);
 }, true);
 
 function renderWish() {
@@ -2572,11 +2583,8 @@ function wishSheet(id) {
   $("wGot").onclick = () => { keep(); if (w.set) addToCollection({ oi: w.oi, set: w.set, number: w.number, qty: w.qty }); wishDel(w.id); closeSheet(); renderWish(); toast(`✓ ${w.qty}× ${w.name} na coleção`); };
   $("wVer").onclick = () => { keep(); closeSheet(); setTimeout(() => wishPickPrint(w), 60); };
 }
-function wishPickPrint(w) {
-  const ps = (DB.prints[w.oi] || []).slice().sort((a, b) => (DB.p[b][5] || "").localeCompare?.(DB.p[a][5] || "") || 0);
-  openSheet(`<h3 style="margin:0">Edição de ${esc(w.name)}</h3><div class="grid" id="wpL" style="margin-top:8px">${ps.slice(0, 120).map(pi => `<button class="tile" data-pi="${pi}"><span class="tname">${esc(DB.p[pi][0].toUpperCase())} #${esc(DB.p[pi][1])}</span>${cardImgHTML({ oi: w.oi, set: DB.p[pi][0], number: DB.p[pi][1] }, { bare: true })}</button>`).join("")}</div>`, `<button class="btn" id="wpX">Cancelar</button>`);
-  $("wpX").onclick = () => { closeSheet(); wishSheet(w.id); };
-  $("wpL").onclick = (e) => { const t = e.target.closest("[data-pi]"); if (!t) return; const p = DB.p[+t.dataset.pi]; w.set = p[0]; w.number = p[1]; save(); closeSheet(); wishSheet(w.id); };
+function wishPickPrint(w, back = true) {
+  pickVersion(w.oi, "", (r) => { w.set = r.set; w.number = normNum(r.number); save(); toast(`${w.name} → ${r.set.toUpperCase()} #${r.number}`, 1600); if (tab === "wish") drawWish(); if (back) setTimeout(() => wishSheet(w.id), 60); }, { set: w.set, number: w.number });
 }
 async function wishCopy(list) { list = Array.isArray(list) ? list : S.wish.filter(w => !w.buy); if (!list.length) return toast("Nada para copiar"); const t = list.map(w => `${w.qty} ${w.name.split(" // ")[0]}`).join("\n"); try { await navigator.clipboard.writeText(t); toast(`${list.length} carta(s) copiada(s) — cole em "Busca por lista" na LigaMagic`, 3000); } catch { download("desejadas.txt", t); } }
 async function wishByName() {
