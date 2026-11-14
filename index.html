@@ -2046,7 +2046,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19h";
+const APP_VERSION = "2026.11.19i";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2163,7 +2163,8 @@ function renderCfg() {
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
-  $("cfUpd").onclick = () => checkUpdate(true); $("cfForce").onclick = forceUpdate; $("cfAbout").onclick = (e) => { e.preventDefault(); closeSheet(); showAbout(); };
+  $("cfUpd").onclick = async () => { checkUpdate(true); const B = window.bmtgDesktop; if (B && B.checkExeUpdate) { const r = await B.checkExeUpdate(); if (r && r.latest) toast(`App do Windows em dia (${r.version})`); } };
+  if (window.bmtgDesktop && window.bmtgDesktop.exeVersion) window.bmtgDesktop.exeVersion().then(v => { const el = $("cfAbout"); if (el && v) el.insertAdjacentText("beforebegin", `app Windows ${v} · `); }).catch(() => {}); $("cfForce").onclick = forceUpdate; $("cfAbout").onclick = (e) => { e.preventDefault(); closeSheet(); showAbout(); };
   $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp; if ($("cfExe")) $("cfExe").onclick = () => window.open("https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe", "_blank");
 }
 function diagText() {

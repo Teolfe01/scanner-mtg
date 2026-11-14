@@ -18,12 +18,15 @@ jobs:
         run: |
           npm install --no-audit --no-fund
           npx electron-builder --win portable --publish never
+          node -e "require('fs').writeFileSync('dist/desktop-version.json', JSON.stringify({version: require('./package.json').version, at: Date.now()}))"
       - name: Publicar
         uses: softprops/action-gh-release@v2
         with:
           tag_name: desktop
           name: Biblioteca MTG para Windows
           make_latest: false
-          files: desktop-app/dist/BibliotecaMTG.exe
+          files: |
+            desktop-app/dist/BibliotecaMTG.exe
+            desktop-app/dist/desktop-version.json
           overwrite_files: true
           body: "Baixe o BibliotecaMTG.exe e abra — não precisa instalar. O app se atualiza sozinho."

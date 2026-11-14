@@ -1,7 +1,7 @@
 // Biblioteca MTG para Windows: janela própria que abre o app publicado (atualiza sozinho).
 // Login do Google: o Google bloqueia login dentro de apps como este, então o login abre no navegador
 // padrão e a conta volta para cá por um endereço local (127.0.0.1) que só este app escuta.
-const { app, BrowserWindow, shell, session, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, shell, session, ipcMain, dialog, net } = require("electron");
 const http = require("http");
 const fs = require("fs");
 const crypto = require("crypto");
@@ -104,8 +104,53 @@ function fixShortcuts() {
   try { const sm = path.join(ad, "Microsoft", "Windows", "Start Menu", "Programs", "Biblioteca MTG.lnk"); if (!fs.existsSync(sm)) { shell.writeShortcutLink(sm, "create", opts); changed = true; } } catch (e) { log("menu iniciar", e); }
   if (changed) { try { require("child_process").spawn("ie4uinit.exe", ["-show"], { detached: true, stdio: "ignore" }).unref(); } catch (e) {} }
 }
+// ===== Atualização do próprio .exe =====
+// A página (cartas, telas) já se atualiza sozinha. Isto aqui cuida de quando sai um .exe novo:
+// avisa, baixa, fecha, troca o arquivo no mesmo lugar e abre de novo.
+const REL = "https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/";
+const newer = (a, b) => { const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+let UPD_BUSY = false, UPD_SKIP = "";
+async function checkExeUpdate(manual) {
+  if (UPD_BUSY || !process.env.PORTABLE_EXECUTABLE_FILE) { if (manual && !process.env.PORTABLE_EXECUTABLE_FILE) return { ok: false, msg: "modo de desenvolvimento" }; return { ok: false }; }
+  let info; try { const r = await net.fetch(REL + "desktop-version.json?t=" + Date.now(), { cache: "no-store" }); info = await r.json(); } catch (e) { log("checar versão", e); return { ok: false, msg: "sem internet" }; }
+  log("versão publicada", info.version, "esta", app.getVersion());
+  if (!newer(info.version, app.getVersion())) return { ok: true, latest: true, version: app.getVersion() };
+  if (!manual && UPD_SKIP === info.version) return { ok: true, available: info.version };
+  if (win && !win.isDestroyed()) win.webContents.send("exe-update", { version: info.version, current: app.getVersion() });
+  const r = await dialog.showMessageBox(win, { type: "info", buttons: ["Atualizar agora", "Depois"], defaultId: 0, cancelId: 1, title: "Atualização do Biblioteca MTG",
+    message: `Tem uma versão nova do app para Windows (${info.version}).`, detail: `Você está na ${app.getVersion()}. O app baixa a nova versão, fecha e abre de novo sozinho (leva menos de 1 minuto). Nada da coleção muda: está tudo na nuvem.` });
+  if (r.response !== 0) { UPD_SKIP = info.version; return { ok: true, available: info.version }; }
+  await installExe(info.version); return { ok: true, installing: true };
+}
+async function installExe(version) {
+  UPD_BUSY = true;
+  const os = require("os"); const tmp = path.join(os.tmpdir(), "BibliotecaMTG-" + version + ".exe");
+  try {
+    if (win && !win.isDestroyed()) win.setProgressBar(2);
+    const res = await net.fetch(REL + "BibliotecaMTG.exe?t=" + Date.now(), { cache: "no-store" }); if (!res.ok) throw new Error("download " + res.status);
+    const total = +res.headers.get("content-length") || 0; const reader = res.body.getReader(); const out = fs.createWriteStream(tmp); let got = 0;
+    for (;;) { const { done, value } = await reader.read(); if (done) break; got += value.length; out.write(Buffer.from(value)); if (total && win && !win.isDestroyed()) win.setProgressBar(got / total); }
+    await new Promise((ok, bad) => { out.on("error", bad); out.end(ok); });
+    if (total && fs.statSync(tmp).size !== total) throw new Error("download incompleto");
+    // script que espera o app fechar, troca o .exe e abre de novo (tenta por até ~2 minutos, o Windows segura o arquivo por uns segundos)
+    const cmd = path.join(os.tmpdir(), "bmtg-update.cmd");
+    fs.writeFileSync(cmd, [
+      "@echo off", "set n=0", ":retry", "timeout /t 2 /nobreak >nul", "set /a n+=1",
+      `copy /y "${tmp}" "${REAL_EXE}" >nul 2>&1`, "if errorlevel 1 (if %n% lss 60 goto retry)",
+      `del "${tmp}" >nul 2>&1`, `start "" "${REAL_EXE}"`, `del "%~f0"`].join("\r\n"));
+    log("atualizando para", version, "->", REAL_EXE);
+    require("child_process").spawn("cmd.exe", ["/c", cmd], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    app.quit();
+  } catch (e) {
+    log("atualização falhou", e); UPD_BUSY = false; if (win && !win.isDestroyed()) win.setProgressBar(-1);
+    dialog.showMessageBox(win, { type: "warning", title: "Biblioteca MTG", message: "Não consegui baixar a atualização agora.", detail: "Tento de novo mais tarde. Se preferir, baixe o .exe novo manualmente." });
+  }
+}
+ipcMain.handle("exe-update-check", () => checkExeUpdate(true));
+ipcMain.handle("exe-version", () => app.getVersion());
 app.whenReady().then(() => {
   setTimeout(fixShortcuts, 3000);
+  setTimeout(() => checkExeUpdate(false), 8000); setInterval(() => checkExeUpdate(false), 6 * 3600e3);
   // câmera (webcam no scanner) e microfone (comandos de voz) só para o app
   log("pronto");
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
