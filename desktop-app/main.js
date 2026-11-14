@@ -17,7 +17,14 @@ const APP_ID = "io.github.teolfe01.bibliotecamtg.desktop";
 const REAL_EXE = process.env.PORTABLE_EXECUTABLE_FILE || process.execPath;
 // ícone fixo em %APPDATA% (a cópia temporária do .exe some ao fechar; o atalho fixado precisa de um ícone que continue existindo)
 let ICON = path.join(__dirname, "icon.ico");
-try { const dst = path.join(app.getPath("userData"), "icon.ico"); fs.mkdirSync(path.dirname(dst), { recursive: true }); fs.copyFileSync(ICON, dst); ICON = dst; } catch (e) {}
+// Só copia se faltar ou mudar: o Windows (Explorer) costuma deixar o arquivo em uso, e se a cópia falhava o atalho fixado
+// passava a apontar para o ícone da pasta temporária — que some ao fechar, deixando o ícone em branco.
+try {
+  const dst = path.join(app.getPath("userData"), "icon.ico"); fs.mkdirSync(path.dirname(dst), { recursive: true });
+  const src = fs.readFileSync(ICON); let cur = null; try { cur = fs.readFileSync(dst); } catch (e) {}
+  if (!cur || !cur.equals(src)) { try { fs.writeFileSync(dst, src); } catch (e) { const alt = path.join(app.getPath("userData"), "icon-" + Date.now() + ".ico"); fs.writeFileSync(alt, src); ICON = alt; } }
+  if (ICON === path.join(__dirname, "icon.ico")) ICON = dst;
+} catch (e) {}
 if (process.platform === "win32") app.setAppUserModelId(APP_ID);
 
 // registro de erros em %APPDATA%\\Biblioteca MTG\\log.txt
@@ -74,7 +81,31 @@ function createWindow() {
   });
 }
 
+// Conserta atalhos fixados (barra de tarefas / Iniciar) que apontem para a cópia temporária ou para um ícone que sumiu,
+// e garante um atalho no menu Iniciar com o ícone certo.
+function fixShortcuts() {
+  if (process.platform !== "win32") return;
+  const ad = app.getPath("appData"); let changed = false;
+  const opts = { target: REAL_EXE, cwd: path.dirname(REAL_EXE), icon: ICON, iconIndex: 0, appUserModelId: APP_ID, description: "Biblioteca MTG" };
+  const dirs = [path.join(ad, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar"), path.join(ad, "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "StartMenu"), path.join(ad, "Microsoft", "Windows", "Start Menu", "Programs"), path.join(app.getPath("desktop"))];
+  for (const d of dirs) {
+    let files = []; try { files = fs.readdirSync(d).filter(f => f.toLowerCase().endsWith(".lnk")); } catch (e) { continue; }
+    for (const f of files) {
+      const p = path.join(d, f);
+      try {
+        const l = shell.readShortcutLink(p);
+        const ours = l.appUserModelId === APP_ID || /biblioteca ?mtg/i.test(f + " " + (l.target || ""));
+        if (!ours) continue;
+        const bad = l.target !== REAL_EXE || (l.icon || "") !== ICON || !fs.existsSync(l.icon || "") || l.appUserModelId !== APP_ID;
+        if (bad) { shell.writeShortcutLink(p, "replace", opts); changed = true; log("atalho consertado:", p, "era", l.target, l.icon); }
+      } catch (e) { log("atalho", p, e); }
+    }
+  }
+  try { const sm = path.join(ad, "Microsoft", "Windows", "Start Menu", "Programs", "Biblioteca MTG.lnk"); if (!fs.existsSync(sm)) { shell.writeShortcutLink(sm, "create", opts); changed = true; } } catch (e) { log("menu iniciar", e); }
+  if (changed) { try { require("child_process").spawn("ie4uinit.exe", ["-show"], { detached: true, stdio: "ignore" }).unref(); } catch (e) {} }
+}
 app.whenReady().then(() => {
+  setTimeout(fixShortcuts, 3000);
   // câmera (webcam no scanner) e microfone (comandos de voz) só para o app
   log("pronto");
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb, details) => {
