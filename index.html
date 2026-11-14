@@ -664,6 +664,9 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 nav.bottom > button.pconly { display: none; }
 .tile.wbought { outline: 2px solid rgba(80,200,140,.55); outline-offset: -2px; } .tile.wbought .cardimg img { opacity: .8; }
 .pill.wact { cursor: pointer; } .pill.wact:hover { filter: brightness(1.3); }
+.pendbox { padding: 12px 14px; margin-bottom: 12px; border: 1px solid rgba(255,190,80,.35); display: grid; gap: 6px; }
+.pendrow { display: flex; gap: 8px; align-items: center; } .pendrow > span { flex: 1; }
+html.guest #title::after { content: "👁 só leitura"; font-size: 12px; font-weight: 600; color: #ffd36b; margin-left: 10px; vertical-align: middle; }
 .allwrap { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 16px; align-items: start; }
 .allsets { position: sticky; top: 8px; max-height: calc(100vh - 120px); overflow: auto; background: var(--card); border-radius: 8px; padding: 8px; }
 .allsets input { width: 100%; margin-bottom: 6px; }
@@ -1062,6 +1065,23 @@ function defaultPrint(oi) {
 const priceOf = (e) => brlOf(e.set, e.number, e.foil);
 const rarityOf = (e) => { const pi = DB.bySetNum.get(e.set + "|" + normNum(e.number)); return pi === undefined ? "c" : DB.p[pi][2]; };
 
+// ============ Qual biblioteca está aberta ============
+// "principal" = a de Teo e Julia (compartilhada). Convidados (ex.: irmão) veem a principal só para leitura e podem ter uma própria (libs/u_<uid>).
+// Admin (Teo): dá e tira permissões. Editores: mexem em tudo. Convidados: só leitura + decks para aprovação.
+// A lista fica na nuvem em libs/principal/meta/access ({ editors: [...], guests: [...] }); as regras do Firestore usam a mesma lista.
+const ADMIN = "teolfe@gmail.com";
+const OWNERS = ["teolfe@gmail.com", "juliagava0@gmail.com"]; // só até a lista da nuvem chegar
+const ACCESS = { editors: null, guests: [] };
+const PEND = { list: [], mine: new Map(), warned: 0 };
+const myEmail = () => ((CLOUD.user && CLOUD.user.email) || "").toLowerCase();
+function isAdmin() { return myEmail() === ADMIN; }
+function isOwner() { const e = myEmail(); if (!e) return false; return e === ADMIN || (ACCESS.editors ? ACCESS.editors.includes(e) : OWNERS.includes(e)); }
+// convidado olhando a biblioteca principal: só leitura; decks que ele monta viram "aprovação pendente"
+function isGuest() { return LIB === "principal" && !!CLOUD.user && !isOwner(); }
+const LIB = (() => { try { return localStorage.getItem("bmtg.lib") || "principal"; } catch (e) { return "principal"; } })();
+const LIB_KEYS = new Set(["cards", "decks", "boxes", "wish", "liga"]);
+const lk = (k) => LIB !== "principal" && LIB_KEYS.has(k) ? LIB + ":" + k : k;
+function switchLib(id) { try { localStorage.setItem("bmtg.lib", id); } catch (e) {} location.reload(); }
 // ============ Armazenamento local (IndexedDB) ============
 const store = {
   db: null,
@@ -1069,8 +1089,8 @@ const store = {
   mem: null,
   async open() { try { this.db = await Promise.race([new Promise((res, rej) => { const r = indexedDB.open("biblioteca-mtg", 1); r.onupgradeneeded = () => r.result.createObjectStore("kv"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("bloqueado")); }), new Promise((_, rej) => setTimeout(() => rej(new Error("tempo esgotado")), 5000))]); }
     catch (e) { this.db = null; this.mem = new Map(); window.__storeErr = "Banco local indisponível (" + (e && e.message || e) + ")"; } },
-  async get(k) { if (!this.db) return this.mem.get(k); return Promise.race([new Promise(r => setTimeout(() => { if (this.db) { this.db = null; this.mem = new Map(); window.__storeErr = "Banco local não respondeu"; } r(undefined); }, 2500)), new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); })]); },
-  async set(k, v) { if (!this.db) { this.mem.set(k, v); return; } return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
+  async get(k) { k = lk(k); if (!this.db) return this.mem.get(k); return Promise.race([new Promise(r => setTimeout(() => { if (this.db) { this.db = null; this.mem = new Map(); window.__storeErr = "Banco local não respondeu"; } r(undefined); }, 2500)), new Promise((res) => { const t = this.db.transaction("kv").objectStore("kv").get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(undefined); })]); },
+  async set(k, v) { k = lk(k); if (!this.db) { this.mem.set(k, v); return; } return new Promise((res, rej) => { const t = this.db.transaction("kv", "readwrite"); t.objectStore("kv").put(v, k); t.oncomplete = () => res(); t.onerror = () => rej(t.error); }); }
 };
 const S = { cards: [], decks: [], boxes: { capacity: 250, layout: null }, settings: {}, liga: {}, wish: [] };
 let saveT = 0;
@@ -1496,7 +1516,7 @@ async function makeBackup(reason = "auto") {
   return ref.id;
 }
 async function autoBackup() {
-  if (BK.running || !cloudReady()) return; BK.running = true;
+  if (BK.running || !cloudReady() || isGuest()) return; BK.running = true;
   try {
     const m = await base().collection("meta").doc("backup").get();
     const last = m.exists ? m.data().lastAt || 0 : 0;
@@ -1547,6 +1567,48 @@ function restoreBackup(id, meta) {
 const deckCount = (d, board) => d.cards.filter(c => !board || c.board === board).reduce((a, c) => a + c.qty, 0);
 function haveFor(d, oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + ((e.decks || {})[d.id] || 0), 0); }
 function libFor(oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + freeQty(e), 0); }
+async function guestsSheet() {
+  let ed = [], gs = [];
+  try { const d = await base().collection("meta").doc("access").get(); if (d.exists) { ed = d.data().editors || []; gs = d.data().guests || []; } } catch (e) {}
+  if (!ed.length) ed = OWNERS.filter(x => x !== ADMIN);
+  const ROLE = { editor: "✏️ Editor — mexe em tudo", guest: "👁 Convidado — vê tudo; decks ficam para aprovação" };
+  const draw = () => {
+    const people = [...ed.map(e => [e, "editor"]), ...gs.map(e => [e, "guest"])];
+    openSheet(`<h3 style="margin:0">👑 Permissões</h3><p class="meta" style="margin:0">Você (${esc(ADMIN)}) é o admin: sempre pode tudo e é o único que muda permissões. Convidados também podem ter uma biblioteca própria, separada.</p>
+      <div class="rows">${people.map(([e, r]) => `<div class="row" style="grid-template-columns:1fr auto auto;gap:8px"><span><b>${esc(e)}</b><br><span class="meta">${ROLE[r]}</span></span>
+        <select data-gr="${esc(e)}"><option value="editor"${r === "editor" ? " selected" : ""}>Editor</option><option value="guest"${r === "guest" ? " selected" : ""}>Convidado</option></select><button class="btn small danger" data-gx="${esc(e)}">Tirar acesso</button></div>`).join("") || `<div class="meta">Ninguém além de você.</div>`}</div>
+      <div class="two"><input type="email" id="gNew" placeholder="e-mail Google da pessoa"><select id="gRole"><option value="guest">Convidado</option><option value="editor">Editor</option></select></div>`,
+      `<button class="btn" id="gX">Fechar</button><button class="btn primary" id="gAdd">Dar acesso</button>`);
+    $("gX").onclick = closeSheet;
+    $("gAdd").onclick = () => { const e = ($("gNew").value || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast("E-mail inválido"); if (e === ADMIN) return toast("Esse é o admin"); ed = ed.filter(x => x !== e); gs = gs.filter(x => x !== e); ($("gRole").value === "editor" ? ed : gs).push(e); put(); };
+    $("sheetBody").onchange = (ev) => { const sl = ev.target.closest("[data-gr]"); if (!sl) return; const e = sl.dataset.gr; ed = ed.filter(x => x !== e); gs = gs.filter(x => x !== e); (sl.value === "editor" ? ed : gs).push(e); put(); };
+    $("sheetBody").onclick = (ev) => { const b = ev.target.closest("[data-gx]"); if (!b) return; if (!confirm(`Tirar o acesso de ${b.dataset.gx}?`)) return; ed = ed.filter(x => x !== b.dataset.gx); gs = gs.filter(x => x !== b.dataset.gx); put(); };
+  };
+  const put = async () => { try { await base().collection("meta").doc("access").set({ editors: ed, guests: gs, by: myEmail(), at: Date.now() }); toast("Permissões salvas"); } catch (e) { toast("Erro: " + (e.code || e.message)); } draw(); };
+  draw();
+}
+// Aprovações pendentes (decks montados por convidados). Para Teo/Julia: aprovar/recusar. Para o convidado: aviso.
+function pendingBanner() {
+  setTimeout(() => {
+    const m = $("main"); if (!m || tab !== "decks" || view) return; const old = $("pendBox"); if (old) old.remove();
+    if (!PEND.list.length || !CLOUD.user) return;
+    const box = document.createElement("div"); box.id = "pendBox"; box.className = "card pendbox";
+    if (isGuest()) box.innerHTML = `<b>⏳ Aguardando aprovação</b><div class="meta">${PEND.list.map(p => esc(p.name) + (p.isNew ? " (novo)" : " (alterado)")).join(" · ")}</div><div class="meta">O Teo ou a Julia aprovam; até lá nada muda na coleção.</div>`;
+    else box.innerHTML = `<b>⏳ Decks aguardando aprovação</b>${PEND.list.map(p => `<div class="pendrow"><span><b>${esc(p.name)}</b> <span class="meta">${p.isNew ? "novo" : "alteração"} · ${esc(p.by.split("@")[0])} · ${new Date(p.at).toLocaleDateString("pt-BR")}</span></span><button class="btn small" data-pv="${esc(p._id)}">Ver</button><button class="btn small primary" data-pa="${esc(p._id)}">Aprovar</button><button class="btn small danger" data-pr="${esc(p._id)}">Recusar</button></div>`).join("")}`;
+    m.prepend(box);
+    box.onclick = async (e) => {
+      const b = e.target.closest("[data-pa],[data-pr],[data-pv]"); if (!b) return; e.stopPropagation();
+      const p = PEND.list.find(x => x._id === (b.dataset.pa || b.dataset.pr || b.dataset.pv)); if (!p) return; let d; try { d = JSON.parse(p.deck); } catch (er) { return; }
+      if (b.dataset.pv) { const txt = d.cards.map(c => `${c.qty} ${DB.o[c.oi] ? DB.o[c.oi][0] : "?"}${c.board !== "main" ? " (" + (BOARD_NAME[c.board] || c.board) + ")" : ""}`).join("\n");
+        return openSheet(`<h3 style="margin:0">${esc(p.name)}</h3><div class="meta">${p.isNew ? "Deck novo" : "Alteração de deck existente"} de ${esc(p.by)}</div><pre style="white-space:pre-wrap;max-height:55vh;overflow:auto">${esc(txt)}</pre>`, `<button class="btn" onclick="closeSheet()">Fechar</button>`); }
+      if (b.dataset.pa) { const i = S.decks.findIndex(x => x.id === d.id); if (i >= 0) { const o = S.decks[i]; Object.keys(o).forEach(k => delete o[k]); Object.assign(o, d); } else S.decks.push(d); save(); toast(`✓ ${p.name} aprovado`); }
+      else if (!confirm(`Recusar ${p.name}?`)) return; else toast("Recusado");
+      try { await base().collection("pending").doc(p._id).delete(); } catch (er) { toast("Erro: " + (er.code || er.message)); }
+      renderDecks();
+    };
+  }, 0);
+  return false;
+}
 function renderDecks() {
   if (view && view.kind === "deck") return renderDeck(view.id);
   if (view && view.kind === "edit") { ED.id = view.id; return renderEditor(); }
@@ -1558,6 +1620,7 @@ function renderDecks() {
       <button class="row" id="nd2" style="grid-template-columns:1fr"><span><span class="rn">Colar lista</span><span class="rs">De Moxfield, Archidekt, MTG Arena…</span></span></button>
       <button class="row" id="nd3" style="grid-template-columns:1fr"><span><span class="rn">Começar do zero</span><span class="rs">Monte carta por carta</span></span></button></div>`);
   $("nd1").onclick = preconDialog; $("nd2").onclick = importDeckDialog; $("nd3").onclick = () => newDeck(); };
+  if (pendingBanner()) return;
   if (!S.decks.length) { $("main").innerHTML = `<div class="empty">Nenhum deck ainda.<br>Toque no + para importar um precon ou montar um deck.</div>`; return; }
   const dv = S.settings.deckView || "list";
   $("main").innerHTML = `<div class="dvbar"><span class="meta">${S.decks.length} deck${S.decks.length > 1 ? "s" : ""}</span><div class="seg" id="dvSeg"><button data-v="list" aria-pressed="${dv === "list"}">☰ Lista</button><button data-v="grid" aria-pressed="${dv === "grid"}">▦ Grade</button></div></div>
@@ -2046,7 +2109,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19i";
+const APP_VERSION = "2026.11.19j";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2140,7 +2203,9 @@ function renderCfg() {
       ${row("Cartas por coluna", "Quantas cartas com sleeve cabem em cada coluna das caixas", `<input type="number" id="cfCap" min="50" max="2000" step="10" value="${perCol()}" style="width:90px">`)}
     </div>
     <h2 class="sec">Conta e dados</h2><div class="card cfg-card">
-      ${row("Conta", CLOUD.user ? esc(CLOUD.user.email) + " · biblioteca compartilhada" : "Não conectado", CLOUD.user ? `<button class="btn small" id="cfOut">Sair</button>` : `<button class="btn small primary" id="cfIn">Entrar</button>`)}
+      ${CLOUD.user && (isGuest() || LIB !== "principal") ? row("Biblioteca aberta", LIB === "principal" ? "Do Teo e da Julia · só leitura (seus decks ficam para aprovação)" : "A sua, separada", `<button class="btn small" id="cfLib">${LIB === "principal" ? "Abrir a minha" : "Ver a do Teo e Julia"}</button>`) : ""}
+      ${isAdmin() && LIB === "principal" ? btnRow("cfGuests", "👑 Permissões", "Admin: quem edita, quem só vê e propõe decks") : ""}
+      ${row("Conta", CLOUD.user ? esc(CLOUD.user.email) + (LIB === "principal" ? (isGuest() ? " · convidado" : " · biblioteca compartilhada") : " · biblioteca própria") : "Não conectado", CLOUD.user ? `<button class="btn small" id="cfOut">Sair</button>` : `<button class="btn small primary" id="cfIn">Entrar</button>`)}
       ${btnRow("cfBk", "Backups automáticos", "3 cópias, a cada 5 dias")}
       ${btnRow("cfExp", "Exportar coleção (CSV)", "Para planilha, Moxfield, ManaBox…")}
       ${btnRow("cfImp", "Importar lista (CSV ou texto)", "")}
@@ -2163,6 +2228,8 @@ function renderCfg() {
   if ($("cfIn")) $("cfIn").onclick = signIn;
   $("cfBk").onclick = backupsDialog; $("cfExp").onclick = exportCSV; $("cfImp").onclick = importDialog;
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
+  if ($("cfLib")) $("cfLib").onclick = () => switchLib(LIB === "principal" ? "u_" + CLOUD.user.uid : "principal");
+  if ($("cfGuests")) $("cfGuests").onclick = guestsSheet;
   $("cfUpd").onclick = async () => { checkUpdate(true); const B = window.bmtgDesktop; if (B && B.checkExeUpdate) { const r = await B.checkExeUpdate(); if (r && r.latest) toast(`App do Windows em dia (${r.version})`); } };
   if (window.bmtgDesktop && window.bmtgDesktop.exeVersion) window.bmtgDesktop.exeVersion().then(v => { const el = $("cfAbout"); if (el && v) el.insertAdjacentText("beforebegin", `app Windows ${v} · `); }).catch(() => {}); $("cfForce").onclick = forceUpdate; $("cfAbout").onclick = (e) => { e.preventDefault(); closeSheet(); showAbout(); };
   $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp; if ($("cfExe")) $("cfExe").onclick = () => window.open("https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe", "_blank");
@@ -4738,7 +4805,8 @@ $("lastScan").onclick = () => {
 const FB_CONFIG = { apiKey: "AIzaSyADR0knFdWx8P2X6zip8pWaKIK_BNr19F8", authDomain: "mtg-biblioteca.firebaseapp.com", projectId: "mtg-biblioteca", storageBucket: "mtg-biblioteca.firebasestorage.app", messagingSenderId: "329365500470", appId: "1:329365500470:web:8cc1fa52bdcc1e30115e97" };
 const CLOUD = { db: null, auth: null, user: null, synced: { cards: false, decks: false, boxes: false }, last: new Map(), unsub: [], pushing: false, again: false, error: "" };
 const docId = (k) => String(k).replace(/\//g, "_");
-const base = () => CLOUD.db.collection("libs").doc("principal");
+const base = () => CLOUD.db.collection("libs").doc(LIB);
+
 function cloudReady() { return CLOUD.user && CLOUD.synced.cards && CLOUD.synced.decks && CLOUD.synced.boxes; }
 async function cloudInit() {
   if (!window.firebase) return null;
@@ -4796,8 +4864,18 @@ function startSync() {
       if (!remote.length) { updateCloudBadge(); return; }
       remote.forEach(ch => applyDoc(list, ch.doc.id, ch.type === "removed" ? null : ch.doc.data(), idField));
     }
+    if (name === "decks" && isGuest()) overlayPending();
     store.set(name, list).catch(() => {}); rerenderSoon(); updateCloudBadge();
   }, err => cloudError(err));
+  if (LIB === "principal" && CLOUD.user) CLOUD.unsub.push(base().collection("meta").doc("access").onSnapshot(doc => {
+    const d = doc.exists ? doc.data() : {}; const was = isGuest(); ACCESS.editors = Array.isArray(d.editors) ? d.editors.map(x => x.toLowerCase()) : null; ACCESS.guests = (d.guests || []).map(x => x.toLowerCase());
+    if (was !== isGuest()) { toast(isGuest() ? "Sua permissão mudou para só leitura." : "Agora você pode editar a biblioteca."); setTimeout(() => location.reload(), 1500); }
+    updateCloudBadge(); }, () => {}));
+  if (LIB === "principal" && CLOUD.user) {
+    const q = isGuest() ? base().collection("pending").where("by", "==", (CLOUD.user.email || "").toLowerCase()) : base().collection("pending");
+    CLOUD.unsub.push(q.onSnapshot(snap => { PEND.list = snap.docs.map(d => Object.assign({ _id: d.id }, d.data())); PEND.mine = new Map(PEND.list.map(p => [p.id, p]));
+      if (isGuest()) overlayPending(); if (tab === "decks") rerenderSoon(); updateCloudBadge(); }, () => {}));
+  }
   CLOUD.unsub.push(watch("cards", S.cards, "key", localCards));
   CLOUD.unsub.push(watch("decks", S.decks, "id", localDecks));
   CLOUD.unsub.push(base().collection("meta").doc("wish").onSnapshot(doc => {
@@ -4815,11 +4893,51 @@ function startSync() {
 }
 function cloudError(err) {
   CLOUD.error = err.code || err.message;
+  if (err.code === "permission-denied" && isGuest() && CLOUD.synced.cards) { toast("Sem permissão para essa alteração (modo só leitura).", 3000); return; }
+  if (err.code === "permission-denied" && LIB === "principal" && CLOUD.user && !isOwner() && !CLOUD.synced.cards) { toast("Sua conta ainda não tem acesso à biblioteca do Teo e da Julia. Abrindo a sua biblioteca própria…", 4000); CLOUD.unsub.forEach(f => f()); CLOUD.unsub = []; setTimeout(() => switchLib("u_" + CLOUD.user.uid), 2500); return; }
   if (err.code === "permission-denied") { toast("Esta conta Google não tem acesso à biblioteca. Usando só este celular.", 5000); CLOUD.unsub.forEach(f => f()); CLOUD.unsub = []; CLOUD.user = null; }
   updateCloudBadge();
 }
+// Convidado: decks alterados/criados vão para "pending" (aprovação); qualquer outra mudança volta ao que está na nuvem
+function overlayPending() {
+  for (const [id, p] of PEND.mine) { let d; try { d = JSON.parse(p.deck); } catch (e) { continue; } const i = S.decks.findIndex(x => x.id === id); if (i >= 0) S.decks[i] = d; else S.decks.push(d); }
+}
+function guestRevert(what) {
+  const fromLast = (pfx) => [...CLOUD.last].filter(([k, v]) => k.startsWith(pfx) && v).map(([, v]) => JSON.parse(v));
+  if (what.cards) S.cards.splice(0, S.cards.length, ...fromLast("cards/"));
+  if (what.boxes) { const b = CLOUD.last.get("meta/boxes"); if (b) Object.assign(S.boxes, JSON.parse(b)); }
+  if (what.wish) { const w = CLOUD.last.get("meta/wish"); S.wish = w ? (JSON.parse(w).list || []) : []; }
+  if (Date.now() - PEND.warned > 8000) { PEND.warned = Date.now(); toast("👁 Você está vendo a biblioteca do Teo e da Julia só para leitura. Decks que você montar ficam como aprovação pendente.", 5000); }
+  rerenderSoon();
+}
+async function guestPush() {
+  const em = (CLOUD.user.email || "").toLowerCase(); const ref = base().collection("pending");
+  const changed = { cards: false, boxes: false, wish: false };
+  const curCards = new Map(S.cards.map(e => ["cards/" + docId(e.key), JSON.stringify(e)]));
+  for (const [k, v] of CLOUD.last) if (k.startsWith("cards/") && curCards.get(k) !== v) changed.cards = true;
+  if ([...curCards.keys()].some(k => !CLOUD.last.has(k))) changed.cards = true;
+  const bx = JSON.stringify({ capacity: S.boxes.capacity, layout: S.boxes.layout || null, map: S.boxes.map || null, perCol: S.boxes.perCol || null, cpb: S.boxes.cpb || null });
+  if (CLOUD.last.has("meta/boxes") && CLOUD.last.get("meta/boxes") !== bx) changed.boxes = true;
+  if (CLOUD.synced.wish && (CLOUD.last.get("meta/wish") || JSON.stringify({ list: [] })) !== JSON.stringify({ list: S.wish || [] })) changed.wish = true;
+  // decks apagados por ele voltam
+  const remoteDecks = [...CLOUD.last].filter(([k, v]) => k.startsWith("decks/") && v).map(([, v]) => JSON.parse(v));
+  for (const rd of remoteDecks) if (!S.decks.some(d => d.id === rd.id)) { S.decks.push(rd); changed.decks = true; }
+  if (changed.cards || changed.boxes || changed.wish || changed.decks) guestRevert(changed);
+  // decks diferentes da nuvem → proposta pendente
+  try {
+    for (const d of S.decks) {
+      const j = JSON.stringify(d); const remote = CLOUD.last.get("decks/" + docId(d.id)); const p = PEND.mine.get(d.id);
+      if (remote === j) { if (p) { await ref.doc(p._id).delete(); PEND.mine.delete(d.id); } continue; }
+      if (p && p.deck === j) continue;
+      const id = p ? p._id : docId(d.id) + "_" + em.replace(/[^a-z0-9]/g, "");
+      const data = { id: d.id, by: em, at: Date.now(), name: d.name || "Deck", isNew: !remote, deck: j };
+      await ref.doc(id).set(data); PEND.mine.set(d.id, Object.assign({ _id: id }, data));
+    }
+  } catch (e) { toast("Não consegui enviar o deck para aprovação: " + (e.code || e.message), 4000); }
+}
 async function pushCloud() {
   if (!cloudReady()) return;
+  if (isGuest()) { if (CLOUD.pushing) { CLOUD.again = true; return; } CLOUD.pushing = true; try { await guestPush(); } finally { CLOUD.pushing = false; if (CLOUD.again) { CLOUD.again = false; pushCloud(); } } return; }
   if (CLOUD.pushing) { CLOUD.again = true; return; }
   CLOUD.pushing = true;
   try {
@@ -4843,6 +4961,7 @@ async function pushCloud() {
 function updateCloudBadge() {
   const t = $("title"); if (!t) return;
   t.dataset.cloud = cloudReady() ? "on" : "";
+  document.documentElement.classList.toggle("guest", isGuest());
 }
 async function afterLogin(u) {
   if (!u) return;
