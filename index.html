@@ -1567,6 +1567,22 @@ function restoreBackup(id, meta) {
 const deckCount = (d, board) => d.cards.filter(c => !board || c.board === board).reduce((a, c) => a + c.qty, 0);
 function haveFor(d, oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + ((e.decks || {})[d.id] || 0), 0); }
 function libFor(oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + freeQty(e), 0); }
+// Convite pronto com os links (o app não manda e-mail sozinho: abre o seu app de e-mail já preenchido, ou copia o texto)
+function inviteText(email, role) {
+  const site = "https://teolfe01.github.io/scanner-mtg/";
+  const exe = "https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe";
+  const apk = "https://github.com/Teolfe01/scanner-mtg/releases/download/android-v4/BibliotecaMTG.apk";
+  const what = role === "editor" ? "Você pode adicionar cartas, montar e mudar decks e mudar cartas de caixa."
+    : "Você pode ver a coleção, os decks e as desejadas (só leitura) e montar decks, que ficam aguardando aprovação. Em Configurações → \"Abrir a minha\" você tem uma biblioteca só sua.";
+  return `Oi!\n\nSeu acesso à Biblioteca MTG está liberado. Entre com a sua conta Google (${email}).\n\nWindows (não precisa instalar, é só abrir; atualiza sozinho):\n${exe}\n\nAndroid (baixe no celular e toque no arquivo para instalar):\n${apk}\n\nNavegador (PC, iPhone ou Android):\n${site}\n\n${what}\n\nQualquer problema, use o ícone de besouro no app para reportar.`;
+}
+function inviteSheet(email, role) {
+  const sub = "Biblioteca MTG — seu acesso"; const body = inviteText(email, role);
+  openSheet(`<h3 style="margin:0">📧 Convite para ${esc(email)}</h3><p class="meta" style="margin:0">O acesso já está liberado. O app não envia e-mail sozinho: abra o seu e-mail já preenchido ou copie o texto e mande por onde quiser (WhatsApp etc.).</p><pre style="white-space:pre-wrap;max-height:40vh;overflow:auto;font-size:12px">${esc(body)}</pre>`,
+    `<button class="btn" id="ivC">Copiar texto</button><button class="btn primary" id="ivM">Abrir no e-mail</button>`);
+  $("ivC").onclick = () => navigator.clipboard.writeText(body).then(() => toast("Convite copiado"), () => toast("Não consegui copiar"));
+  $("ivM").onclick = () => { const u = `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(sub)}&body=${encodeURIComponent(body)}`; if (window.bmtgDesktop || IS_APP()) window.open(u, "_blank"); else location.href = u; };
+}
 async function guestsSheet() {
   let ed = [], gs = [];
   try { const d = await base().collection("meta").doc("access").get(); if (d.exists) { ed = d.data().editors || []; gs = d.data().guests || []; } } catch (e) {}
@@ -1575,14 +1591,14 @@ async function guestsSheet() {
   const draw = () => {
     const people = [...ed.map(e => [e, "editor"]), ...gs.map(e => [e, "guest"])];
     openSheet(`<h3 style="margin:0">👑 Permissões</h3><p class="meta" style="margin:0">Você (${esc(ADMIN)}) é o admin: sempre pode tudo e é o único que muda permissões. Convidados também podem ter uma biblioteca própria, separada.</p>
-      <div class="rows">${people.map(([e, r]) => `<div class="row" style="grid-template-columns:1fr auto auto;gap:8px"><span><b>${esc(e)}</b><br><span class="meta">${ROLE[r]}</span></span>
-        <select data-gr="${esc(e)}"><option value="editor"${r === "editor" ? " selected" : ""}>Editor</option><option value="guest"${r === "guest" ? " selected" : ""}>Convidado</option></select><button class="btn small danger" data-gx="${esc(e)}">Tirar acesso</button></div>`).join("") || `<div class="meta">Ninguém além de você.</div>`}</div>
+      <div class="rows">${people.map(([e, r]) => `<div class="row" style="grid-template-columns:1fr auto auto auto;gap:8px"><span><b>${esc(e)}</b><br><span class="meta">${ROLE[r]}</span></span>
+        <button class="btn small" data-gi="${esc(e)}" data-gir="${r}" title="Enviar convite com os links">📧 Convite</button><select data-gr="${esc(e)}"><option value="editor"${r === "editor" ? " selected" : ""}>Editor</option><option value="guest"${r === "guest" ? " selected" : ""}>Convidado</option></select><button class="btn small danger" data-gx="${esc(e)}">Tirar acesso</button></div>`).join("") || `<div class="meta">Ninguém além de você.</div>`}</div>
       <div class="two"><input type="email" id="gNew" placeholder="e-mail Google da pessoa"><select id="gRole"><option value="guest">Convidado</option><option value="editor">Editor</option></select></div>`,
       `<button class="btn" id="gX">Fechar</button><button class="btn primary" id="gAdd">Dar acesso</button>`);
     $("gX").onclick = closeSheet;
-    $("gAdd").onclick = () => { const e = ($("gNew").value || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast("E-mail inválido"); if (e === ADMIN) return toast("Esse é o admin"); ed = ed.filter(x => x !== e); gs = gs.filter(x => x !== e); ($("gRole").value === "editor" ? ed : gs).push(e); put(); };
+    $("gAdd").onclick = async () => { const e = ($("gNew").value || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return toast("E-mail inválido"); if (e === ADMIN) return toast("Esse é o admin"); const role = $("gRole").value; ed = ed.filter(x => x !== e); gs = gs.filter(x => x !== e); (role === "editor" ? ed : gs).push(e); await put(); inviteSheet(e, role); };
     $("sheetBody").onchange = (ev) => { const sl = ev.target.closest("[data-gr]"); if (!sl) return; const e = sl.dataset.gr; ed = ed.filter(x => x !== e); gs = gs.filter(x => x !== e); (sl.value === "editor" ? ed : gs).push(e); put(); };
-    $("sheetBody").onclick = (ev) => { const b = ev.target.closest("[data-gx]"); if (!b) return; if (!confirm(`Tirar o acesso de ${b.dataset.gx}?`)) return; ed = ed.filter(x => x !== b.dataset.gx); gs = gs.filter(x => x !== b.dataset.gx); put(); };
+    $("sheetBody").onclick = (ev) => { const gi = ev.target.closest("[data-gi]"); if (gi) return inviteSheet(gi.dataset.gi, gi.dataset.gir); const b = ev.target.closest("[data-gx]"); if (!b) return; if (!confirm(`Tirar o acesso de ${b.dataset.gx}?`)) return; ed = ed.filter(x => x !== b.dataset.gx); gs = gs.filter(x => x !== b.dataset.gx); put(); };
   };
   const put = async () => { try { await base().collection("meta").doc("access").set({ editors: ed, guests: gs, by: myEmail(), at: Date.now() }); toast("Permissões salvas"); } catch (e) { toast("Erro: " + (e.code || e.message)); } draw(); };
   draw();
@@ -2109,7 +2125,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19j";
+const APP_VERSION = "2026.11.19k";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
