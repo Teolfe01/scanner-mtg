@@ -1423,7 +1423,7 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
   $("cFoil").onchange = (ev) => { const nk = entryKey(e.set, e.number, ev.target.checked, e.lang); if (S.cards.some(x => x.key === nk && x !== e)) { toast("Já existe essa versão; ajuste a quantidade nela."); ev.target.checked = e.foil; return; } e.foil = ev.target.checked; e.key = nk; save(); };
   let armed = false;
   $("cDel").onclick = (ev) => {
-    if (inDecks(e)) { toast("Essa carta está em um deck. Tire do deck primeiro."); return; }
+    if (inDecks(e)) return deleteEntryFlow(e);
     if (!armed) { armed = true; ev.target.textContent = "Toque de novo"; return; }
     S.cards = S.cards.filter(x => x !== e); save(); closeSheet(); drawCol(); toast(`${e.name} removida.`);
   };
@@ -2193,7 +2193,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19q";
+const APP_VERSION = "2026.11.19r";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2566,6 +2566,25 @@ function oiFromEl(el) {
 }
 function locLines(oi) { const { boxes, decks } = locInfo(oi); return [...[...boxes].sort().map(([b, q]) => `📦 ${b} · ${q}× livre`), ...[...decks].map(([n, q]) => `🃏 Deck ${n} · ${q}×`)]; }
 
+// Excluir uma carta da coleção mesmo estando em deck: 3 confirmações. O deck mantém a carta na lista (passa a aparecer como faltando).
+function deleteEntryFlow(e, after) {
+  const name = DB.o[e.oi][0]; const decks = Object.entries(e.decks || {}).filter(([, q]) => q > 0).map(([id, q]) => [S.decks.find(d => d.id === id), q]).filter(([d]) => d);
+  const where = `${e.set.toUpperCase()} #${e.number}${e.foil ? " · foil" : ""} · ${whereLib(e).code}`;
+  const done = (all) => {
+    if (all || e.qty <= 1) S.cards = S.cards.filter(x => x !== e);
+    else { e.qty--; if (freeQty(e) < 0) { const k = Object.keys(e.decks).find(id => e.decks[id] > 0); if (k) { e.decks[k]--; if (!e.decks[k]) delete e.decks[k]; } } }
+    save(); closeSheet(); toast(`🗑 ${all || e.qty <= 0 ? "Todas as cópias de" : "1 cópia de"} ${name} excluída${all ? "s" : ""}`, 2500);
+    if (tab === "col") drawCol(); if (after) after();
+  };
+  const step3 = (all) => { openSheet(`<h3 style="margin:0">⚠️ Última confirmação</h3><p class="meta">Excluir ${all ? `<b>todas as ${e.qty} cópias</b>` : "<b>1 cópia</b>"} de <b>${esc(name)}</b> (${esc(where)}) da coleção.</p>`, `<button class="btn" id="dX">Cancelar</button><button class="btn danger" id="dY">Excluir definitivamente</button>`);
+    $("dX").onclick = closeSheet; $("dY").onclick = () => done(all); };
+  const step2 = (all) => { if (!decks.length) return step3(all);
+    openSheet(`<h3 style="margin:0">Tem certeza?</h3><p class="meta">${esc(name)} está montada em: ${decks.map(([d, q]) => `<b>${esc(d.name || "Deck")}</b> (${q}×)`).join(", ")}.</p><p class="meta">O deck continua com a carta na lista, mas ela passa a aparecer como <b>faltando</b>.</p>`, `<button class="btn" id="dX">Cancelar</button><button class="btn danger" id="dY">Sim, continuar</button>`);
+    $("dX").onclick = closeSheet; $("dY").onclick = () => step3(all); };
+  openSheet(`<div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>Excluir da coleção?</h3><div class="meta">${esc(name)} · ${esc(where)}</div><div class="meta">${e.qty} cópia(s)${decks.length ? ` · em deck: ${decks.map(([d, q]) => esc(d.name || "Deck") + " " + q + "×").join(", ")}` : ""}</div></div></div>`,
+    `<button class="btn" id="dX">Cancelar</button>${e.qty > 1 ? `<button class="btn danger" id="d1">Excluir 1 cópia</button>` : ""}<button class="btn danger" id="dA">${e.qty > 1 ? `Excluir todas (${e.qty})` : "Excluir"}</button>`);
+  $("dX").onclick = closeSheet; if ($("d1")) $("d1").onclick = () => step2(false); $("dA").onclick = () => step2(true);
+}
 // ============ MOVER UMA CÓPIA: caixa ↔ deck ↔ outro deck ============
 // "from": id do deck de onde sai a cópia (ou null = das caixas). Tira 1 cópia física de lá e põe no destino,
 // atualizando as listas dos decks (sai da lista de origem, entra na de destino).
@@ -2616,10 +2635,11 @@ function editionItem(oi) {
   return [];
 }
 function wishCtx(x, y, oi) {
-  const loc = locLines(oi); const ed = editionItem(oi);
+  const loc = locLines(oi); const ke = CTXEL && CTXEL.closest && CTXEL.closest("[data-k]"); const ent = ke ? S.cards.find(x => x.key === ke.dataset.k) : null; const ed = editionItem(oi);
+  const myDecks = S.decks.filter(d => d.cards.some(c => c.oi === oi && c.board !== "maybe") && !(view && view.kind === "deck" && view.id === d.id));
   const did = ctxDeckId(); const fromHere = did && haveFor(S.decks.find(d => d.id === did) || { id: "" }, oi) > 0;
   ctxMenu(x, y, [{ head: DB.o[oi][0] }, ...(loc.length ? [{ head: "Onde vocês têm" }, ...loc.map(l => ({ hint: l })), "-"] : [{ hint: "Vocês não têm essa carta" }, "-"]),
-    ...(loc.length && !NOPR() ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), ...wishBuyItems(oi), ...ed, wishItem(oi), ...(S.decks.length && !NOPR() ? [["⭐ Desejar + Talvez de um deck…", () => { const did = ctxDeckId(); const d = did && S.decks.find(z => z.id === did); d ? maybeWish(d, oi) : maybeWishMenu(x, y, oi); }]] : []), NOPR() ? null : ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
+    ...(loc.length && !NOPR() ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), ...wishBuyItems(oi), ...ed, ...myDecks.slice(0, 6).map(d => ["🃏 Ir para o deck " + (d.name || "sem nome"), () => go("decks", { kind: "deck", id: d.id })]), wishItem(oi), ...(S.decks.length && !NOPR() ? [["⭐ Desejar + Talvez de um deck…", () => { const did = ctxDeckId(); const d = did && S.decks.find(z => z.id === did); d ? maybeWish(d, oi) : maybeWishMenu(x, y, oi); }]] : []), NOPR() ? null : ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")], ...(ent && !NOPR() ? ["-", ["🗑 Excluir da coleção…", () => deleteEntryFlow(ent), "danger"]] : [])]);
 }
 // botão direito em qualquer carta que ainda não tenha menu próprio
 document.addEventListener("contextmenu", (e) => {
