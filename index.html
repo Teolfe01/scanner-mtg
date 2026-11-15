@@ -874,7 +874,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
   <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
   <button data-tab="edh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 18h18l-1.5-10-4.5 4-3-6-3 6-4.5-4z"/><path d="M5 21h14"/></svg>EDH</button>
-  <button data-tab="all" class="pconly" title="Todas as cartas do jogo, por coleção"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3.2 20.4 9.3 17.2 19.2 6.8 19.2 3.6 9.3Z" stroke="currentColor" stroke-width="1.4" opacity=".55"/><circle cx="12" cy="3.2" r="2.9" fill="#f8f0c8" stroke="rgba(0,0,0,.45)" stroke-width=".8"/><circle cx="20.4" cy="9.3" r="2.9" fill="#4aa3e8" stroke="rgba(0,0,0,.45)" stroke-width=".8"/><circle cx="17.2" cy="19.2" r="2.9" fill="#a89aa0" stroke="rgba(0,0,0,.45)" stroke-width=".8"/><circle cx="6.8" cy="19.2" r="2.9" fill="#e8553d" stroke="rgba(0,0,0,.45)" stroke-width=".8"/><circle cx="3.6" cy="9.3" r="2.9" fill="#3fae5a" stroke="rgba(0,0,0,.45)" stroke-width=".8"/></svg>Coleções MTG</button>
+  <button data-tab="all" class="pconly" title="Todas as cartas do jogo, por coleção"><svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><polygon points="10.50,4.30 12.76,11.24 19.70,13.50 12.76,15.76 10.50,22.70 8.24,15.76 1.30,13.50 8.24,11.24"/><polygon points="19.00,1.20 19.85,4.15 22.80,5.00 19.85,5.85 19.00,8.80 18.15,5.85 15.20,5.00 18.15,4.15"/><polygon points="20.00,15.30 20.57,16.93 22.20,17.50 20.57,18.07 20.00,19.70 19.43,18.07 17.80,17.50 19.43,16.93"/></svg>Coleções MTG</button>
   <button data-tab="wish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Desejos</button>
   <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
@@ -2137,7 +2137,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19o";
+const APP_VERSION = "2026.11.19p";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
