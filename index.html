@@ -664,7 +664,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 nav.bottom > button.pconly { display: none; }
 .tile.wbought { outline: 2px solid rgba(80,200,140,.55); outline-offset: -2px; } .tile.wbought .cardimg img { opacity: .8; }
 .pill.wact { cursor: pointer; } .pill.wact:hover { filter: brightness(1.3); }
-html.guest nav.bottom > button[data-tab="deals"], html.guest .pricebox, html.guest .cardimg .price, html.guest .wsum, html.guest .pvp, html.guest [data-price], html.guest .price-only { display: none !important; }
+html.guest nav.bottom > button[data-tab="deals"], html.guest nav.bottom > button[data-tab="wish"], html.guest .pricebox, html.guest .cardimg .price, html.guest .wsum, html.guest .pvp, html.guest [data-price], html.guest .price-only { display: none !important; }
 .pendbox { padding: 12px 14px; margin-bottom: 12px; border: 1px solid rgba(255,190,80,.35); display: grid; gap: 6px; }
 .pendrow { display: flex; gap: 8px; align-items: center; } .pendrow > span { flex: 1; }
 html.guest #title::after { content: "👁 só leitura"; font-size: 12px; font-weight: 600; color: #ffd36b; margin-left: 10px; vertical-align: middle; }
@@ -1234,7 +1234,7 @@ const views = { all: (...a) => renderAll(...a), wish: (...a) => renderWish(...a)
 // Navegação: o botão "voltar" do Android anda pelo histórico do app em vez de fechar
 const NAV = { sheet: false, zoom: false, guardAt: 0 };
 const sameView = (a, b) => a && b && a.t === b.t && JSON.stringify(a.v || null) === JSON.stringify(b.v || null);
-function go(t, v = null, o = {}) { if (typeof UPD !== "undefined" && UPD.busyWait) setTimeout(() => { if (!updBusy()) { UPD.busyWait = false; checkUpdate(false); } }, 800);
+function go(t, v = null, o = {}) { if (NOPR() && (t === "wish" || t === "deals")) t = "col"; if (typeof UPD !== "undefined" && UPD.busyWait) setTimeout(() => { if (!updBusy()) { UPD.busyWait = false; checkUpdate(false); } }, 800);
   if (t !== "scan") { if (tab === "scan" || stream) stopCamera(); SC.camOff = false; }
   tab = t; view = v; closeSheet(); $("menu").classList.add("hidden"); document.body.classList.remove("wide", "pt-on", "edfit"); { const pv = $("gfPv"); if (pv) pv.remove(); } if (SEL.size) { SEL.clear(); selPaint(); } $("main").oncontextmenu = null; $("main").onclick = null; $("main").onmouseover = null; { const wb = $("wBar"); if (wb) wb.remove(); }
   document.querySelectorAll("nav.bottom button").forEach(b => b.setAttribute("aria-current", b.dataset.tab === t ? "page" : "false"));
@@ -1908,6 +1908,7 @@ document.addEventListener("keydown", (e) => {
 function ctxMenu(x, y, items) {
   let m = $("ctxm"); if (m) m.remove();
   m = document.createElement("div"); m.id = "ctxm"; m.className = "ctxm";
+  items = items.filter(it => it && !(Array.isArray(it) && !it.length)); // itens escondidos (ex.: desejadas para convidado)
   m.innerHTML = items.map((it, i) => it === "-" ? `<hr>` : it.head ? `<div class="ch">${esc(it.head)}</div>` : it.hint ? `<div class="chint">${esc(it.hint)}</div>` : `<button data-i="${i}" class="${it[2] || ""}"><span>${esc(it[0])}</span>${it[3] ? `<kbd>${esc(it[3])}</kbd>` : ""}</button>`).join("");
   document.body.appendChild(m);
   const r = m.getBoundingClientRect(); m.style.left = Math.min(x, innerWidth - r.width - 8) + "px"; m.style.top = Math.min(y, innerHeight - r.height - 8) + "px";
@@ -2128,7 +2129,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19l";
+const APP_VERSION = "2026.11.19m";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2469,7 +2470,7 @@ function allCard(oi, set, number) {
     <div class="meta">${setHTML(set, (DB.p[DB.bySetNum.get(set + "|" + normNum(number))] || [])[2])} ${esc(DB.sets[set] || set)} #${esc(number)}${pr && !NOPR() ? " · " + fmtUSD(pr) : ""}</div>
     <div class="meta">${here ? `Vocês têm ${here}× desta edição` : "Vocês não têm esta edição"}${tot > here ? ` · ${tot}× no total` : ""}</div></div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}${locLines(oi).length ? `<div class="meta">${locLines(oi).map(esc).join("<br>")}</div>` : ""}`,
-    `<button class="btn" id="acZ">🔍 Ver grande</button><button class="btn" id="acW">${wishHas(oi) ? "⭐ Nas desejadas" : "⭐ Desejar"}</button><button class="btn" id="acD">🃏 Mandar para um deck…</button><button class="btn primary" id="acA">＋ Pôr na coleção</button>`);
+    `<button class="btn" id="acZ">🔍 Ver grande</button><button class="btn${NOPR() ? " hidden" : ""}" id="acW">${wishHas(oi) ? "⭐ Nas desejadas" : "⭐ Desejar"}</button><button class="btn" id="acD">🃏 Mandar para um deck…</button><button class="btn primary" id="acA">＋ Pôr na coleção</button>`);
   $("acZ").onclick = () => { const ci = $("sheetBody").querySelector(".cardimg"); if (ci) zoomImg(ci); };
   $("acW").onclick = () => { const w = wishHas(oi); if (w) { wishDel(w.id); toast("Removida das desejadas"); } else wishAdd(oi); $("acW").textContent = wishHas(oi) ? "⭐ Nas desejadas" : "⭐ Desejar"; };
   $("acD").onclick = (ev) => { const r = ev.target.getBoundingClientRect(); closeSheet(); deckPickMenu(r.left, Math.min(r.top, innerHeight - 340), oi); };
@@ -2490,8 +2491,8 @@ function wishDel(id) { S.wish = S.wish.filter(w => w.id !== id); save(); }
 // comprada (a caminho) → chegou (vai para a coleção)
 function wishBuy(ws, on = true) { ws = [].concat(ws); ws.forEach(w => { if (on) w.buy = Date.now(); else delete w.buy; }); save(); toast(on ? `📦 ${ws.length === 1 ? ws[0].name : ws.length + " cartas"} — comprada${ws.length > 1 ? "s" : ""}, a caminho` : "Voltou para as desejadas", 1800); if (tab === "wish") drawWish(); }
 function wishArrived(ws) { ws = [].concat(ws); ws.forEach(w => { if (w.set) addToCollection({ oi: w.oi, set: w.set, number: w.number, qty: w.qty }); }); const ids = new Set(ws.map(w => w.id)); S.wish = S.wish.filter(w => !ids.has(w.id)); save(); toast(`✅ ${ws.length === 1 ? ws[0].qty + "× " + ws[0].name : ws.length + " carta(s)"} na coleção`, 2200); if (tab === "wish") drawWish(); }
-function wishItem(oi) { const w = wishHas(oi); return w ? ["⭐ Tirar das desejadas", () => { wishDel(w.id); toast("Removida das desejadas"); if (tab === "wish") renderWish(); }] : ["⭐ Adicionar às desejadas", () => wishAdd(oi), "pri"]; }
-function wishBuyItems(oi) { const w = wishHas(oi); if (!w) return []; return w.buy ? [["✅ Chegou — pôr na coleção", () => wishArrived(w), "pri"], ["↩ Não comprei (voltar a desejar)", () => wishBuy(w, false)]] : [["📦 Comprada — a caminho", () => wishBuy(w), "pri"]]; }
+function wishItem(oi) { if (NOPR()) return null; const w = wishHas(oi); return w ? ["⭐ Tirar das desejadas", () => { wishDel(w.id); toast("Removida das desejadas"); if (tab === "wish") renderWish(); }] : ["⭐ Adicionar às desejadas", () => wishAdd(oi), "pri"]; }
+function wishBuyItems(oi) { if (NOPR()) return []; const w = wishHas(oi); if (!w) return []; return w.buy ? [["✅ Chegou — pôr na coleção", () => wishArrived(w), "pri"], ["↩ Não comprei (voltar a desejar)", () => wishBuy(w, false)]] : [["📦 Comprada — a caminho", () => wishBuy(w), "pri"]]; }
 function oiFromEl(el) {
   if (!el || !el.closest) return undefined;
   const a = el.closest("[data-oi]"); if (a && a.dataset.oi !== "" && !isNaN(+a.dataset.oi) && DB.o[+a.dataset.oi]) return +a.dataset.oi;
@@ -2542,7 +2543,7 @@ const ctxDeckId = () => tab === "decks" && view && (view.kind === "deck" || view
 // "Trocar edição" vale em qualquer lugar: desejada, carta da coleção (ou, se for só referência, a desejada dessa carta)
 let CTXEL = null;
 function editionItem(oi) {
-  const el = CTXEL; CTXEL = null;
+  const el = CTXEL; CTXEL = null; if (NOPR()) return [];
   const we = el && el.closest && el.closest("[data-wid]"); const w = we ? S.wish.find(x => x.id === we.dataset.wid) : null;
   if (w) return [["🎨 Trocar edição…", () => wishPickPrint(w, false)]];
   const ke = el && el.closest && el.closest("[data-k]"); const e = ke ? S.cards.find(x => x.key === ke.dataset.k) : null;
@@ -2554,7 +2555,7 @@ function wishCtx(x, y, oi) {
   const loc = locLines(oi); const ed = editionItem(oi);
   const did = ctxDeckId(); const fromHere = did && haveFor(S.decks.find(d => d.id === did) || { id: "" }, oi) > 0;
   ctxMenu(x, y, [{ head: DB.o[oi][0] }, ...(loc.length ? [{ head: "Onde vocês têm" }, ...loc.map(l => ({ hint: l })), "-"] : [{ hint: "Vocês não têm essa carta" }, "-"]),
-    ...(loc.length ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), ...wishBuyItems(oi), ...ed, wishItem(oi), ...(S.decks.length ? [["⭐ Desejar + Talvez de um deck…", () => { const did = ctxDeckId(); const d = did && S.decks.find(z => z.id === did); d ? maybeWish(d, oi) : maybeWishMenu(x, y, oi); }]] : []), ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
+    ...(loc.length && !NOPR() ? [["↪ Mover para…", () => moveMenu(x, y, oi, fromHere ? did : undefined), "pri"]] : []), ...wishBuyItems(oi), ...ed, wishItem(oi), ...(S.decks.length && !NOPR() ? [["⭐ Desejar + Talvez de um deck…", () => { const did = ctxDeckId(); const d = did && S.decks.find(z => z.id === did); d ? maybeWish(d, oi) : maybeWishMenu(x, y, oi); }]] : []), NOPR() ? null : ["🛒 Ver na LigaMagic ↗", () => window.open(ligaURL(oi), "_blank")]]);
 }
 // botão direito em qualquer carta que ainda não tenha menu próprio
 document.addEventListener("contextmenu", (e) => {
@@ -3758,7 +3759,7 @@ function searchCtx(e, oi) {
     ["＋ Adicionar a este deck", () => addToDeck(oi, "main"), "pri", "Clique"],
     ["Adicionar em…", () => ctxMenu(x, y, [{ head: "Adicionar em" }, ...cats.map(k => ["🏷 " + k, () => dropNew(oi, k)]), ["Sideboard", () => addToDeck(oi, "side")], ["Talvez", () => addToDeck(oi, "maybe")], ...(canCmd ? [["Comandante", () => setCommander(d, oi, d.cards.some(c => c.board === "cmd"))]] : [])])],
     ...other.map(o => ["↪ Trazer do deck " + (o.name || "sem nome"), () => { if (!d.cards.some(c => c.oi === oi && c.board !== "maybe")) d.cards.push({ oi, qty: 1, board: "main", ...(() => { const pi = defaultPrint(oi); return pi >= 0 ? { set: DB.p[pi][0], number: DB.p[pi][1] } : {}; })() }); if (moveCopy(oi, o.id, d.id)) { renderDeckPane(); renderStatsPane(); drawResults(); } }]),
-    ["⭐ Talvez + desejadas", () => maybeWish(d, oi)],
+    NOPR() ? null : ["⭐ Talvez + desejadas", () => maybeWish(d, oi)],
     ["🃏 Mandar para outro deck…", () => deckPickMenu(x, y, oi)],
     "-",
     ["🔍 Abrir a carta", () => cardInfo(oi)],
@@ -4981,6 +4982,7 @@ function updateCloudBadge() {
   const t = $("title"); if (!t) return;
   t.dataset.cloud = cloudReady() ? "on" : "";
   document.documentElement.classList.toggle("guest", isGuest());
+  if (isGuest() && (tab === "wish" || tab === "deals")) go("col");
 }
 async function afterLogin(u) {
   if (!u) return;
