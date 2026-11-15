@@ -668,6 +668,27 @@ nav.bottom > button.pconly { display: none; }
 .tile.wbought { outline: 2px solid rgba(80,200,140,.55); outline-offset: -2px; } .tile.wbought .cardimg img { opacity: .8; }
 .pill.wact { cursor: pointer; } .pill.wact:hover { filter: brightness(1.3); }
 html.guest nav.bottom > button[data-tab="deals"], html.guest nav.bottom > button[data-tab="wish"], html.guest .pricebox, html.guest .cardimg .price, html.guest .wsum, html.guest .pvp, html.guest [data-price], html.guest .price-only { display: none !important; }
+.dfsum { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 8px 0; font-weight: 700; font-size: 13px; }
+.dfsum .df-add { color: #4fe08a; } .dfsum .df-del { color: #ff6b6b; } .dfsum .df-qty { color: #ffd36b; }
+.dfwrap { max-height: 62vh; overflow: auto; padding: 4px 6px 10px; }
+.dfh { margin: 14px 0 8px; font-size: 14px; } .dfh.df-add { color: #4fe08a; } .dfh.df-del { color: #ff6b6b; } .dfh.df-qty { color: #ffd36b; } .dfh.df-same { color: var(--muted); }
+.dfgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; }
+.dfwrap:not(.showsame) .dfh.df-same, .dfwrap:not(.showsame) .dfsame { display: none; }
+.dfc { position: relative; display: grid; gap: 4px; animation: dfIn .5s var(--ease, ease) both; animation-delay: var(--d); }
+.dfc .cardimg { width: 100%; border-radius: 6px; }
+.dfc .dfn { font-size: 11px; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfc .dfb { position: absolute; top: 6px; right: 6px; z-index: 2; font-weight: 800; font-size: 12px; padding: 2px 7px; border-radius: 5px; background: rgba(0,0,0,.75); }
+.dfc.df-add .cardimg { animation: dfGlowG 1.8s ease-in-out infinite; animation-delay: var(--d); } .dfc.df-add .dfb { color: #4fe08a; }
+.dfc.df-qty .cardimg { animation: dfGlowY 1.8s ease-in-out infinite; animation-delay: var(--d); } .dfc.df-qty .dfb { color: #ffd36b; }
+.dfc.df-del { animation: dfOut .7s ease both; animation-delay: var(--d); } .dfc.df-del .dfb { color: #ff6b6b; }
+.dfc.df-del .cardimg { box-shadow: 0 0 0 2px #ff5a5a, 0 0 14px rgba(255,80,80,.55); } .dfc.df-del .cardimg img { filter: grayscale(.85) brightness(.55); }
+.dfc.df-del .cardimg::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to top right, transparent calc(50% - 2px), rgba(255,90,90,.9) 50%, transparent calc(50% + 2px)); border-radius: 6px; }
+.dfc.df-same { opacity: .55; }
+@keyframes dfIn { from { opacity: 0; transform: translateY(18px) scale(.9); } to { opacity: 1; transform: none; } }
+@keyframes dfOut { 0% { opacity: 1; transform: none; } 45% { transform: translateX(-4px) rotate(-1.5deg); } 70% { transform: translateX(4px) rotate(1.5deg); } 100% { opacity: .8; transform: scale(.94); } }
+@keyframes dfGlowG { 0%, 100% { box-shadow: 0 0 0 2px #36d57a, 0 0 8px rgba(54,213,122,.45); } 50% { box-shadow: 0 0 0 3px #6dffa6, 0 0 22px rgba(80,255,150,.85); } }
+@keyframes dfGlowY { 0%, 100% { box-shadow: 0 0 0 2px #e8b93a, 0 0 8px rgba(255,200,60,.45); } 50% { box-shadow: 0 0 0 3px #ffe07a, 0 0 22px rgba(255,215,90,.85); } }
+html.nomotion .dfc, html.nomotion .dfc .cardimg { animation: none !important; }
 .pendbox { padding: 12px 14px; margin-bottom: 12px; border: 1px solid rgba(255,190,80,.35); display: grid; gap: 6px; }
 .pendrow { display: flex; gap: 8px; align-items: center; } .pendrow > span { flex: 1; }
 html.guest #title::after { content: "👁 só leitura"; font-size: 12px; font-weight: 600; color: #ffd36b; margin-left: 10px; vertical-align: middle; }
@@ -1620,21 +1641,56 @@ function pendingBanner() {
     const m = $("main"); if (!m || tab !== "decks" || view) return; const old = $("pendBox"); if (old) old.remove();
     if (!PEND.list.length || !CLOUD.user) return;
     const box = document.createElement("div"); box.id = "pendBox"; box.className = "card pendbox";
-    if (isGuest()) box.innerHTML = `<b>⏳ Aguardando aprovação</b><div class="meta">${PEND.list.map(p => esc(p.name) + (p.isNew ? " (novo)" : " (alterado)")).join(" · ")}</div><div class="meta">O Teo ou a Julia aprovam; até lá nada muda na coleção.</div>`;
+    if (isGuest()) box.innerHTML = `<b>⏳ Aguardando aprovação</b><div class="meta">${PEND.list.map(p => esc(p.name) + (p.isNew ? " (novo)" : " (alterado)")).join(" · ")}</div><div class="meta">O Teo ou a Julia aprovam; até lá nada muda na coleção.</div>${PEND.list.map(p => `<button class="btn small" data-pv="${esc(p._id)}">Ver mudanças: ${esc(p.name)}</button>`).join(" ")}`;
     else box.innerHTML = `<b>⏳ Decks aguardando aprovação</b>${PEND.list.map(p => `<div class="pendrow"><span><b>${esc(p.name)}</b> <span class="meta">${p.isNew ? "novo" : "alteração"} · ${esc(p.by.split("@")[0])} · ${new Date(p.at).toLocaleDateString("pt-BR")}</span></span><button class="btn small" data-pv="${esc(p._id)}">Ver</button><button class="btn small primary" data-pa="${esc(p._id)}">Aprovar</button><button class="btn small danger" data-pr="${esc(p._id)}">Recusar</button></div>`).join("")}`;
     m.prepend(box);
     box.onclick = async (e) => {
       const b = e.target.closest("[data-pa],[data-pr],[data-pv]"); if (!b) return; e.stopPropagation();
       const p = PEND.list.find(x => x._id === (b.dataset.pa || b.dataset.pr || b.dataset.pv)); if (!p) return; let d; try { d = JSON.parse(p.deck); } catch (er) { return; }
-      if (b.dataset.pv) { const txt = d.cards.map(c => `${c.qty} ${DB.o[c.oi] ? DB.o[c.oi][0] : "?"}${c.board !== "main" ? " (" + (BOARD_NAME[c.board] || c.board) + ")" : ""}`).join("\n");
-        return openSheet(`<h3 style="margin:0">${esc(p.name)}</h3><div class="meta">${p.isNew ? "Deck novo" : "Alteração de deck existente"} de ${esc(p.by)}</div><pre style="white-space:pre-wrap;max-height:55vh;overflow:auto">${esc(txt)}</pre>`, `<button class="btn" onclick="closeSheet()">Fechar</button>`); }
-      if (b.dataset.pa) { const i = S.decks.findIndex(x => x.id === d.id); if (i >= 0) { const o = S.decks[i]; Object.keys(o).forEach(k => delete o[k]); Object.assign(o, d); } else S.decks.push(d); save(); toast(`✓ ${p.name} aprovado`); }
-      else if (!confirm(`Recusar ${p.name}?`)) return; else toast("Recusado");
-      try { await base().collection("pending").doc(p._id).delete(); } catch (er) { toast("Erro: " + (er.code || er.message)); }
+      if (b.dataset.pv) return pendDiff(p);
+      if (b.dataset.pa) pendApprove(p, d); else { if (!confirm(`Recusar ${p.name}?`)) return; await pendReject(p); }
       renderDecks();
     };
   }, 0);
   return false;
+}
+async function pendApprove(p, d) {
+  d = d || JSON.parse(p.deck); const i = S.decks.findIndex(x => x.id === d.id);
+  if (i >= 0) { const o = S.decks[i]; Object.keys(o).forEach(k => delete o[k]); Object.assign(o, d); } else S.decks.push(d);
+  save(); toast(`✓ ${p.name} aprovado`);
+  try { await base().collection("pending").doc(p._id).delete(); } catch (er) { toast("Erro: " + (er.code || er.message)); }
+  if (tab === "decks") renderDecks();
+}
+async function pendReject(p) { toast("Recusado"); try { await base().collection("pending").doc(p._id).delete(); } catch (er) { toast("Erro: " + (er.code || er.message)); } if (tab === "decks") renderDecks(); }
+// Mostra o que mudou num deck proposto: entraram (brilho verde), saíram (vermelho, apagadas), quantidade mudou (amarelo)
+function pendDiff(p) {
+  let nd; try { nd = JSON.parse(p.deck); } catch (e) { return; }
+  const od = S.decks.find(x => x.id === nd.id) || { cards: [], name: nd.name };
+  const key = (c) => c.oi + "|" + c.board; const sum = (d) => { const m = new Map(); for (const c of d.cards) m.set(key(c), Object.assign({}, c, { qty: (m.get(key(c)) || { qty: 0 }).qty + c.qty })); return m; };
+  const A = sum(od), B = sum(nd); const rows = [];
+  for (const [k, c] of B) { const o = A.get(k); rows.push({ c, st: !o ? "add" : o.qty !== c.qty ? "qty" : "same", from: o ? o.qty : 0 }); }
+  for (const [k, c] of A) if (!B.has(k)) rows.push({ c, st: "del", from: c.qty });
+  const ORD = { add: 0, del: 1, qty: 2, same: 3 }; rows.sort((a, b) => ORD[a.st] - ORD[b.st] || DB.o[a.c.oi][0].localeCompare(DB.o[b.c.oi][0]));
+  const n = (st) => rows.filter(r => r.st === st).reduce((a, r) => a + (st === "del" ? r.from : r.st === "qty" ? 1 : r.c.qty), 0);
+  const nameChg = od.name && od.name !== nd.name;
+  const SEC = { add: "➕ Entraram", del: "➖ Saíram", qty: "🔁 Quantidade mudou", same: "Sem mudança" };
+  let html = "", last = null, k = 0;
+  for (const r of rows) {
+    if (r.st !== last) { if (last) html += `</div>`; last = r.st; html += `<h4 class="dfh df-${r.st}">${SEC[r.st]} <span class="meta">${rows.filter(x => x.st === r.st).length}</span></h4><div class="dfgrid${r.st === "same" ? " dfsame" : ""}">`; }
+    const c = r.c; const badge = r.st === "qty" ? `<span class="dfb">${r.from}→${c.qty}</span>` : r.st === "del" ? `<span class="dfb">−${r.from}</span>` : r.st === "add" ? `<span class="dfb">+${c.qty}</span>` : (c.qty > 1 ? `<span class="dfb">${c.qty}×</span>` : "");
+    html += `<div class="dfc df-${r.st}" style="--d:${Math.min(k++, 40) * 45}ms" data-woi="${c.oi}">${cardImgHTML(fakeEntry(c), { bare: true })}${badge}<span class="dfn">${esc(DB.o[c.oi][0])}${c.board !== "main" ? ` · ${BOARD_NAME[c.board] || c.board}` : ""}</span></div>`;
+  }
+  if (last) html += `</div>`;
+  openSheet(`<h3 style="margin:0">${esc(nd.name)}${nameChg ? ` <span class="meta">(antes: ${esc(od.name)})</span>` : ""}</h3>
+    <div class="meta">${p.isNew ? "Deck novo" : "Alteração"} proposta por ${esc(p.by)} · ${new Date(p.at).toLocaleString("pt-BR")}</div>
+    <div class="dfsum"><span class="df-add">+${n("add")} entraram</span><span class="df-del">−${n("del")} saíram</span><span class="df-qty">${n("qty")} mudaram de quantidade</span><label class="meta ck"><input type="checkbox" id="dfAll"> mostrar as sem mudança</label></div>
+    <div class="dfwrap" id="dfWrap">${html || `<div class="empty">Nada mudou.</div>`}</div>`,
+    isGuest() ? `<button class="btn" id="dfX">Fechar</button>` : `<button class="btn" id="dfX">Fechar</button><button class="btn danger" id="dfR">Recusar</button><button class="btn primary" id="dfA">Aprovar</button>`);
+  $("sheet").classList.add("wide");
+  $("dfX").onclick = closeSheet;
+  if ($("dfA")) $("dfA").onclick = () => { closeSheet(); pendApprove(p, nd); };
+  if ($("dfR")) $("dfR").onclick = async () => { if (!confirm(`Recusar ${p.name}?`)) return; closeSheet(); await pendReject(p); };
+  $("dfAll").onchange = (e) => $("dfWrap").classList.toggle("showsame", e.target.checked);
 }
 function renderDecks() {
   if (view && view.kind === "deck") return renderDeck(view.id);
@@ -2137,7 +2193,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19p";
+const APP_VERSION = "2026.11.19q";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
