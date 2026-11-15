@@ -664,6 +664,7 @@ nav.bottom button[aria-current="page"] { font-size: 0; }
 nav.bottom > button.pconly { display: none; }
 .tile.wbought { outline: 2px solid rgba(80,200,140,.55); outline-offset: -2px; } .tile.wbought .cardimg img { opacity: .8; }
 .pill.wact { cursor: pointer; } .pill.wact:hover { filter: brightness(1.3); }
+html.guest nav.bottom > button[data-tab="deals"], html.guest .pricebox, html.guest .cardimg .price, html.guest .wsum, html.guest .pvp, html.guest [data-price], html.guest .price-only { display: none !important; }
 .pendbox { padding: 12px 14px; margin-bottom: 12px; border: 1px solid rgba(255,190,80,.35); display: grid; gap: 6px; }
 .pendrow { display: flex; gap: 8px; align-items: center; } .pendrow > span { flex: 1; }
 html.guest #title::after { content: "👁 só leitura"; font-size: 12px; font-weight: 600; color: #ffd36b; margin-left: 10px; vertical-align: middle; }
@@ -929,7 +930,9 @@ const normNum = (n) => String(n || "").toLowerCase().split("/")[0].replace(/[^0-
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 function toast(msg, ms = 2200) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), ms); }
 // Preços: tudo em centavos de R$. Referência = preço anotado da LigaMagic; sem ele, estimativa (Scryfall US$ × dólar do dia).
-const fmtUSD = (c) => !c ? "" : (S.settings && S.settings.prefs && S.settings.prefs.currency === "USD") ? "US$ " + (c / RATE() / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "R$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// convidado não vê valores
+const NOPR = () => typeof isGuest === "function" && isGuest();
+const fmtUSD = (c) => !c || NOPR() ? "" : (S.settings && S.settings.prefs && S.settings.prefs.currency === "USD") ? "US$ " + (c / RATE() / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "R$ " + (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const RATE = () => (S.settings && S.settings.usdbrl) || 5.4;
 const ligaKey = (set, number, foil) => set + "|" + normNum(number) + (foil ? "|f" : "");
 function ligaOf(set, number, foil) { const L = S.liga || {}; return L[ligaKey(set, number, foil)] || (foil ? null : null); }
@@ -1220,7 +1223,7 @@ function cardImgHTML(e, opts = {}) {
   return `<div class="${cls}" data-woi="${e.oi}">${drawn}${inner}
     ${e.qty > 1 ? `<span class="qtyb">${e.qty}</span>` : ""}
     ${dq ? `<span class="deckb" title="Em deck">${esc(deckName)}${dq < e.qty ? ` ${dq}/${e.qty}` : ""}</span>` : ""}
-    ${price ? `<span class="price">${fmtUSD(price)}</span>` : ""}
+    ${price && !NOPR() ? `<span class="price">${fmtUSD(price)}</span>` : ""}
     ${emojiOK && FLAGS[e.lang] ? `<span class="flag">${FLAGS[e.lang]}</span>` : `<span class="flag txt">${esc((e.lang || "en").toUpperCase())}</span>`}
     ${e.foil ? `<span class="dot" title="Foil"></span>` : ""}</div>`;
 }
@@ -1344,7 +1347,7 @@ function renderCol() {
 function drawCol() {
   const arr = colFiltered();
   const n = arr.reduce((a, e) => a + e.qty, 0), val = arr.reduce((a, e) => a + priceOf(e) * e.qty, 0);
-  $("colCount").textContent = `${n} carta${n === 1 ? "" : "s"}${val ? " · ≈ " + fmtUSD(val) : ""}`;
+  $("colCount").textContent = `${n} carta${n === 1 ? "" : "s"}${val && !NOPR() ? " · ≈ " + fmtUSD(val) : ""}`;
   $("viewBtn").innerHTML = F.view === "grid" ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>`;
   if (!S.cards.length) { $("main").innerHTML = `<div class="empty">Sua coleção está vazia.<br>Toque no + ou em Escanear para começar.</div>`; return; }
   if (!arr.length) { $("main").innerHTML = `<div class="empty">Nenhuma carta com esses filtros.</div>`; return; }
@@ -1756,7 +1759,7 @@ function renderDeck(id) {
       <div><div class="meta" style="margin-bottom:4px">Curva de mana (sem terrenos) · toque para filtrar</div><div class="curve">${curve.map((n, i) => `<div class="fbtn" data-f="cmc:${i}"><span>${n || ""}</span><i style="height:${Math.round(n * 100 / cmax)}%"></i><span>${i === 7 ? "7+" : i}</span></div>`).join("")}</div></div>
       <div><div class="meta" style="margin-bottom:4px">Símbolos de mana</div><div class="colorbar tall">${Object.entries(pips).filter(([, n]) => n).map(([k, n]) => `<span class="fbtn" data-f="color:${k}" style="width:${n * 100 / ptot}%;background:${COLOR_HEX[k]}" title="${COLOR_NAME[k]}: ${n}"></span>`).join("")}</div></div>
       ${Object.keys(rolesCount).length ? `<div class="roles">${Object.entries(rolesCount).sort((a, b) => b[1] - a[1]).map(([r, n]) => `<button class="pill fbtn" data-f="role:${r}">${esc(ROLES[r])} ${n}</button>`).join("")}</div>` : ""}
-      ${value ? `<div class="meta">Valor estimado: ${fmtUSD(value)}</div>` : ""}
+      ${value && !NOPR() ? `<div class="meta">Valor estimado: ${fmtUSD(value)}</div>` : ""}
       <div class="actions"><button class="btn primary small" id="bBuild">Montar com a coleção</button><button class="btn small" id="bUnbuild">Desmontar</button><button class="btn small" id="bMiss">Copiar faltantes</button></div>
     </div></div>
     <div id="dlist"></div></div>`;
@@ -1935,7 +1938,7 @@ function bulkCtx(e, d, after) {
 }
 function compareCards(a, b) {
   const col = (oi, c) => { const o = oInfo(oi); const pi = printFor(c || { oi }); const pr = pi >= 0 ? brlOf(DB.p[pi][0], DB.p[pi][1], false) : 0;
-    return `<div class="cmpc">${cardImgHTML(fakeEntry(c), { bare: true })}<h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)} · CMC ${o.cmc}</div>${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}<div class="meta">${pr ? "Preço: " + fmtUSD(pr) : ""}${libFor(oi) ? ` · ${libFor(oi)} livre(s) na coleção` : ""}</div></div>`; };
+    return `<div class="cmpc">${cardImgHTML(fakeEntry(c), { bare: true })}<h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)} · CMC ${o.cmc}</div>${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}<div class="meta">${pr && !NOPR() ? "Preço: " + fmtUSD(pr) : ""}${libFor(oi) ? ` · ${libFor(oi)} livre(s) na coleção` : ""}</div></div>`; };
   openSheet(`<div class="cmp">${col(a.oi, a)}${col(b.oi, b)}</div>`, `<button class="btn primary" id="cmpX">Fechar</button>`); $("cmpX").onclick = closeSheet;
 }
 function comparePick(c) {
@@ -2125,7 +2128,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19k";
+const APP_VERSION = "2026.11.19l";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2453,7 +2456,7 @@ function drawAll() {
   const head = AL.set ? `<div class="allhead"><button class="btn small" id="aBack">← Coleções</button>${setIcon(AL.set, "big")}<h2>${esc(DB.sets[AL.set] || AL.set)}</h2><span class="meta">${esc(AL.set.toUpperCase())}${(AL.meta && AL.meta[AL.set] || {}).d ? " · " + new Date(AL.meta[AL.set].d + "T12:00").toLocaleDateString("pt-BR", { month: "long", year: "numeric" }) : ""} · ${AL.counts[AL.set]} cartas · vocês têm ${owned}${arr.length < AL.counts[AL.set] ? " (dos filtros)" : ""}</span></div>` : "";
   M.innerHTML = head + (arr.length ? `<div class="grid">${shown.map(x => { const p = DB.p[x.pi]; const pr = brlOf(p[0], p[1], false);
     return `<button class="tile${x.n ? "" : " notown"}" data-oi="${x.oi}" data-pi="${x.pi}"><span class="tname">${esc(DB.o[x.oi][0])}</span>${cardImgHTML({ oi: x.oi, set: p[0], number: p[1], foil: false, lang: "en" }, { bare: true })}${x.n ? `<span class="ownq" title="Vocês têm ${x.n}">${x.n}×</span>` : ""}
-      <span class="setline">${setHTML(p[0], p[2])}<span>${esc(p[0].toUpperCase())}</span><span class="num">#${esc(p[1])}</span>${pr ? `<span class="num" style="margin-left:auto">${fmtUSD(pr)}</span>` : ""}</span></button>`; }).join("")}</div>` : `<div class="empty">Nenhuma carta com esses filtros.</div>`);
+      <span class="setline">${setHTML(p[0], p[2])}<span>${esc(p[0].toUpperCase())}</span><span class="num">#${esc(p[1])}</span>${pr && !NOPR() ? `<span class="num" style="margin-left:auto">${fmtUSD(pr)}</span>` : ""}</span></button>`; }).join("")}</div>` : `<div class="empty">Nenhuma carta com esses filtros.</div>`);
   if (arr.length > LIM) { M.insertAdjacentHTML("beforeend", `<p class="meta" style="text-align:center">Mostrando ${LIM} de ${arr.length}. <button class="btn small" id="aMore">Mostrar mais</button></p>`); $("aMore").onclick = () => { AL.more++; drawAll(); }; }
   if ($("aBack")) $("aBack").onclick = () => pickSet("");
   M.onclick = (ev) => { const b = ev.target.closest("[data-pi]"); if (!b) return; const p = DB.p[+b.dataset.pi]; allCard(+b.dataset.oi, p[0], p[1]); };
@@ -2463,7 +2466,7 @@ function allCard(oi, set, number) {
   const o = oInfo(oi); const pr = brlOf(set, number, false); const own = S.cards.filter(e => e.oi === oi && e.qty > 0);
   const here = own.filter(e => e.set === set && normNum(e.number) === normNum(number)).reduce((a, e) => a + e.qty, 0), tot = own.reduce((a, e) => a + e.qty, 0);
   openSheet(`<div class="detail">${cardImgHTML({ oi, set, number, foil: false, lang: "en" }, { bare: true })}<div><h3>${esc(o.name)}</h3>${manaHTML(o.mana)}<div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div>
-    <div class="meta">${setHTML(set, (DB.p[DB.bySetNum.get(set + "|" + normNum(number))] || [])[2])} ${esc(DB.sets[set] || set)} #${esc(number)}${pr ? " · " + fmtUSD(pr) : ""}</div>
+    <div class="meta">${setHTML(set, (DB.p[DB.bySetNum.get(set + "|" + normNum(number))] || [])[2])} ${esc(DB.sets[set] || set)} #${esc(number)}${pr && !NOPR() ? " · " + fmtUSD(pr) : ""}</div>
     <div class="meta">${here ? `Vocês têm ${here}× desta edição` : "Vocês não têm esta edição"}${tot > here ? ` · ${tot}× no total` : ""}</div></div></div>
     ${o.text ? `<div class="textbox">${esc(o.text)}</div>` : ""}${locLines(oi).length ? `<div class="meta">${locLines(oi).map(esc).join("<br>")}</div>` : ""}`,
     `<button class="btn" id="acZ">🔍 Ver grande</button><button class="btn" id="acW">${wishHas(oi) ? "⭐ Nas desejadas" : "⭐ Desejar"}</button><button class="btn" id="acD">🃏 Mandar para um deck…</button><button class="btn primary" id="acA">＋ Pôr na coleção</button>`);
@@ -2602,13 +2605,13 @@ function wishGroupOf(w, g) {
   return [0, ""];
 }
 function drawWish() {
-  const q = norm(($("wq") || {}).value || ""); const k = S.settings.wishSort || "recent"; const g = S.settings.wishGroup || "";
+  const q = norm(($("wq") || {}).value || ""); const k = S.settings.wishSort || "recent"; let g = S.settings.wishGroup || ""; if (g === "price" && NOPR()) g = "";
   let list = S.wish.filter(w => !q || norm(w.name).includes(q) || ptN(w.oi).includes(q) || norm(w.note || "").includes(q));
   list.sort(k === "price" ? (a, b) => wishPrice(b) * b.qty - wishPrice(a) * a.qty : k === "price_r" ? (a, b) => (wishPrice(a) * a.qty || 1e9) - (wishPrice(b) * b.qty || 1e9) : k === "cmc" ? (a, b) => DB.o[a.oi][2] - DB.o[b.oi][2] || a.name.localeCompare(b.name) : k === "cmc_r" ? (a, b) => DB.o[b.oi][2] - DB.o[a.oi][2] || a.name.localeCompare(b.name) : k === "name" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.at - a.at);
   for (const id of [...WS.sel]) if (!S.wish.some(w => w.id === id)) WS.sel.delete(id);
   const want = S.wish.filter(w => !w.buy), onway = S.wish.filter(w => w.buy);
   const tot = want.reduce((a, w) => a + wishPrice(w) * w.qty, 0);
-  $("wCount").textContent = `${want.reduce((a, w) => a + w.qty, 0)} carta(s)${tot ? " · ≈ " + fmtUSD(tot) : ""}${onway.length ? ` · 📦 ${onway.reduce((a, w) => a + w.qty, 0)} a caminho` : ""}`;
+  $("wCount").textContent = `${want.reduce((a, w) => a + w.qty, 0)} carta(s)${tot && !NOPR() ? " · ≈ " + fmtUSD(tot) : ""}${onway.length ? ` · 📦 ${onway.reduce((a, w) => a + w.qty, 0)} a caminho` : ""}`;
   if ($("wSelBtn")) $("wSelBtn").classList.toggle("on", WS.on);
   if (!S.wish.length) { WS.on = false; wishSelBar(); $("main").innerHTML = `<div class="empty">Nenhuma carta desejada ainda.<br>Clique com o botão direito (no celular, segure o dedo) em qualquer carta do app — coleção, decks, busca, EDH, ofertas — e escolha <b>⭐ Adicionar às desejadas</b>.<br><br><button class="btn primary" id="wE">+ Adicionar pelo nome</button></div>`; $("wE").onclick = wishByName; return; }
   const tile = (w) => { const pr = wishPrice(w); const have = libFor(w.oi) + S.cards.filter(e => e.oi === w.oi).reduce((a, e) => a + inDecks(e), 0);
@@ -2616,12 +2619,12 @@ function drawWish() {
     return `<button class="tile${WS.sel.has(w.id) ? " wsel" : ""}${w.buy ? " wbought" : ""}" data-wid="${w.id}" data-woi="${w.oi}"><span class="tname">${esc(w.name)}</span>${img.slice(0, -6)}${w.qty > 1 ? `<span class="qtyb">${w.qty}</span>` : ""}${pr ? `<span class="price">${fmtUSD(pr * w.qty)}</span>` : ""}${WS.on ? `<span class="wck">${WS.sel.has(w.id) ? "✓" : ""}</span>` : ""}</div>
       <span class="tsub">${WS.on ? "" : w.buy ? `<span class="pill ok wact" data-warr="${w.id}" title="Chegou: pôr na coleção">✅ Chegou</span> ` : `<span class="pill wact" data-wbuy="${w.id}" title="Marcar como comprada (a caminho)">📦 Comprei</span> `}${have ? `<span class="pill ok wloc" data-wloc="${w.oi}" title="${esc(locLines(w.oi).join("\n"))}">tem ${have} · onde?</span> ` : ""}${w.note ? esc(w.note) : `<span class="meta">${esc((w.set || "").toUpperCase())}</span>`}</span></button>`; };
   let html; const way = list.filter(w => w.buy); list = list.filter(w => !w.buy);
-  const wayHTML = way.length ? `<div class="wgh"><b>📦 A caminho</b><span class="meta">${way.reduce((a, w) => a + w.qty, 0)} carta(s) compradas · ${fmtUSD(way.reduce((a, w) => a + wishPrice(w) * w.qty, 0))}</span><button class="btn small" data-warrall="1">✅ Chegaram todas</button></div><div class="grid">${way.map(tile).join("")}</div>${list.length ? `<div class="wgh"><b>⭐ Desejadas</b></div>` : ""}` : "";
+  const wayHTML = way.length ? `<div class="wgh"><b>📦 A caminho</b><span class="meta">${way.reduce((a, w) => a + w.qty, 0)} carta(s) compradas${NOPR() ? "" : " · "}${fmtUSD(way.reduce((a, w) => a + wishPrice(w) * w.qty, 0))}</span><button class="btn small" data-warrall="1">✅ Chegaram todas</button></div><div class="grid">${way.map(tile).join("")}</div>${list.length ? `<div class="wgh"><b>⭐ Desejadas</b></div>` : ""}` : "";
   if (!g) html = `<div class="grid">${list.map(tile).join("")}</div>`;
   else {
     const groups = new Map(); for (const w of list) { const [o, n] = wishGroupOf(w, g); const key = n; if (!groups.has(key)) groups.set(key, { o, n, l: [] }); groups.get(key).l.push(w); }
     html = [...groups.values()].sort((a, b) => a.o - b.o || a.n.localeCompare(b.n)).map(gr => { const sum = gr.l.reduce((a, w) => a + wishPrice(w) * w.qty, 0); const all = gr.l.every(w => WS.sel.has(w.id));
-      return `<div class="wgh"><b>${esc(gr.n)}</b><span class="meta">${gr.l.reduce((a, w) => a + w.qty, 0)} carta(s)${sum ? " · " + fmtUSD(sum) : ""}</span><button class="btn small" data-wg="${esc(gr.n)}">${all && WS.on ? "Desmarcar" : "Selecionar"}</button><button class="btn small" data-wgc="${esc(gr.n)}">📋 Copiar</button></div><div class="grid">${gr.l.map(tile).join("")}</div>`; }).join("");
+      return `<div class="wgh"><b>${esc(gr.n)}</b><span class="meta">${gr.l.reduce((a, w) => a + w.qty, 0)} carta(s)${sum && !NOPR() ? " · " + fmtUSD(sum) : ""}</span><button class="btn small" data-wg="${esc(gr.n)}">${all && WS.on ? "Desmarcar" : "Selecionar"}</button><button class="btn small" data-wgc="${esc(gr.n)}">📋 Copiar</button></div><div class="grid">${gr.l.map(tile).join("")}</div>`; }).join("");
     WS.groups = groups;
   }
   html = wayHTML + html;
@@ -2643,7 +2646,7 @@ function wishSelBar() {
   let bar = $("wBar"); if (!WS.on || tab !== "wish") { if (bar) bar.remove(); return; }
   if (!bar) { bar = document.createElement("div"); bar.id = "wBar"; bar.className = "selbar wbar"; document.body.appendChild(bar); }
   const sel = S.wish.filter(w => WS.sel.has(w.id)); const sum = sel.reduce((a, w) => a + wishPrice(w) * w.qty, 0);
-  bar.innerHTML = `<span><b>${sel.length}</b> selecionada(s)${sum ? " · " + fmtUSD(sum) : ""}</span><button data-wb="copy"${sel.length ? "" : " disabled"}>📋 Copiar lista</button><button data-wb="all">Todas</button><button data-wb="none">Nenhuma</button><button data-wb="buy"${sel.length ? "" : " disabled"}>📦 Comprei</button><button data-wb="got"${sel.length ? "" : " disabled"}>✅ Chegou</button><button data-wb="del"${sel.length ? "" : " disabled"}>Remover</button><button data-wb="x" title="Sair da seleção">✕</button>`;
+  bar.innerHTML = `<span><b>${sel.length}</b> selecionada(s)${sum && !NOPR() ? " · " + fmtUSD(sum) : ""}</span><button data-wb="copy"${sel.length ? "" : " disabled"}>📋 Copiar lista</button><button data-wb="all">Todas</button><button data-wb="none">Nenhuma</button><button data-wb="buy"${sel.length ? "" : " disabled"}>📦 Comprei</button><button data-wb="got"${sel.length ? "" : " disabled"}>✅ Chegou</button><button data-wb="del"${sel.length ? "" : " disabled"}>Remover</button><button data-wb="x" title="Sair da seleção">✕</button>`;
   bar.onclick = (e) => { const b = e.target.closest("[data-wb]"); if (!b) return; const a = b.dataset.wb;
     if (a === "copy") return wishCopy(sel);
     if (a === "buy") { wishBuy(sel); WS.sel.clear(); WS.on = false; return drawWish(); }
@@ -2656,7 +2659,7 @@ function wishSelBar() {
 }
 function wishSheet(id) {
   const w = S.wish.find(x => x.id === id); if (!w) return; const pr = wishPrice(w);
-  openSheet(`<div class="detail">${cardImgHTML({ oi: w.oi, set: w.set, number: w.number }, { bare: true })}<div><h3>${esc(w.name)}</h3><div class="meta">${esc((w.set || "").toUpperCase())} #${esc(w.number || "")}${pr ? " · " + fmtUSD(pr) + " cada" : ""}</div>
+  openSheet(`<div class="detail">${cardImgHTML({ oi: w.oi, set: w.set, number: w.number }, { bare: true })}<div><h3>${esc(w.name)}</h3><div class="meta">${esc((w.set || "").toUpperCase())} #${esc(w.number || "")}${pr && !NOPR() ? " · " + fmtUSD(pr) + " cada" : ""}</div>
     <div class="seg" style="margin-top:8px;justify-content:flex-start"><button id="wM">−</button><button aria-pressed="true" id="wQ">${w.qty}</button><button id="wP">+</button></div></div></div>
     <input type="text" id="wN" placeholder="Anotação (ex.: para o deck da Ayara, versão foil…)" value="${esc(w.note || "")}">
     <div class="gf-menu">${w.buy ? `<div class="meta">📦 Comprada em ${new Date(w.buy).toLocaleDateString("pt-BR")} — a caminho</div><button class="btn" id="wBuy">↩ Não comprei (voltar a desejar)</button>` : `<button class="btn" id="wBuy">📦 Comprada — a caminho</button>`}<button class="btn primary" id="wGot">✅ Chegou — pôr na coleção</button><button class="btn" id="wLiga">🛒 Ver na LigaMagic ↗</button><button class="btn" id="wVer">🎨 Trocar edição</button><button class="btn danger" id="wDel">Remover</button></div>`, `<button class="btn primary" id="wX">OK</button>`);
@@ -3417,7 +3420,7 @@ function drawDeals() {
     <h2 class="sec"><span>Baixaram de preço</span><span>${drops.length}</span></h2>
     ${drops.length ? `<div class="ed-results">${drops.slice(0, 30).map(x => card(x, `<span class="edh-rank">↓ ${x.drop}%</span>`)).join("")}</div>` : `<div class="meta">Nenhuma carta que falta nos seus decks caiu 10% ou mais${D.items.length ? "" : " (nenhuma carta faltando nos decks)"}. O app vai acompanhando os preços a cada dia.</div>`}
     <h2 class="sec"><span>Faltando nos seus decks — mais baratas</span><span>${D.items.length}</span></h2>
-    ${D.items.length ? `<div class="meta" style="margin-bottom:8px">Completar tudo custaria cerca de <b>${fmtUSD(total)}</b>.</div><div class="ed-results">${cheap.slice(0, 60).map(x => card(x)).join("")}</div>` : `<div class="meta">Todos os seus decks estão completos com a coleção. 🎉</div>`}
+    ${D.items.length ? `${NOPR() ? "" : `<div class="meta" style="margin-bottom:8px">Completar tudo custaria cerca de <b>${fmtUSD(total)}</b>.</div>`}<div class="ed-results">${cheap.slice(0, 60).map(x => card(x)).join("")}</div>` : `<div class="meta">Todos os seus decks estão completos com a coleção. 🎉</div>`}
     <h2 class="sec"><span>Precons recentes — valor em cartas</span></h2><div class="precons" id="preconDeals"><div class="meta">Carregando lista de precons…</div></div>
     <div class="cfg-s" style="text-align:center;margin-top:10px">Atualizado ${new Date(D.at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</div>`;
   drawPreconDeals();
@@ -4287,7 +4290,7 @@ function renderStatsPane() {
       ${(() => { const kw = {}, me = {}; inMain.forEach(c => { kwOf(c.oi).forEach(k => kw[k] = (kw[k] || 0) + c.qty); mechOf(c.oi).forEach(k => me[k] = (me[k] || 0) + c.qty); });
         const chips = (o, mode) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<button class="chip kwchip" data-kwg="${mode}" title="Agrupar o deck por ${mode === "kw" ? "palavras-chave" : "mecânicas"}">${esc(k)} <b>${n}</b></button>`).join("");
         return (Object.keys(kw).length ? `<div><div class="meta" style="margin-bottom:4px">Palavras-chave</div><div class="kwchips">${chips(kw, "kw")}</div></div>` : "") + (Object.keys(me).length ? `<div><div class="meta" style="margin-bottom:4px">Mecânicas</div><div class="kwchips">${chips(me, "mech")}</div></div>` : ""); })()}
-      ${value ? `<div class="meta">Valor estimado: <b>${fmtUSD(value)}</b></div>` : ""}
+      ${value && !NOPR() ? `<div class="meta">Valor estimado: <b>${fmtUSD(value)}</b></div>` : ""}
       <div class="actions"><button class="btn small primary" id="sBuild">Montar com a coleção</button><button class="btn small" id="sCopy">Copiar lista</button><button class="btn small" id="sMiss">Copiar faltantes</button></div>
     </div>`;
   $("edStats").querySelectorAll("[data-tplsearch]").forEach(b => b.onclick = () => {
