@@ -895,7 +895,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
   <button data-tab="scan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>Escanear</button>
   <button data-tab="decks"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="16" rx="2"/><path d="M4 6v13a2 2 0 0 0 2 2h10"/></svg>Decks</button>
   <button data-tab="edh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 18h18l-1.5-10-4.5 4-3-6-3 6-4.5-4z"/><path d="M5 21h14"/></svg>EDH</button>
-  <button data-tab="all" class="pconly" title="Todas as cartas do jogo, por coleção"><i class="ms ms-p navms" aria-hidden="true"></i>MTG</button>
+  <button data-tab="all" class="pconly" title="Todas as cartas do jogo, por coleção"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><defs><mask id="navFanMask"><rect width="24" height="24" fill="white"/><rect x="7.2" y="1.7" width="9.6" height="13.1" rx="2" fill="black"/></mask></defs><g mask="url(#navFanMask)"><g transform="rotate(-32 12 19)"><rect x="8.5" y="3" width="7" height="10.5" rx="1.2"/></g><g transform="rotate(32 12 19)"><rect x="8.5" y="3" width="7" height="10.5" rx="1.2"/></g></g><rect x="8.5" y="3" width="7" height="10.5" rx="1.2"/><path d="M12 5.4l1 2.3 2.3 1-2.3 1-1 2.3-1-2.3-2.3-1 2.3-1z" fill="currentColor" stroke="none"/></svg>MTG</button>
   <button data-tab="wish"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>Desejos</button>
   <button data-tab="deals"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.6"/></svg>Ofertas</button>
   <button data-tab="boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 8l9-5 9 5v8l-9 5-9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg>Caixas</button>
@@ -2193,7 +2193,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19u";
+const APP_VERSION = "2026.11.19v";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
