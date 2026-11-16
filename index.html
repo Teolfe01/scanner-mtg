@@ -1376,8 +1376,8 @@ function renderCol() {
 }
 function drawCol() {
   const arr = colFiltered();
-  const n = arr.reduce((a, e) => a + e.qty, 0), val = arr.reduce((a, e) => a + priceOf(e) * e.qty, 0);
-  $("colCount").textContent = `${n} carta${n === 1 ? "" : "s"}${val && !NOPR() ? " · ≈ " + fmtUSD(val) : ""}`;
+  const n = arr.reduce((a, e) => a + e.qty, 0); // valor total não aparece aqui (só o admin vê, no fim das Configurações)
+  $("colCount").textContent = `${n} carta${n === 1 ? "" : "s"}`;
   $("viewBtn").innerHTML = F.view === "grid" ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>` : `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>`;
   if (!S.cards.length) { $("main").innerHTML = `<div class="empty">Sua coleção está vazia.<br>Toque no + ou em Escanear para começar.</div>`; return; }
   if (!arr.length) { $("main").innerHTML = `<div class="empty">Nenhuma carta com esses filtros.</div>`; return; }
@@ -2194,7 +2194,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19w";
+const APP_VERSION = "2026.11.19x";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -2300,6 +2300,7 @@ function renderCfg() {
       ${btnRow("cfBug", "🐞 Reportar bug ou 💡 sugerir melhoria", "Vai junto um diagnóstico do app")}
       ${btnRow("cfBugs", "Bugs e sugestões", "Lista para o pacote de atualização (a cada 2 dias)")}
       ${window.bmtgDesktop || isInstalled() ? "" : /Android|iPhone|iPad/i.test(navigator.userAgent) ? btnRow("cfInst", "📲 Instalar o app", "") : btnRow("cfExe", "💻 Baixar app para Windows (.exe)", "Programa que abre direto, sem instalar · atualiza sozinho") + btnRow("cfInst", "Ou instalar pelo Chrome", "Vira um app do PC pelo próprio navegador")}
+      ${isAdmin() && LIB === "principal" && !SIM_ON() ? `<div class="cfg-s" style="text-align:center;padding:8px 0 4px"><button class="btn small" id="cfTotal">💰 Ver valor total da coleção</button><div id="cfTotalV" class="meta" style="margin-top:6px"></div></div>` : ""}
       <div class="cfg-s" style="text-align:center;padding:6px 0 2px">Biblioteca MTG · versão ${APP_VERSION} · <a href="#" id="cfAbout" style="color:var(--accent)">Sobre</a><br><button class="btn small" id="cfUpd" style="margin-top:8px">⟳ Procurar atualização</button> <button class="btn small" id="cfForce" style="margin-top:8px">Forçar atualização</button></div>
     </div></div>`;
   const m = $("main");
@@ -2315,6 +2316,9 @@ function renderCfg() {
   $("cfCache").onclick = async () => { try { await caches.delete("bmtg-imgs"); } catch (e) {} IMGS = {}; await store.set("imgs", {}); toast("Imagens guardadas apagadas"); };
   if ($("cfLib")) $("cfLib").onclick = () => switchLib(LIB === "principal" ? "u_" + CLOUD.user.uid : "principal");
   if ($("cfGuests")) $("cfGuests").onclick = guestsSheet;
+  if ($("cfTotal")) $("cfTotal").onclick = () => { const v = $("cfTotalV"); if (v.textContent) { v.textContent = ""; $("cfTotal").textContent = "💰 Ver valor total da coleção"; return; }
+    const n = S.cards.reduce((a, e) => a + e.qty, 0), val = S.cards.reduce((a, e) => a + priceOf(e) * e.qty, 0);
+    v.innerHTML = `<b style="font-size:18px;color:var(--ink)">${fmtUSD(val)}</b><br>${n} cartas · preços LigaMagic/Scryfall, estimativa`; $("cfTotal").textContent = "Esconder valor"; };
   $("cfUpd").onclick = async () => { checkUpdate(true); const B = window.bmtgDesktop; if (B && B.checkExeUpdate) { const r = await B.checkExeUpdate(); if (r && r.latest) toast(`App do Windows em dia (${r.version})`); } };
   if (window.bmtgDesktop && window.bmtgDesktop.exeVersion) window.bmtgDesktop.exeVersion().then(v => { const el = $("cfAbout"); if (el && v) el.insertAdjacentText("beforebegin", `app Windows ${v} · `); }).catch(() => {}); $("cfForce").onclick = forceUpdate; $("cfAbout").onclick = (e) => { e.preventDefault(); closeSheet(); showAbout(); };
   $("cfBug").onclick = bugDialog; if ($("cfSnd")) $("cfSnd").onclick = () => { [300, 700, 1500, 5000, 15000].forEach((c, i) => setTimeout(() => priceSound(c * 100 / 100, true), i * 900)); }; $("cfBugs").onclick = bugsList; if ($("cfInst")) $("cfInst").onclick = installApp; if ($("cfExe")) $("cfExe").onclick = () => window.open("https://github.com/Teolfe01/scanner-mtg/releases/download/desktop/BibliotecaMTG.exe", "_blank");
