@@ -382,6 +382,27 @@ html.noprices .grid .cardimg .price { display: none; }
 .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; } .cmpc { display: flex; flex-direction: column; gap: 6px; } .cmpc h3 { margin: 4px 0 0; font-size: 15px; }
 .undobtn { position: fixed; left: 16px; bottom: calc(var(--nav-h, 70px) + 22px + env(safe-area-inset-bottom)); z-index: 75; border: 1px solid rgba(var(--acc-rgb), .45); background: rgba(28,30,35,.96); color: inherit; font: inherit; font-size: 13px; font-weight: 600; border-radius: 999px; padding: 9px 14px; display: flex; gap: 8px; align-items: center; box-shadow: 0 10px 28px rgba(0,0,0,.5); cursor: pointer; opacity: 0; transform: translateY(14px); pointer-events: none; transition: opacity .2s ease, transform .2s ease; backdrop-filter: blur(10px); }
 .undobtn.on { opacity: 1; transform: none; pointer-events: auto; }
+.undobtn { padding: 4px !important; gap: 2px !important; }
+.undobtn button { border: 0; background: transparent; color: inherit; font: inherit; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
+.undobtn button:hover:not(:disabled) { background: rgba(255,255,255,.08); } .undobtn button:disabled { opacity: .35; cursor: default; }
+.undobtn svg, .histbar svg { width: 18px; height: 18px; }
+.histbar { display: none; }
+.histbar .iconbtn:disabled { opacity: .3; cursor: default; background: transparent; }
+.histpop { position: fixed; z-index: 90; width: 380px; max-height: min(70vh, 560px); display: flex; flex-direction: column; background: rgba(24,25,29,.98); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 12px; box-shadow: 0 18px 50px rgba(0,0,0,.6); animation: sheetPop .18s var(--ease) both; }
+.hhead { display: flex; flex-direction: column; gap: 2px; margin-bottom: 8px; } .hhead .meta { font-size: 12px; }
+.hlist { overflow: auto; display: flex; flex-direction: column; gap: 2px; min-height: 0; }
+.hrow { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; align-items: center; text-align: left; border: 0; background: transparent; color: inherit; font: inherit; font-size: 13px; padding: 7px 8px; border-radius: 8px; cursor: pointer; }
+.hrow:hover { background: rgba(255,255,255,.07); } .hrow i { font-style: normal; color: var(--accent); text-align: center; } .hrow time { font-size: 11px; color: var(--muted); }
+.hrow span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.hrow.fut { opacity: .5; } .hrow.fut:hover { opacity: .85; } .hrow.fut i { color: var(--muted); }
+.hnow { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); padding: 4px 8px; border-top: 1px dashed rgba(var(--acc-rgb), .4); }
+.lbar { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; position: sticky; top: -16px; background: inherit; z-index: 1; padding-top: 4px; }
+.lday { font-size: 12px; text-transform: capitalize; color: var(--muted); margin: 12px 0 4px; font-weight: 600; }
+.lrow { display: grid; grid-template-columns: 44px auto 1fr; gap: 4px 10px; align-items: baseline; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 13px; }
+.lrow.exp { cursor: pointer; } .lrow time { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.lwho { color: hsl(var(--h) 70% 72%); font-weight: 600; } .ldet { grid-column: 3; font-size: 12px; color: #c8cad0; display: grid; gap: 2px; padding: 2px 0 4px; }
+@media (min-width: 1000px) { #undoBtn { display: none !important; } .histbar { display: flex; order: 3; flex: 0 0 auto; gap: 0; } html:has(.edtabs) .histbar { margin-right: 104px; } html.desk:has(.edtabs) .histbar { margin-right: 104px; } html.guest .histbar { display: none; } }
+html.guest #undoBtn { display: none !important; }
 .undobtn kbd { font: inherit; font-size: 11px; font-weight: 400; color: var(--muted); }
 .edtabs .edgf, .edtabs .edgf:not([aria-pressed]) { background: var(--grad) !important; color: #1a1205 !important; flex: 0 0 auto; }
 /* ---- Playtest ---- */
@@ -1111,7 +1132,7 @@ function isOwner() { const e = myEmail(); if (!e) return false; return e === ADM
 // convidado olhando a biblioteca principal: só leitura; decks que ele monta viram "aprovação pendente"
 function isGuest() { return LIB === "principal" && !!CLOUD.user && (!isOwner() || SIM_ON()); }
 const LIB = (() => { try { return localStorage.getItem("bmtg.lib") || "principal"; } catch (e) { return "principal"; } })();
-const LIB_KEYS = new Set(["cards", "decks", "boxes", "wish", "liga"]);
+const LIB_KEYS = new Set(["cards", "decks", "boxes", "wish", "liga", "log"]);
 const lk = (k) => LIB !== "principal" && LIB_KEYS.has(k) ? LIB + ":" + k : k;
 function switchLib(id) { try { localStorage.setItem("bmtg.lib", id); } catch (e) {} location.reload(); }
 // ============ Armazenamento local (IndexedDB) ============
@@ -1296,6 +1317,7 @@ setTimeout(() => { try { const A = IS_NATIVE() && window.Capacitor.Plugins.App; 
 $("nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-tab]"); if (b) go(b.dataset.tab); });
 $("backBtn").onclick = () => (tab === "cfg" ? history.back() : go(tab));
 function setMenu(items) {
+  if (tab !== "cfg" && !items.some(it => /Registro de/.test(it[0]))) items = [...items, ["📜 Registro de alterações", openLog]];
   if (tab !== "cfg" && !items.some(it => /Configura/.test(it[0]))) items = [...items, ["⚙️ Configurações", openSettings]];
   $("menu").innerHTML = items.map((it, i) => `<button data-i="${i}">${esc(it[0])}</button>`).join("");
   $("menu").onclick = (e) => { const b = e.target.closest("button[data-i]"); if (!b) return; $("menu").classList.add("hidden"); items[+b.dataset.i][1](); };
@@ -1310,7 +1332,7 @@ $("menuBtn").onclick = (e) => { e.stopPropagation(); $("menu").classList.toggle(
 document.addEventListener("click", (e) => { if (!e.target.closest("#menu, #menuBtn")) $("menu").classList.add("hidden"); });
 
 // Folha (sheet)
-function openSheet(body, foot = "") { NAV.reopen = null; $("sheet").classList.remove("wide"); document.documentElement.classList.add("lock"); if (!NAV.sheet) { NAV.sheet = true; history.pushState({ bm: 1, t: tab, v: view, sheet: 1 }, ""); } $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
+function openSheet(body, foot = "") { NAV.reopen = null; $("sheet").classList.remove("wide", "histsheet"); document.documentElement.classList.add("lock"); if (!NAV.sheet) { NAV.sheet = true; history.pushState({ bm: 1, t: tab, v: view, sheet: 1 }, ""); } $("sheetBody").innerHTML = body; $("sheetFoot").innerHTML = foot; $("sheetFoot").classList.toggle("hidden", !foot); $("sheet").classList.remove("hidden"); $("scrim").classList.remove("hidden"); $("sheetBody").scrollTop = 0; }
 function closeSheet(o = {}) { NAV.reopen = null; if (NAV.sheet) { NAV.sheet = false; if (!o.pop && history.state && history.state.sheet) history.replaceState({ bm: 1, t: tab, v: view }, ""); } document.documentElement.classList.remove("lock"); $("sheet").classList.add("hidden"); $("scrim").classList.add("hidden"); if (tab === "scan") SC.paused = false; }
 $("scrim").onclick = () => closeSheet();
 
@@ -1935,39 +1957,229 @@ document.addEventListener("pointerdown", () => { if (!DRAG.on) document.querySel
 // depois de arrastar, ignora o "clique" que o navegador dispara ao soltar
 document.addEventListener("click", (e) => { if (Date.now() - DRAG.suppress < 250) { e.stopPropagation(); e.preventDefault(); } }, true);
 
-// ============ DESFAZER (botão + Ctrl+Z) ============
-// Guarda o estado da coleção e dos decks antes de cada alteração; "Desfazer" volta um passo.
-const UNDO = { stack: [], last: null, lock: false };
-const snapState = () => JSON.stringify({ c: S.cards, d: S.decks });
-function undoTrack() {
-  if (UNDO.lock) return; let now; try { now = snapState(); } catch (e) { return; }
-  if (UNDO.last !== null && now !== UNDO.last) { UNDO.stack.push(UNDO.last); if (UNDO.stack.length > 25) UNDO.stack.shift(); showUndo(); }
-  UNDO.last = now;
+// ============ DESFAZER / REFAZER + HISTÓRICO + REGISTRO DE ALTERAÇÕES ============
+// Cada passo guarda só as cartas e decks que mudaram (antes/depois). Desfazer e refazer mexem só nesses itens,
+// então nunca apagam o que outra pessoa mudou em outras cartas. Toda mudança vai para o registro (nuvem: libs/<lib>/log) com quem fez.
+const UNDO = { stack: [], redo: [], base: null, lock: false };
+const UNDO_MAX = 60;
+function snapMaps() { const c = new Map(), d = new Map(); S.cards.forEach((e, i) => c.set(e.key, [JSON.stringify(e), i])); S.decks.forEach((x, i) => d.set(x.id, [JSON.stringify(x), i])); return { c, d }; }
+function diffMaps(p, n) {
+  const ch = [];
+  for (const t of ["c", "d"]) { const A = p[t], B = n[t];
+    for (const [k, [j, i]] of A) { const nb = B.get(k); if (!nb) ch.push({ t, k, b: j, a: null, i }); else if (nb[0] !== j) ch.push({ t, k, b: j, a: nb[0], i: nb[1] }); }
+    for (const [k, [j, i]] of B) if (!A.has(k)) ch.push({ t, k, b: null, a: j, i }); }
+  return ch;
 }
-function undoBaseline() { try { UNDO.last = snapState(); } catch (e) {} }
+function undoTrack() {
+  if (UNDO.lock) return; let now; try { now = snapMaps(); } catch (e) { return; }
+  const prev = UNDO.base; UNDO.base = now; if (!prev) return;
+  const ch = diffMaps(prev, now); if (!ch.length) return;
+  const step = { at: Date.now(), ch, ...describeCh(ch) };
+  UNDO.stack.push(step); if (UNDO.stack.length > UNDO_MAX) UNDO.stack.shift(); UNDO.redo = [];
+  logQueue("edit", ch); showUndo();
+}
+function undoBaseline() { try { UNDO.base = snapMaps(); } catch (e) {} paintUndo(); }
+// ---- descrição legível de um passo ----
+const BOARD_PT = { main: "principal", side: "sideboard", maybe: "talvez", cmd: "comandante" };
+const oName = (oi) => (DB && DB.o && DB.o[oi] ? DB.o[oi][0] : "carta");
+function describeCh(ch) {
+  const lines = [], deckIds = new Set(ch.filter(x => x.t === "d").map(x => x.k));
+  const dname = (id) => { const d = S.decks.find(x => x.id === id) || (ch.find(x => x.t === "d" && x.k === id) || {}); let n = d.name; if (!n) { try { n = JSON.parse(d.a || d.b).name; } catch (e) {} } return n || "deck"; };
+  for (const x of ch.filter(y => y.t === "d")) {
+    const b = x.b ? JSON.parse(x.b) : null, a = x.a ? JSON.parse(x.a) : null, nm = (a || b).name || "Deck";
+    if (!b) { lines.push(`Deck “${nm}” criado (${(a.cards || []).reduce((s, c) => s + (c.qty || 0), 0)} cartas)`); continue; }
+    if (!a) { lines.push(`Deck “${nm}” apagado`); continue; }
+    if (a.name !== b.name) lines.push(`Deck renomeado: “${b.name}” → “${a.name}”`);
+    const cnt = (d) => { const m = new Map(); (d.cards || []).forEach(c => { const k = c.oi + "|" + (c.board || "main"); m.set(k, (m.get(k) || 0) + (c.qty || 0)); }); return m; };
+    const B = cnt(b), A = cnt(a), delta = new Map();
+    for (const k of new Set([...B.keys(), ...A.keys()])) { const v = (A.get(k) || 0) - (B.get(k) || 0); if (v) delta.set(k, v); }
+    const byOi = new Map(); for (const [k, v] of delta) { const [oi, bd] = k.split("|"); if (!byOi.has(oi)) byOi.set(oi, []); byOi.get(oi).push([bd, v]); }
+    let n0 = lines.length;
+    for (const [oi, arr] of byOi) {
+      const neg = arr.filter(([, v]) => v < 0), pos = arr.filter(([, v]) => v > 0);
+      if (neg.length === 1 && pos.length === 1 && -neg[0][1] === pos[0][1]) { lines.push(`${oName(+oi)}: ${BOARD_PT[neg[0][0]] || neg[0][0]} → ${BOARD_PT[pos[0][0]] || pos[0][0]} (${nm})`); continue; }
+      for (const [bd, v] of arr) lines.push(`${v > 0 ? "+" : "−"}${Math.abs(v)} ${oName(+oi)} ${v > 0 ? "em" : "de"} ${nm}${bd !== "main" ? ` (${BOARD_PT[bd] || bd})` : ""}`);
+    }
+    if (lines.length === n0 && a.name === b.name) { // trocou edição, foil, comandante, ordem etc.
+      const ed = (d) => new Map((d.cards || []).map(c => [c.oi + "|" + (c.board || "main"), (c.set || "") + (c.number || "") + (c.foil ? "f" : "")]));
+      const EB = ed(b), EA = ed(a); const chg = [...EA].filter(([k, v]) => EB.has(k) && EB.get(k) !== v).map(([k]) => oName(+k.split("|")[0]));
+      lines.push(chg.length ? `${chg.slice(0, 3).join(", ")}${chg.length > 3 ? "…" : ""}: edição trocada em ${nm}` : `Deck “${nm}” ajustado`);
+    }
+  }
+  for (const x of ch.filter(y => y.t === "c")) {
+    const b = x.b ? JSON.parse(x.b) : null, a = x.a ? JSON.parse(x.a) : null, e = a || b, nm = e.name || oName(e.oi);
+    const tag = [e.foil ? "foil" : "", e.lang && e.lang !== "en" ? e.lang.toUpperCase() : "", e.set ? e.set.toUpperCase() : ""].filter(Boolean).join(" · ");
+    if (!b) { lines.push(`+${a.qty} ${nm} na coleção${tag ? ` (${tag})` : ""}`); continue; }
+    if (!a) { lines.push(`−${b.qty} ${nm} da coleção${tag ? ` (${tag})` : ""}`); continue; }
+    let said = false;
+    if (a.qty !== b.qty) { const v = a.qty - b.qty; lines.push(`${v > 0 ? "+" : "−"}${Math.abs(v)} ${nm} ${v > 0 ? "na" : "da"} coleção`); said = true; }
+    const da = a.decks || {}, db = b.decks || {};
+    for (const id of new Set([...Object.keys(da), ...Object.keys(db)])) { const v = (da[id] || 0) - (db[id] || 0); if (!v || deckIds.has(id)) continue; lines.push(v > 0 ? `${nm} → ${dname(id)}` : `${nm} saiu de ${dname(id)}`); said = true; }
+    if (!said) { const F = { set: "edição", number: "edição", lang: "idioma", foil: "foil", box: "lugar", loc: "lugar", cond: "estado" };
+      const what = [...new Set(Object.keys({ ...a, ...b }).filter(k => !["qty", "decks", "img", "added", "key"].includes(k) && JSON.stringify(a[k]) !== JSON.stringify(b[k])).map(k => F[k] || k))];
+      if (what.length) lines.push(`${nm}: ${what.join(", ")} alterado`); }
+  }
+  if (!lines.length) lines.push("Alteração");
+  const desc = lines.length <= 2 ? lines.join(" · ") : `${lines[0]} · ${lines[1]} e mais ${lines.length - 2}`;
+  return { desc, lines: lines.slice(0, 40), more: Math.max(0, lines.length - 40) };
+}
+// ---- aplicar passos ----
+function applyStep(step, dir) { // dir "undo" volta para o antes; "redo" vai para o depois
+  let skipped = 0;
+  for (const x of dir === "undo" ? [...step.ch].reverse() : step.ch) {
+    const list = x.t === "c" ? S.cards : S.decks, idf = x.t === "c" ? "key" : "id";
+    const want = dir === "undo" ? x.b : x.a, expect = dir === "undo" ? x.a : x.b;
+    const i = list.findIndex(o => o[idf] === x.k), cur = i >= 0 ? JSON.stringify(list[i]) : null;
+    if (cur !== expect) { if (cur !== want) skipped++; continue; } // alguém mudou esse item depois: não mexe
+    if (want === null) list.splice(i, 1);
+    else { const o = JSON.parse(want); if (i >= 0) list[i] = o; else list.splice(Math.min(x.i, list.length), 0, o); }
+  }
+  return skipped;
+}
+function undoRedraw() {
+  if (SEL.size) SEL.clear();
+  if (!$("sheet").classList.contains("hidden") && !$("sheet").classList.contains("histsheet")) closeSheet();
+  try { if (tab === "scan") updateDestChip(); else if (!(tab === "decks" && view && view.kind === "gold")) views[tab](); } catch (e) {}
+}
+function undoLast(n = 1, quiet) { return undoMove("undo", n, quiet); }
+function redoLast(n = 1, quiet) { return undoMove("redo", n, quiet); }
+function undoMove(dir, n = 1, quiet) {
+  const from = dir === "undo" ? UNDO.stack : UNDO.redo, to = dir === "undo" ? UNDO.redo : UNDO.stack;
+  if (!from.length) { toast(dir === "undo" ? "Nada para desfazer" : "Nada para refazer"); return; }
+  let skipped = 0; const done = [];
+  for (let k = 0; k < n && from.length; k++) { const st = from.pop(); skipped += applyStep(st, dir); to.push(st); done.push(st); }
+  UNDO.lock = true; save(); UNDO.lock = false; UNDO.base = snapMaps();
+  // registro: junta as mudanças efetivas
+  const ch = []; done.forEach(st => st.ch.forEach(x => ch.push(x))); // descreve o passo original ("Desfez: Sol Ring → deck X")
+  logFlush(); logQueue(dir, ch); logFlush();
+  undoRedraw();
+  if (!quiet) toast((dir === "undo" ? "↶ Desfeito: " : "↷ Refeito: ") + (done.length === 1 ? done[0].desc : done.length + " passos") + (skipped ? ` · ${skipped} item(ns) mudado(s) por outra pessoa ficaram como estão` : ""), skipped ? 4000 : 2000);
+  showUndo(); paintHist();
+}
+// ---- botões ----
+const SVG_UNDO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>`;
+const SVG_REDO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>`;
+const SVG_HIST = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>`;
+function paintUndo() {
+  const u = $("undoTop"), r = $("redoTop"); if (!u) return;
+  u.disabled = !UNDO.stack.length; r.disabled = !UNDO.redo.length;
+  u.title = UNDO.stack.length ? `Desfazer: ${UNDO.stack[UNDO.stack.length - 1].desc} (Ctrl+Z)` : "Nada para desfazer";
+  r.title = UNDO.redo.length ? `Refazer: ${UNDO.redo[UNDO.redo.length - 1].desc} (Ctrl+Y)` : "Nada para refazer";
+  const b = $("undoBtn"); if (b) { b.querySelector("[data-u=redo]").disabled = !UNDO.redo.length; b.querySelector("[data-u=undo]").disabled = !UNDO.stack.length; }
+}
 function showUndo() {
-  let b = $("undoBtn"); if (!b) { b = document.createElement("button"); b.id = "undoBtn"; b.className = "undobtn"; b.innerHTML = `↶ Desfazer<kbd>Ctrl+Z</kbd>`; b.onclick = undoLast; document.body.appendChild(b); }
-  b.querySelector("kbd").style.display = isWide() ? "" : "none";
+  paintUndo();
+  let b = $("undoBtn");
+  if (!b) { b = document.createElement("div"); b.id = "undoBtn"; b.className = "undobtn";
+    b.innerHTML = `<button data-u="undo">${SVG_UNDO}<span>Desfazer</span></button><button data-u="redo" aria-label="Refazer">${SVG_REDO}</button><button data-u="hist" aria-label="Histórico">${SVG_HIST}</button>`;
+    b.onclick = (e) => { const x = e.target.closest("[data-u]"); if (!x || x.disabled) return; ({ undo: () => undoLast(), redo: () => redoLast(), hist: () => openHist() })[x.dataset.u](); };
+    document.body.appendChild(b); paintUndo(); }
+  if (isWide()) return; // no PC as setas ficam fixas no topo
   b.classList.add("on"); clearTimeout(UNDO.t); UNDO.t = setTimeout(() => b.classList.remove("on"), 7000);
 }
-function undoLast() {
-  if (!UNDO.stack.length) { toast("Nada para desfazer"); return; }
-  const prev = JSON.parse(UNDO.stack.pop());
-  UNDO.lock = true;
-  S.cards.splice(0, S.cards.length, ...prev.c); S.decks.splice(0, S.decks.length, ...prev.d);
-  save(); UNDO.lock = false; UNDO.last = JSON.stringify(prev);
-  if (SEL.size) SEL.clear();
-  if (!$("sheet").classList.contains("hidden")) closeSheet();
-  try { if (tab === "scan") updateDestChip(); else if (!(tab === "decks" && view && view.kind === "gold")) views[tab](); } catch (e) {}
-  toast("↶ Desfeito" + (UNDO.stack.length ? ` · mais ${UNDO.stack.length} passo(s)` : ""), 1600);
-  const b = $("undoBtn"); if (b) { if (UNDO.stack.length) showUndo(); else b.classList.remove("on"); }
+// ---- caixinha de histórico ----
+const hhmm = (t) => new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+function histHTML() {
+  const rows = [];
+  [...UNDO.redo].forEach((st, i) => rows.push(`<button class="hrow fut" data-h="r${UNDO.redo.length - i}" title="Refazer até aqui"><i>↷</i><span>${esc(st.desc)}</span><time>${hhmm(st.at)}</time></button>`));
+  rows.push(`<div class="hnow">▸ você está aqui</div>`);
+  [...UNDO.stack].reverse().forEach((st, i) => rows.push(`<button class="hrow" data-h="u${i + 1}" title="Desfazer até antes disso"><i>${i === 0 ? "●" : "○"}</i><span>${esc(st.desc)}</span><time>${hhmm(st.at)}</time></button>`));
+  const empty = !UNDO.stack.length && !UNDO.redo.length;
+  return `<div class="hhead"><b>Histórico desta sessão</b><span class="meta">clique numa linha para voltar até ela</span></div>
+    <div class="hlist">${empty ? `<div class="meta" style="padding:14px 4px">Nenhuma alteração ainda nesta sessão.</div>` : rows.join("")}</div>
+    <button class="btn small" id="hLog" style="width:100%;margin-top:8px">📜 Registro completo (todas as pessoas)</button>`;
 }
-document.addEventListener("keydown", (e) => {
-  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
-    const t = e.target; if (t && (t.matches("input, textarea, select") || t.isContentEditable)) return; // dentro de um campo de texto, Ctrl+Z desfaz o texto
-    if (tab === "decks" && view && view.kind === "gold") return;
-    e.preventDefault(); undoLast();
+function histWire(root, close) {
+  root.onclick = (e) => {
+    if (e.target.closest("#hLog")) { close(); return openLog(); }
+    const r = e.target.closest("[data-h]"); if (!r) return; const n = +r.dataset.h.slice(1);
+    if (r.dataset.h[0] === "u") undoLast(n); else redoLast(n);
+  };
+}
+function paintHist() { const p = $("histPop"); if (p) { p.innerHTML = histHTML(); } if ($("sheet").classList.contains("histsheet") && !$("sheet").classList.contains("hidden")) $("sheetBody").innerHTML = histHTML(); paintUndo(); }
+function openHist() {
+  if (!isWide()) { openSheet(histHTML()); $("sheet").classList.add("histsheet"); histWire($("sheetBody"), closeSheet); return; }
+  let p = $("histPop"); if (p) { p.remove(); return; }
+  p = document.createElement("div"); p.id = "histPop"; p.className = "histpop"; p.innerHTML = histHTML(); document.body.appendChild(p);
+  const r = $("histTop").getBoundingClientRect(); p.style.top = (r.bottom + 6) + "px"; p.style.left = Math.max(8, Math.min(r.right - 380, innerWidth - 388)) + "px";
+  const close = () => { p.remove(); document.removeEventListener("pointerdown", out, true); document.removeEventListener("keydown", ek, true); };
+  const out = (e) => { if (!p.contains(e.target) && !e.target.closest("#histTop, #undoTop, #redoTop")) close(); }; const ek = (e) => { if (e.key === "Escape") close(); };
+  setTimeout(() => { document.addEventListener("pointerdown", out, true); document.addEventListener("keydown", ek, true); }, 0);
+  histWire(p, close);
+}
+// ---- registro (log) ----
+const LOGQ = { kind: null, map: new Map(), t: null };
+const logWho = () => { const u = CLOUD.user; if (!u) return { by: "", who: "Este aparelho" }; return { by: (u.email || "").toLowerCase(), who: (u.displayName || u.email || "").split(/[ @]/)[0] }; };
+function logQueue(kind, ch) {
+  if (LOGQ.kind && LOGQ.kind !== kind) logFlush();
+  LOGQ.kind = kind;
+  for (const x of ch) { const k = x.t + "|" + x.k, o = LOGQ.map.get(k); if (o) o.a = x.a; else LOGQ.map.set(k, { ...x }); }
+  clearTimeout(LOGQ.t); LOGQ.t = setTimeout(logFlush, kind === "edit" ? 3000 : 0);
+}
+async function logFlush() {
+  clearTimeout(LOGQ.t); const kind = LOGQ.kind; const ch = [...LOGQ.map.values()].filter(x => x.a !== x.b); LOGQ.kind = null; LOGQ.map = new Map();
+  if (!kind || !ch.length) return;
+  const { desc, lines, more } = describeCh(ch);
+  const e = { at: Date.now(), ...logWho(), kind, desc: (kind === "undo" ? "↶ Desfez: " : kind === "redo" ? "↷ Refez: " : "") + desc, lines, more, dev: window.bmtgDesktop ? "PC" : IS_APP() ? "Android" : /iPhone|iPad/.test(navigator.userAgent) ? "iPhone" : "navegador" };
+  if (isGuest() || SIM_ON()) return; // convidado não muda a biblioteca (as mudanças voltam)
+  if (cloudReady()) { try { await base().collection("log").add(e); return; } catch (err) { console.warn("registro", err); } }
+  try { const L = (await store.get("log")) || []; L.unshift(e); await store.set("log", L.slice(0, 1000)); } catch (err) {}
+}
+window.addEventListener("pagehide", () => { if (LOGQ.kind) logFlush(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && LOGQ.kind) logFlush(); });
+const LOGV = { items: [], last: null, end: false, who: "", q: "" };
+async function logLoad(more) {
+  if (!more) { LOGV.items = []; LOGV.last = null; LOGV.end = false; }
+  if (LOGV.end) return;
+  if (cloudReady()) {
+    let q = base().collection("log").orderBy("at", "desc").limit(150); if (LOGV.last) q = q.startAfter(LOGV.last);
+    const s = await q.get(); s.docs.forEach(d => LOGV.items.push(d.data())); LOGV.last = s.docs[s.docs.length - 1] || LOGV.last; if (s.docs.length < 150) LOGV.end = true;
+  } else { LOGV.items = (await store.get("log")) || []; LOGV.end = true; }
+}
+function logRender() {
+  const people = [...new Map(LOGV.items.filter(x => x.by).map(x => [x.by, x.who])).entries()];
+  const q = LOGV.q.trim().toLowerCase();
+  const list = LOGV.items.filter(x => (!LOGV.who || x.by === LOGV.who) && (!q || (x.desc + " " + (x.lines || []).join(" ")).toLowerCase().includes(q)));
+  let day = "", html = "";
+  for (const x of list) {
+    const d = new Date(x.at).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "short" });
+    if (d !== day) { day = d; html += `<div class="lday">${esc(d)}</div>`; }
+    const det = (x.lines || []).length > 1 || x.more ? `<div class="ldet hidden">${(x.lines || []).map(l => `<div>${esc(l)}</div>`).join("")}${x.more ? `<div class="meta">e mais ${x.more}</div>` : ""}</div>` : "";
+    html += `<div class="lrow${det ? " exp" : ""}"><time>${hhmm(x.at)}</time><b class="lwho" style="--h:${[...(x.by || "x")].reduce((a, c) => a + c.charCodeAt(0), 0) % 360}">${esc(x.who || "?")}</b><span class="ldesc">${esc(x.desc)}${det ? ` <i class="meta">▾</i>` : ""}</span>${det}</div>`;
   }
+  return `<div class="lbar"><input type="search" id="logQ" placeholder="Buscar no registro (carta, deck…)" value="${esc(LOGV.q)}">
+    <div class="chips"><button class="chip" data-w="" aria-pressed="${!LOGV.who}">Todos</button>${people.map(([e, w]) => `<button class="chip" data-w="${esc(e)}" aria-pressed="${LOGV.who === e}">${esc(w)}</button>`).join("")}</div></div>
+    <div class="llist">${html || `<div class="meta" style="padding:16px 4px">Nada registrado${q || LOGV.who ? " com esse filtro" : " ainda"}.</div>`}</div>
+    ${LOGV.end ? "" : `<button class="btn small" id="logMore" style="width:100%">Carregar mais antigos</button>`}`;
+}
+async function openLog() {
+  if ($("histPop")) $("histPop").remove();
+  openSheet(`<h3 style="margin:0 0 4px">📜 Registro de alterações</h3><div class="meta">Toda mudança na coleção e nos decks, com quem fez e quando.</div><div id="logBox"><div class="meta" style="padding:16px 0">Carregando…</div></div>`, `<button class="btn primary" id="logX">Fechar</button>`);
+  $("sheet").classList.add("wide"); $("logX").onclick = closeSheet;
+  logFlush();
+  const draw = () => { const box = $("logBox"); if (!box) return; const pos = $("logQ") && document.activeElement === $("logQ"); box.innerHTML = logRender(); if (pos) { const i = $("logQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); } };
+  try { await logLoad(); } catch (e) { $("logBox").innerHTML = `<div class="meta" style="padding:16px 0">Não consegui ler o registro: ${esc(e.code || e.message)}</div>`; return; }
+  draw();
+  $("logBox").oninput = (e) => { if (e.target.id === "logQ") { LOGV.q = e.target.value; draw(); } };
+  $("logBox").onclick = async (e) => {
+    const w = e.target.closest("[data-w]"); if (w) { LOGV.who = w.dataset.w; return draw(); }
+    if (e.target.closest("#logMore")) { e.target.disabled = true; try { await logLoad(true); } catch (er) {} return draw(); }
+    const r = e.target.closest(".lrow.exp"); if (r) r.querySelector(".ldet").classList.toggle("hidden");
+  };
+}
+// ---- topo (PC): ↶ ↷ 🕘 ----
+(() => {
+  const g = document.createElement("div"); g.id = "histBar"; g.className = "histbar";
+  g.innerHTML = `<button class="iconbtn" id="undoTop" aria-label="Desfazer" disabled>${SVG_UNDO}</button><button class="iconbtn" id="redoTop" aria-label="Refazer" disabled>${SVG_REDO}</button><button class="iconbtn" id="histTop" aria-label="Histórico" title="Histórico de alterações">${SVG_HIST}</button>`;
+  $("menuBtn").before(g);
+  $("undoTop").onclick = () => undoLast(); $("redoTop").onclick = () => redoLast(); $("histTop").onclick = () => openHist();
+})();
+document.addEventListener("keydown", (e) => {
+  if (!(e.ctrlKey || e.metaKey)) return; const k = (e.key || "").toLowerCase();
+  const isUndo = k === "z" && !e.shiftKey, isRedo = k === "y" || (k === "z" && e.shiftKey); if (!isUndo && !isRedo) return;
+  const t = e.target; if (t && (t.matches("input, textarea, select") || t.isContentEditable)) return; // dentro de um campo de texto, desfaz o texto
+  if (tab === "decks" && view && view.kind === "gold") return; // o playtest tem o próprio desfazer
+  e.preventDefault(); isUndo ? undoLast() : redoLast();
 });
 // ---- Menu do botão direito (PC) ----
 function ctxMenu(x, y, items) {
@@ -2194,7 +2406,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.19x";
+const APP_VERSION = "2026.11.20";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
