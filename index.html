@@ -1369,7 +1369,8 @@ $("scrim").onclick = () => closeSheet();
 const F = { q: "", colors: new Set(), type: "", roles: new Set(), where: "", sort: "name", view: "grid", open: false };
 function colFiltered() {
   const q = norm(F.q);
-  let arr = S.cards.filter(e => e.qty > 0);
+  // terrenos básicos não aparecem na Coleção (ficam só nos decks)
+  let arr = S.cards.filter(e => e.qty > 0 && !/^Basic\b/.test(DB.o[e.oi][5] || ""));
   if (q) arr = arr.filter(e => norm(e.name + " " + DB.o[e.oi][5] + " " + e.set).includes(q) || ptN(e.oi).includes(q));
   // uma cor = só cartas daquela cor; várias cores ou "Multi" = multicoloridas que têm todas as cores escolhidas
   if (F.colors.size) { const cs = [...F.colors].filter(c => "WUBRG".includes(c)), multi = F.colors.has("M") || cs.length > 1, other = [...F.colors].filter(c => c === "C" || c === "L");
@@ -2435,7 +2436,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.20e";
+const APP_VERSION = "2026.11.20f";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
