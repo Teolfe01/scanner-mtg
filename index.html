@@ -1266,6 +1266,15 @@ function manaHTML(cost) {
 function setHTML(set, rar) { const r = RAR[rar] || "common"; return `<i class="ss ss-${esc(String(set).replace(/[^a-z0-9]/g, "")) || "default"} ss-${["common","uncommon","rare","mythic"].includes(r) ? r : "common"} ss-grad"></i>`; }
 // Cartas de duas faces: botão para ver o verso (no Scryfall a imagem do verso fica em /back/ no lugar de /front/)
 const NOBACK = new Set(); // cartas "A // B" sem verso próprio (split, aventura…)
+// Só cartas que têm de fato duas faces físicas (transformar / dupla face modal). Fora: split (Fire // Ice), aventura, Room, Omen.
+function isDFC(oi) {
+  const o = DB.o[oi]; if (!o || !o[0].includes(" // ")) return false;
+  const t = String(o[5] || "").split(" // "), m = String(o[1] || "");
+  if (t.length < 2) return false;
+  if (/Adventure|Omen|\bRoom\b/.test(o[5])) return false;
+  if (m.includes(" // ") && t.every(x => /^(Instant|Sorcery|Tribal Instant|Tribal Sorcery|Kindred Instant|Kindred Sorcery)\b/.test(x))) return false;
+  return true;
+}
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest && ev.target.closest("[data-flip]"); if (!b) return;
   ev.preventDefault(); ev.stopPropagation();
@@ -1286,7 +1295,7 @@ function cardImgHTML(e, opts = {}) {
   const drawn = `<div class="drawn sk"><i class="t"></i><i class="a"></i><i class="y"></i><i class="x"></i><span class="skn">${esc(o[0])}</span></div>`;
   const cls = e.set && (IMGS[imgKey(e.set, e.number)] !== "" || src) ? "cardimg" : "cardimg noimg";
   const gc = BR.gc.has(e.oi) ? `<span class="gcb" title="Game Changer (Commander Brackets)">GC</span>` : "";
-  const fl = e.set && o[0].includes(" // ") && !NOBACK.has(o[0]) ? `<span class="flipb" data-flip="1" role="button" tabindex="0" title="Ver o outro lado" aria-label="Ver o outro lado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5"/><path d="M4 20.5v-5h5"/></svg></span>` : "";
+  const fl = e.set && isDFC(e.oi) && !NOBACK.has(o[0]) ? `<span class="flipb" data-flip="1" role="button" tabindex="0" title="Ver o outro lado" aria-label="Ver o outro lado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 8.5"/><path d="M20 3.5v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15.5"/><path d="M4 20.5v-5h5"/></svg></span>` : "";
   if (opts.bare) return `<div class="${cls}" data-woi="${e.oi}">${drawn}${inner}${gc}${fl}</div>`;
   const price = priceOf(e); const dq = inDecks(e);
   const deckName = dq ? (S.decks.find(d => e.decks[d.id]) || {}).name : "";
@@ -2426,7 +2435,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.20c";
+const APP_VERSION = "2026.11.20d";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
