@@ -168,7 +168,8 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 
 /* Scanner */
 #scanView { position: fixed; inset: 0; bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); background: #000; z-index: 5; overflow: hidden; }
-#video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform-origin: 50% 50%; transition: transform .08s linear; }
+#video:not(.live) { opacity: 0; }
+#video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; transform-origin: 50% 50%; transition: transform .08s linear; }
 .guide { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); aspect-ratio: 63 / 88; width: min(64vw, 46vh * 63 / 88); border-radius: 4.5% / 3.2%; box-shadow: 0 0 0 200vmax rgba(0,0,0,.45); border: 3px solid rgba(255,255,255,.85); }
 .guide.seen { border-color: var(--warn); } .guide.lock { border-color: var(--ok); }
 .guide .band { position: absolute; left: 5%; right: 5%; border: 1.5px dashed rgba(255,255,255,.5); border-radius: 4px; }
@@ -886,7 +887,7 @@ html.desk .sheet, html.desk .scrim, html.desk .ctxm, html.desk .dragghost { -web
 
 <!-- Scanner -->
 <div id="scanView" class="hidden">
-  <video id="video" playsinline autoplay muted></video>
+  <video id="video" playsinline autoplay muted poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"></video>
   <div class="guide" id="guide"><div class="band t"></div><div class="band f"></div></div>
   <div class="scantop">
     <select id="scanDest" class="chipbtn" aria-label="Destino" style="width:auto;min-height:0;padding:7px 10px"></select>
@@ -2425,7 +2426,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.20a";
+const APP_VERSION = "2026.11.20b";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -4778,7 +4779,7 @@ async function startScanner() {
   $("scanStatus").textContent = "Aponte para uma carta (segure a ~15–20 cm)";
   clearInterval(SC.timer); SC.timer = setInterval(tick, 250); SC.paused = false;
 }
-function stopCamera() { SC.camGen++; if (VOICE.rec) { try { VOICE.rec.abort(); } catch {} } VOICE.running = false; clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; const v = $("video"); if (v) { try { v.pause(); } catch {} v.srcObject = null; } }
+function stopCamera() { SC.camGen++; if (VOICE.rec) { try { VOICE.rec.abort(); } catch {} } VOICE.running = false; clearInterval(SC.timer); if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; track = null; const v = $("video"); if (v) { try { v.pause(); } catch {} v.srcObject = null; v.classList.remove("live"); } }
 // Câmera e microfone só ficam ligados com a aba Escanear aberta e a janela visível
 const camWanted = () => tab === "scan" && !document.hidden;
 document.addEventListener("visibilitychange", () => { if (document.hidden) { if (stream || VOICE.running) { stopCamera(); SC.camOff = true; } } else if (SC.camOff && tab === "scan") { SC.camOff = false; startScanner().then(voiceSync); } });
@@ -4791,7 +4792,7 @@ async function startCamera(deviceId) {
   if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { ideal: "environment" };
   const gen = ++SC.camGen; const st = await navigator.mediaDevices.getUserMedia({ audio: false, video });
   if (gen !== SC.camGen || !camWanted()) { st.getTracks().forEach(t => t.stop()); if (gen === SC.camGen) stopCamera(); return; } // saiu da aba enquanto abria
-  stream = st; track = stream.getVideoTracks()[0];
+  stream = st; track = stream.getVideoTracks()[0]; const vEl = $("video"); if (vEl) { const on = () => vEl.classList.add("live"); vEl.addEventListener("playing", on, { once: true }); setTimeout(on, 1500); }
   const v = $("video"); v.srcObject = stream; await v.play().catch(() => {});
   const caps = track.getCapabilities ? track.getCapabilities() : {};
   $("torchBtn").classList.toggle("hidden", !caps.torch);
