@@ -156,6 +156,7 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 .stepper button { border: 0; background: transparent; width: 40px; height: 100%; font-size: 20px; color: var(--accent); }
 .stepper span { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .loc { display: grid; gap: 6px; }
+.loc .locdeck { cursor: pointer; transition: background .12s; } .loc .locdeck:hover { background: rgba(var(--acc-rgb), .14); } .locgo { color: var(--accent); font-weight: 600; margin-left: 6px; font-size: 13px; }
 .loc div { display: flex; justify-content: space-between; gap: 8px; background: var(--surface); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
 .toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); background: #eef1f6; color: #1d2129; padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
 .menu { position: absolute; right: 10px; top: 52px; background: var(--surface-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); padding: 6px; display: grid; min-width: 240px; z-index: 40; }
@@ -1275,6 +1276,12 @@ function isDFC(oi) {
   if (m.includes(" // ") && t.every(x => /^(Instant|Sorcery|Tribal Instant|Tribal Sorcery|Kindred Instant|Kindred Sorcery)\b/.test(x))) return false;
   return true;
 }
+// "Onde está": tocar no deck abre o deck
+document.addEventListener("click", (ev) => {
+  const g = ev.target.closest && ev.target.closest("[data-godeck]"); if (!g) return;
+  ev.preventDefault(); ev.stopPropagation(); const id = g.dataset.godeck; if (!S.decks.some(d => d.id === id)) return toast("Esse deck não existe mais");
+  closeSheet(); setTimeout(() => go("decks", { kind: "deck", id }), 60);
+}, true);
 document.addEventListener("click", (ev) => {
   const b = ev.target.closest && ev.target.closest("[data-flip]"); if (!b) return;
   ev.preventDefault(); ev.stopPropagation();
@@ -1450,7 +1457,7 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
   const o = oInfo(e.oi); const lib = freeQty(e);
   const locs = [];
   if (lib) locs.push(`<div><span>📦 ${esc(whereLib(e).text)}</span><b>${lib}×</b></div>`);
-  for (const [did, q] of Object.entries(e.decks || {})) { const d = S.decks.find(x => x.id === did); if (d && q) locs.push(`<div><span>🃏 Deck: ${esc(d.name)}</span><b>${q}×</b></div>`); }
+  for (const [did, q] of Object.entries(e.decks || {})) { const d = S.decks.find(x => x.id === did); if (d && q) locs.push(`<div class="locdeck" data-godeck="${esc(d.id)}" role="button" tabindex="0" title="Abrir o deck"><span>🃏 Deck: ${esc(d.name)}</span><b>${q}× <span class="locgo">Abrir ›</span></b></div>`); }
   openSheet(`
     <div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3><div>${manaHTML(o.mana)}</div><div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div>
       <div class="meta">${setHTML(e.set, rarityOf(e))} ${esc(DB.sets[e.set] || e.set)} #${esc(e.number)} · ${esc((e.lang || "en").toUpperCase())}${e.foil ? " · foil" : ""}</div>
@@ -2436,7 +2443,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.20f";
+const APP_VERSION = "2026.11.20g";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
