@@ -85,6 +85,7 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 .cardimg .flag { position: absolute; left: 6%; bottom: 5%; font-size: 15px; line-height: 1; }
 .cardimg .flag.txt { font-size: 10px; font-weight: 700; background: rgba(20,22,26,.85); padding: 3px 5px; border-radius: 4px; }
 .cardimg .dot { position: absolute; right: 6%; bottom: 5%; width: 18px; height: 18px; border-radius: 50%; border: 3px solid rgba(20,22,26,.85); background: conic-gradient(#ff9ec7, #9ed8ff, #b6ffa8, #fff59e, #ff9ec7); }
+.cardimg .deckb.pend { background: rgba(15,16,20,.82); color: var(--accent); border: 1.5px dashed var(--accent); }
 .cardimg .deckb { position: absolute; right: 5%; top: 3.5%; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 700; padding: 3px 6px; border-radius: 6px; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drawn { position: absolute; inset: 0; padding: 22% 8% 28%; display: grid; grid-template-rows: auto 1fr auto; gap: 6%; background: linear-gradient(180deg, color-mix(in srgb, var(--frame, var(--fC)) 55%, #1a1a1a), color-mix(in srgb, var(--frame, var(--fC)) 25%, #111)); }
 .drawn .dn { background: rgba(255,255,255,.85); color: #1a1a1a; border-radius: 4px; padding: 4px 5px; font-size: 10px; font-weight: 600; text-align: left; }
@@ -157,6 +158,7 @@ nav.bottom button[aria-current="page"] { color: var(--accent); }
 .stepper span { min-width: 28px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 .loc { display: grid; gap: 6px; }
 .loc .locdeck { cursor: pointer; transition: background .12s; } .loc .locdeck:hover { background: rgba(var(--acc-rgb), .14); } .locgo { color: var(--accent); font-weight: 600; margin-left: 6px; font-size: 13px; }
+.loc .locpend { align-items: center; border: 1px dashed rgba(var(--acc-rgb), .45); } .loc .locpend a { color: var(--accent); }
 .loc div { display: flex; justify-content: space-between; gap: 8px; background: var(--surface); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
 .toast { position: fixed; left: 50%; top: calc(16px + env(safe-area-inset-top)); transform: translateX(-50%); background: #eef1f6; color: #1d2129; padding: 10px 16px; border-radius: 8px; font-size: 14px; z-index: 60; max-width: calc(100% - 32px); box-shadow: 0 4px 16px rgba(0,0,0,.5); }
 .menu { position: absolute; right: 10px; top: 52px; background: var(--surface-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); padding: 6px; display: grid; min-width: 240px; z-index: 40; }
@@ -1276,6 +1278,12 @@ function isDFC(oi) {
   if (m.includes(" // ") && t.every(x => /^(Instant|Sorcery|Tribal Instant|Tribal Sorcery|Kindred Instant|Kindred Sorcery)\b/.test(x))) return false;
   return true;
 }
+document.addEventListener("click", (ev) => {
+  const m = ev.target.closest && ev.target.closest("[data-mount]"); if (!m) return; ev.preventDefault(); ev.stopPropagation();
+  const d = S.decks.find(x => x.id === m.dataset.mount); const ke = m.dataset.ek; const e = ke ? S.cards.find(x => x.key === ke) : null; if (!d || !e) return;
+  const want = d.cards.filter(c => c.oi === e.oi && c.board !== "maybe").reduce((a, c) => a + c.qty, 0); const r = allocate(d, e.oi, want); save(); LISTED.m = null;
+  toast(`✓ ${e.name} marcada como montada em ${d.name}`, 2000); openCard(e.key); if (tab === "col") drawCol();
+}, true);
 // "Onde está": tocar no deck abre o deck
 document.addEventListener("click", (ev) => {
   const g = ev.target.closest && ev.target.closest("[data-godeck]"); if (!g) return;
@@ -1308,7 +1316,7 @@ function cardImgHTML(e, opts = {}) {
   const deckName = dq ? (S.decks.find(d => e.decks[d.id]) || {}).name : "";
   return `<div class="${cls}" data-woi="${e.oi}">${drawn}${inner}${fl}
     ${e.qty > 1 ? `<span class="qtyb">${e.qty}</span>` : ""}
-    ${dq ? `<span class="deckb" title="Em deck">${esc(deckName)}${dq < e.qty ? ` ${dq}/${e.qty}` : ""}</span>` : ""}
+    ${dq ? `<span class="deckb" title="Em deck">${esc(deckName)}${dq < e.qty ? ` ${dq}/${e.qty}` : ""}</span>` : (() => { const l = freeQty(e) > 0 ? listedNotBuilt(e.oi) : []; return l.length ? `<span class="deckb pend" title="Está na lista do deck ${esc(l[0][0].name)}, mas a cópia ainda está na caixa">${esc(l[0][0].name)} · na caixa</span>` : ""; })()}
     ${price && !NOPR() ? `<span class="price">${fmtUSD(price)}</span>` : ""}
     ${emojiOK && FLAGS[e.lang] ? `<span class="flag">${FLAGS[e.lang]}</span>` : `<span class="flag txt">${esc((e.lang || "en").toUpperCase())}</span>`}
     ${e.foil ? `<span class="dot" title="Foil"></span>` : ""}</div>`;
@@ -1458,6 +1466,7 @@ function openCard(key) { setTimeout(() => { if (!$("sheet").classList.contains("
   const locs = [];
   if (lib) locs.push(`<div><span>📦 ${esc(whereLib(e).text)}</span><b>${lib}×</b></div>`);
   for (const [did, q] of Object.entries(e.decks || {})) { const d = S.decks.find(x => x.id === did); if (d && q) locs.push(`<div class="locdeck" data-godeck="${esc(d.id)}" role="button" tabindex="0" title="Abrir o deck"><span>🃏 Deck: ${esc(d.name)}</span><b>${q}× <span class="locgo">Abrir ›</span></b></div>`); }
+  if (lib && !NOPR()) for (const [d, falta] of listedNotBuilt(e.oi)) locs.push(`<div class="locpend"><span>🃏 Na lista de <a href="#" data-godeck="${esc(d.id)}">${esc(d.name)}</a> · ainda na caixa</span><button class="btn small" data-mount="${esc(d.id)}" data-ek="${esc(e.key)}" title="Marca ${Math.min(falta, lib)} cópia(s) como montada(s) neste deck">✓ Já está no deck</button></div>`);
   openSheet(`
     <div class="detail">${cardImgHTML(e, { bare: true })}<div><h3>${esc(o.name)}</h3><div>${manaHTML(o.mana)}</div><div class="meta">${esc(o.type)}${o.pt ? " · " + esc(o.pt) : ""}</div>
       <div class="meta">${setHTML(e.set, rarityOf(e))} ${esc(DB.sets[e.set] || e.set)} #${esc(e.number)} · ${esc((e.lang || "en").toUpperCase())}${e.foil ? " · foil" : ""}</div>
@@ -1657,6 +1666,14 @@ function restoreBackup(id, meta) {
 // ============ DECKS ============
 // Deck: { id, name, format, source, cards: [{ oi, qty, board: 'main'|'side'|'cmd', set?, number? }], built: bool }
 const deckCount = (d, board) => d.cards.filter(c => !board || c.board === board).reduce((a, c) => a + c.qty, 0);
+// Decks que listam a carta mas ainda não têm cópia montada (carta continua na caixa)
+const LISTED = { at: 0, m: null };
+function listedNotBuilt(oi) {
+  if (!LISTED.m || Date.now() - LISTED.at > 400) { LISTED.at = Date.now(); LISTED.m = new Map();
+    for (const d of S.decks) { const need = new Map(); d.cards.forEach(c => { if (c.board !== "maybe") need.set(c.oi, (need.get(c.oi) || 0) + c.qty); });
+      for (const [o, q] of need) { const h = haveFor(d, o); if (h < q) { if (!LISTED.m.has(o)) LISTED.m.set(o, []); LISTED.m.get(o).push([d, q - h]); } } } }
+  return LISTED.m.get(oi) || [];
+}
 function haveFor(d, oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + ((e.decks || {})[d.id] || 0), 0); }
 function libFor(oi) { return S.cards.filter(e => e.oi === oi).reduce((a, e) => a + freeQty(e), 0); }
 // Convite pronto com os links (o app não manda e-mail sozinho: abre o seu app de e-mail já preenchido, ou copia o texto)
@@ -2443,7 +2460,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.20g";
+const APP_VERSION = "2026.11.20h";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
