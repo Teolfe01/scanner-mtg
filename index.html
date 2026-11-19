@@ -2257,7 +2257,7 @@ function comparePick(c) {
 }
 function changePrint(d, c, after) {
   const id = d.id, oi = c.oi, board = c.board;
-  pickVersion(c.oi, "", (r) => { const dd = S.decks.find(x => x.id === id) || d; c = dd.cards.find(x => x.oi === oi && x.board === board) || c; c.set = r.set; c.number = r.number; if (r.foilOnly) c.foil = true; save(); after && after(); toast(`${DB.o[c.oi][0]} → ${r.set.toUpperCase()} #${r.number}${r.t && r.t.length ? " · " + r.t.join(" · ") : ""}`, 2200); }, (() => { const pi = printFor(c); return pi >= 0 ? { set: DB.p[pi][0], number: DB.p[pi][1] } : null; })());
+  pickVersion(c.oi, "", (r) => { const dd = S.decks.find(x => x.id === id) || d; c = dd.cards.find(x => x.oi === oi && x.board === board) || c; c.set = r.set; c.number = normNum(r.number); if (r.foilOnly) c.foil = true; save(); after && after(); toast(`${DB.o[c.oi][0]} → ${r.set.toUpperCase()} #${r.number}${r.t && r.t.length ? " · " + r.t.join(" · ") : ""}`, 2200); }, (() => { const pi = printFor(c); return pi >= 0 ? { set: DB.p[pi][0], number: DB.p[pi][1] } : null; })());
 }
 function cardCtx(e, d, c, after, openFn) {
   if (e.ctrlKey || e.metaKey) return; // Ctrl + botão direito: menu padrão do navegador
@@ -2435,7 +2435,7 @@ function addCardToDeck(d) {
 }
 
 // ============ CONFIGURAÇÕES ============
-const APP_VERSION = "2026.11.20d";
+const APP_VERSION = "2026.11.20e";
 // ============ SOBRE ============
 function showAbout() {
   if ($("about")) return;
@@ -3898,7 +3898,9 @@ const BOARD_NAME = { cmd: "Comandante", main: "Principal", side: "Sideboard", ma
 const isWide = () => window.innerWidth >= 1000;
 const deckOf = () => S.decks.find(d => d.id === ED.id);
 function printFor(c) { if (c.set && c.number) { const pi = DB.bySetNum.get(c.set + "|" + normNum(c.number)); if (pi !== undefined) return pi; } return defaultPrint(c.oi); }
-function fakeEntry(c) { const pi = printFor(c); return { oi: c.oi, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "", foil: false, lang: "en" }; }
+// edição escolhida vale mesmo se não estiver no banco local (versões novas/tratamentos que vêm do Scryfall)
+function fakeEntry(c) { if (c.set && c.number && DB.bySetNum.get(c.set + "|" + normNum(c.number)) === undefined) return { oi: c.oi, set: c.set, number: normNum(c.number), foil: !!c.foil, lang: "en" };
+  const pi = printFor(c); return { oi: c.oi, set: pi >= 0 ? DB.p[pi][0] : "", number: pi >= 0 ? DB.p[pi][1] : "", foil: !!c.foil, lang: "en" }; }
 function cardPrice(c) { const pi = printFor(c); return pi >= 0 ? brlOf(DB.p[pi][0], DB.p[pi][1], c.foil) : 0; }
 function deckCI(d) { const cmd = d.cards.filter(c => c.board === "cmd"); return cmd.length ? new Set(cmd.flatMap(c => DB.o[c.oi][4].split("")).filter(Boolean)) : null; }
 function primaryType(oi) { const t = mainTypes(DB.o[oi][5]); return t.find(x => x !== "Land") || t[0] || "Other"; }
@@ -5194,7 +5196,14 @@ function applyDoc(list, id, data, idField) {
   if (data === null) { if (i >= 0) list.splice(i, 1); return; }
   if (i >= 0) { const o = list[i]; Object.keys(o).forEach(k => { if (!(k in data)) delete o[k]; }); Object.assign(o, data); } else list.push(data);
 }
-function startSync() {
+// O que este aparelho já viu na nuvem. Serve para não "ressuscitar" cartas/decks que outro aparelho apagou ou mudou de edição
+// (antes, ao abrir o app, tudo que estava só aqui era reenviado — inclusive a edição antiga de uma carta trocada no outro aparelho).
+const KNOWN = { cards: null, decks: null };
+const knownKey = (name) => "known:" + LIB + ":" + name;
+let knownT = null;
+function saveKnown() { clearTimeout(knownT); knownT = setTimeout(() => { for (const n of ["cards", "decks"]) if (KNOWN[n]) store.set(knownKey(n), [...KNOWN[n]]).catch(() => {}); }, 1500); }
+async function startSync() {
+  for (const n of ["cards", "decks"]) { if (KNOWN[n]) continue; try { const v = await store.get(knownKey(n)); KNOWN[n] = Array.isArray(v) ? new Set(v) : null; } catch (e) { KNOWN[n] = null; } }
   const localCards = S.cards.slice(), localDecks = S.decks.slice(), localBoxes = S.boxes;
   CLOUD.unsub.forEach(f => f()); CLOUD.unsub = [];
   const watch = (name, list, idField, local) => base().collection(name).onSnapshot({ includeMetadataChanges: false }, snap => {
@@ -5204,9 +5213,15 @@ function startSync() {
     if (first) {
       const remote = snap.docs.map(d => d.data());
       const ids = new Set(remote.map(x => docId(x[idField])));
-      const onlyLocal = local.filter(x => !ids.has(docId(x[idField])));
+      // só envia o que nunca esteve na nuvem (criado aqui offline). O que já esteve e sumiu foi apagado/trocado em outro aparelho.
+      const kn = KNOWN[name]; const RECENT = 3 * 864e5;
+      const onlyLocal = local.filter(x => { const id = docId(x[idField]); if (ids.has(id)) return false;
+        if (kn) return !kn.has(id);
+        return !remote.length || Date.now() - (x.added || x.created || 0) < RECENT; }); // primeira vez com esta versão: só o que é recente
+      const dropped = local.length - remote.length - onlyLocal.length;
       list.splice(0, list.length, ...remote, ...onlyLocal);
       CLOUD.synced[name] = true;
+      if (dropped > 0) console.log(`[sync] ${name}: ${dropped} item(ns) local(is) antigo(s) descartado(s) — apagados/alterados em outro aparelho`);
       if (onlyLocal.length) { toast(`Enviando ${onlyLocal.length} ${name === "cards" ? "carta(s)" : "deck(s)"} deste celular para a nuvem…`); pushCloud(); }
     } else {
       // mudanças feitas neste aparelho voltam como "eco" do Firestore: os dados já estão aqui, não precisa redesenhar
@@ -5215,6 +5230,7 @@ function startSync() {
       remote.forEach(ch => applyDoc(list, ch.doc.id, ch.type === "removed" ? null : ch.doc.data(), idField));
     }
     if (name === "decks" && isGuest()) overlayPending();
+    if (!snap.metadata.fromCache) { KNOWN[name] = new Set(snap.docs.map(d => d.id)); saveKnown(); }
     store.set(name, list).catch(() => {}); rerenderSoon(); updateCloudBadge();
   }, err => cloudError(err));
   if (LIB === "principal" && CLOUD.user) CLOUD.unsub.push(base().collection("meta").doc("access").onSnapshot(doc => {
